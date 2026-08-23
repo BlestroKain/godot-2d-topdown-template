@@ -10,7 +10,7 @@ A comprehensive game template designed for Godot 4, providing everything you nee
 
 ### Latest tested Godot Version
 
-[![Godot Engine](https://img.shields.io/badge/Godot_4.6.1-blue?logo=godotengine&logoColor=white)](https://godotengine.org)
+[![Godot Engine](https://img.shields.io/badge/Godot_4.7.2-blue?logo=godotengine&logoColor=white)](https://godotengine.org)
 
 Godot version 4.4 or later is required, as the code utilizes [typed dictionaries](https://godotengine.org/article/dev-snapshot-godot-4-4-dev-2/#typed-dictionaries).
 
