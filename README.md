@@ -80,7 +80,6 @@ Simplify testing with a configurable debugger. Test features like saving session
 
 - **nathanhoad** for [Godot Dialogue Manager](https://github.com/nathanhoad/godot_dialogue_manager)
 - **baconandgames** for [Godot4 Game Template](https://github.com/baconandgames/godot4-game-template)
-- **dandeliondino** for [Tile Bit Tools](https://github.com/dandeliondino/tile_bit_tools)
 
 ## In Conclusion...
 
