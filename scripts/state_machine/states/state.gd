@@ -73,6 +73,12 @@ func handle_input(_event: InputEvent):
 func complete(params = null):
 	if delay_completion == Vector2.ZERO:
 		_enable_on_completion(params)
+	elif delay_completion.x >= 0 and delay_completion.y >= 0:
+		await _start_timer(delay_completion).timeout
+		_enable_on_completion(params)
+	else:
+		print(name, " State Node: Delay Completion values must be greater than or equal to zero.")
+		_enable_on_completion(params)
 
 func _enable_on_completion(params):
 	for state in on_completion:
