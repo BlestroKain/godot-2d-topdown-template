@@ -16,7 +16,7 @@ Godot version 4.4 or later is required, as the code utilizes [typed dictionaries
 
 ## 🎮 Web Demo
 
-[Play the web demo](https://alchemy-pot.web.app/files/godot-2d-topdown-template/play) to get a grasp of the available features.
+[Play the web demo](https://stesproject.itch.io/godot-2d-top-down-template-demo) to get a grasp of the available features.
 
 ## ⚙️ Features
 
@@ -68,9 +68,9 @@ Save and load user preferences, such as music and sound effect volumes or select
 
 Integrate a robust dialogue system to display message boxes and manage dialogues between game characters, enhancing narrative depth and player engagement.
 
-## [Tilemaps and Levels](https://alchemy-pot.web.app/godot-2d-topdown-template/tilemaps-and-levels)
+## [Levels](https://alchemy-pot.web.app/godot-2d-topdown-template/tilemaps-and-levels)
 
-If you plan to use Tilemaps and the pre-built Level scene to build your levels, here you can discover some useful tips to create new levels and setting up autotiles in no time.
+If you plan to use the pre-built Level scene to build your levels, here you can discover some useful tips to create new levels in no time.
 
 ## [Debugger](https://alchemy-pot.web.app/godot-2d-topdown-template/debugger)
 
