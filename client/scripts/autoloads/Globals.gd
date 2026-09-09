@@ -33,7 +33,7 @@ func get_selected_language() -> String:
 	return Const.LANGUAGES[0]
 
 func open_settings_menu():
-	if not settings_menu:
+	if not is_instance_valid(settings_menu):
 		settings_menu = settings_menu_scene.instantiate()
 		get_tree().root.add_child(settings_menu)
 	else:

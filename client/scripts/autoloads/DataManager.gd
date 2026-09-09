@@ -24,6 +24,9 @@ func reset_file_data():
 
 ## Called when loading a game.
 func load_file_data():
+	if ProjectSettings.get_setting("mmo/server_authoritative", true):
+		reset_file_data()
+		return
 	_file = SaveFileManager.load_save_file()
 
 func get_player_data(player_id: int):
@@ -47,12 +50,16 @@ func load_level_data():
 	_load_nodes_data()
 
 func load_game() -> void:
+	if ProjectSettings.get_setting("mmo/server_authoritative", true):
+		return
 	print("loading...")
 	load_file_data()
 	_load_game_data()
 	game_loaded.emit()
 
 func save_game() -> void:
+	if ProjectSettings.get_setting("mmo/server_authoritative", true):
+		return
 	print("saving...")
 	_save_game_data()
 	_save_nodes_data()

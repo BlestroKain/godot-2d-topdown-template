@@ -3,6 +3,9 @@ extends Node
 var start_screen: NodePath = "res://scenes/menus/start_screen.tscn"
 
 func _ready():
+	if ProjectSettings.get_setting("mmo/server_authoritative", true):
+		set_process_unhandled_key_input(false)
+		return
 	if not OS.is_debug_build():
 		set_process_unhandled_key_input(false)
 		print("DEBUGGER DISABLED.")

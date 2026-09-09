@@ -7,12 +7,18 @@ class_name SaveFileManager
 @export var game_data: DataGame = null
 
 func write_save_file() -> void:
+	if ProjectSettings.get_setting("mmo/server_authoritative", true):
+		return
 	ResourceSaver.save(self, get_save_file_path())
 
 static func save_file_exists() -> bool:
+	if ProjectSettings.get_setting("mmo/server_authoritative", true):
+		return false
 	return ResourceLoader.exists(get_save_file_path())
 
 static func load_save_file() -> Resource:
+	if ProjectSettings.get_setting("mmo/server_authoritative", true):
+		return SaveFileManager.new()
 	var save_path := get_save_file_path()
 	if ResourceLoader.exists(save_path):
 		return ResourceLoader.load(save_path, "", ResourceLoader.CACHE_MODE_REPLACE)
