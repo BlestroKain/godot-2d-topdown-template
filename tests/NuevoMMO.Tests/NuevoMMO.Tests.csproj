@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../server/NuevoMMO.Server/NuevoMMO.Server.csproj" />
+    <ProjectReference Include="../../client/mmo/core/NuevoMMO.Client.Core.csproj" />
+    <None Include="../../server/Fixtures/movement.json" Link="Fixtures/movement.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

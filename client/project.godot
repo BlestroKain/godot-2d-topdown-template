@@ -14,11 +14,11 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 
 [application]
 
-config/name="Godot 2D Top-Down Template"
+config/name="Nuevo MMO"
 config/version="1.9.4"
-config/tags=PackedStringArray("template")
-run/main_scene="res://scenes/menus/start_screen.tscn"
-config/features=PackedStringArray("4.7", "GL Compatibility")
+config/tags=PackedStringArray("mmo", "prototype")
+run/main_scene="res://mmo/presentation/bootstrap.tscn"
+config/features=PackedStringArray("4.7", "C#", "GL Compatibility")
 config/icon="uid://cvnvko43mnhfy"
 
 [autoload]
@@ -180,3 +180,12 @@ textures/canvas_textures/default_texture_filter=0
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
 2d/snap/snap_2d_transforms_to_pixel=true
+
+[mmo]
+
+server_authoritative=true
+
+[dotnet]
+
+project/assembly_name="NuevoMMO.Client"
+

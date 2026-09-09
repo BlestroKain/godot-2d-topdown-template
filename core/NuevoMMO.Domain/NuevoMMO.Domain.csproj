@@ -1,0 +1,3 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup><ProjectReference Include="../../shared/NuevoMMO.Contracts/NuevoMMO.Contracts.csproj" /></ItemGroup>
+</Project>

@@ -1,0 +1,7 @@
+<Project Sdk="Godot.NET.Sdk/4.7.1">
+  <PropertyGroup><EnableDynamicLoading>true</EnableDynamicLoading><TreatWarningsAsErrors>false</TreatWarningsAsErrors><TargetFramework>net8.0</TargetFramework></PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="mmo/core/**/*.cs" />
+    <ProjectReference Include="mmo/core/NuevoMMO.Client.Core.csproj" />
+  </ItemGroup>
+</Project>

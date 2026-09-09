@@ -1,0 +1,12 @@
+{
+  "map": "d3a61f12-9301-4e42-bbce-5e492ee41d89",
+  "instance": 1,
+  "width": 960,
+  "height": 640,
+  "spawnX": 240,
+  "spawnY": 240,
+  "speed": 120,
+  "tickMilliseconds": 50,
+  "interestRadius": 420,
+  "maxPlayers": 32
+}
