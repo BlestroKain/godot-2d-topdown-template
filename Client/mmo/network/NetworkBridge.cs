@@ -19,14 +19,20 @@ public partial class NetworkBridge : Node
     public bool InWorld => World.Predictor is not null;
     public static double Now => Time.GetTicksMsec() / 1000d;
 
-    public async void ConnectToServer(string host, int port, string name)
+    public void Login(string host, int port, string username, string password)
+        => ConnectToServer(host, port, username, password, false);
+
+    public void Register(string host, int port, string username, string password)
+        => ConnectToServer(host, port, username, password, true);
+
+    public async void ConnectToServer(string host, int port, string username, string password, bool registerAccount = false)
     {
         if (connection is not null) return;
-        World.Clear(); SetStatus("Conectando…");
+        World.Clear(); SetStatus(registerAccount ? "Registrando…" : "Conectando…");
         var current = new GameConnection(); connection = current;
         current.Message += message => Enqueue(current, message, null);
         current.Closed += error => Enqueue(current, null, error);
-        try { await current.ConnectAsync(host, port, name); }
+        try { await current.ConnectAsync(host, port, username, password, registerAccount); }
         catch (Exception exception) { Enqueue(current, null, exception.Message); }
     }
 
@@ -51,6 +57,8 @@ public partial class NetworkBridge : Node
                 if (item.Error is not null) { DisconnectFromServer(); SetStatus("Conexión cerrada: " + item.Error); continue; }
                 switch (item.Message)
                 {
+                    case RegisterResult registration when registration.Succeeded: SetStatus("Cuenta creada · iniciando sesión"); break;
+                    case LoginResult login when login.Succeeded: SetStatus("Autenticado · cargando personajes"); break;
                     case MapLoadPacket map: World.Start(map); SetStatus("Conectado · entrando al mundo"); break;
                     case EntityStatePacket snapshot:
                         World.Apply(snapshot, Now); SetStatus("En el mundo"); EmitSignal(SignalName.WorldUpdated); break;
