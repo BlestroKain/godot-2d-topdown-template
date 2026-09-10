@@ -1,9 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
-  <ItemGroup>
-    <ProjectReference Include="../NuevoMMO.Application/NuevoMMO.Application.csproj" />
-    <ProjectReference Include="../../shared/NuevoMMO.Protocol/NuevoMMO.Protocol.csproj" />
-    <Compile Include="../Fixtures/DevelopmentWorldFactory.cs" Link="Bootstrap/DevelopmentWorldFactory.cs" />
-    <None Include="../Fixtures/movement.json" Link="Fixtures/movement.json" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
-</Project>

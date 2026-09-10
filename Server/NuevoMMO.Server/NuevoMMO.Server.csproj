@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../Core/NuevoMMO.Core/NuevoMMO.Core.csproj" />
+    <ProjectReference Include="../../Network/NuevoMMO.Network/NuevoMMO.Network.csproj" />
+    <PackageReference Include="Microsoft.Extensions.Identity.Core" Version="8.0.11" />
+    <PackageReference Include="Npgsql" Version="8.0.8" />
+    <Compile Include="../Fixtures/**/*.cs" Link="Fixtures/%(RecursiveDir)%(Filename)%(Extension)" />
+    <None Include="../Fixtures/*.json" Link="Fixtures/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <EmbeddedResource Include="Database/Migrations/*.sql" />
+  </ItemGroup>
+</Project>

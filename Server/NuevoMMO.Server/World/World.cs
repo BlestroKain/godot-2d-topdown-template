@@ -1,0 +1,226 @@
+using NuevoMMO.Core;
+using NuevoMMO.Network;
+using NuevoMMO.Server.Entities;
+using NuevoMMO.Server.Systems;
+
+namespace NuevoMMO.Server.World;
+
+public sealed class EntityRegistry
+{
+    private readonly Dictionary<EntityId, Entity> entities = [];
+    public int Count => entities.Count;
+    public IEnumerable<Entity> All => entities.Values;
+    public void Add(Entity entity)
+    {
+        if (!entities.TryAdd(entity.Id, entity)) throw new InvalidOperationException("EntityId duplicado.");
+    }
+    public bool Remove(EntityId id, out Entity? entity) => entities.Remove(id, out entity);
+    public T Get<T>(EntityId id) where T : Entity => entities.TryGetValue(id, out var entity) && entity is T typed
+        ? typed : throw new KeyNotFoundException("Entidad inexistente o de tipo incorrecto.");
+    public bool TryGet(EntityId id, out Entity? entity) => entities.TryGetValue(id, out entity);
+}
+
+public sealed class SpatialIndex(float cellSize)
+{
+    private readonly Dictionary<(int X, int Y), HashSet<EntityId>> cells = [];
+    private readonly Dictionary<EntityId, (int X, int Y)> locations = [];
+    private (int X, int Y) Cell(Vector2Data position) => ((int)MathF.Floor(position.X / cellSize), (int)MathF.Floor(position.Y / cellSize));
+    public void Update(EntityId id, Vector2Data position)
+    {
+        var cell = Cell(position); if (locations.TryGetValue(id, out var previous) && previous == cell) return;
+        Remove(id); if (!cells.TryGetValue(cell, out var bucket)) cells[cell] = bucket = [];
+        bucket.Add(id); locations[id] = cell;
+    }
+    public void Remove(EntityId id)
+    {
+        if (!locations.Remove(id, out var cell)) return;
+        cells[cell].Remove(id); if (cells[cell].Count == 0) cells.Remove(cell);
+    }
+    public IEnumerable<EntityId> Query(Vector2Data center, float radius)
+    {
+        var min = Cell(new(center.X - radius, center.Y - radius)); var max = Cell(new(center.X + radius, center.Y + radius));
+        for (var x = min.X; x <= max.X; x++) for (var y = min.Y; y <= max.Y; y++)
+            if (cells.TryGetValue((x, y), out var bucket)) foreach (var id in bucket) yield return id;
+    }
+}
+
+public sealed class InterestManager(SpatialIndex spatialIndex, float radius)
+{
+    public IEnumerable<Entity> Relevant(Player viewer, EntityRegistry registry)
+    {
+        foreach (var id in spatialIndex.Query(viewer.Position, radius))
+        {
+            if (!registry.TryGet(id, out var entity) || entity is null || entity.MapInstance != viewer.MapInstance) continue;
+            var dx = entity.Position.X - viewer.Position.X; var dy = entity.Position.Y - viewer.Position.Y;
+            if (dx * dx + dy * dy <= radius * radius) yield return entity;
+        }
+    }
+}
+
+public sealed class SpawnManager
+{
+    private long nextEntity;
+    public EntityId NextId() => new(Interlocked.Increment(ref nextEntity));
+    public Player Player(CharacterSpawn spawn, MapInstanceId instance) => new(NextId(), spawn.Character, instance,
+        spawn.Position, new("template.player"), spawn.Name);
+    public Mob Mob(MobDefinition definition, MapInstanceId instance, Vector2Data position) => new(NextId(), definition.Id,
+        instance, position, definition.VisualKey, definition.Name);
+}
+
+public sealed class MapInstance(MapInstanceId id, MapDefinition definition, float interestRadius)
+{
+    public MapInstanceId Id { get; } = id.Value > 0 ? id : throw new ArgumentException("Instancia inválida.");
+    public MapDefinition Definition { get; } = definition;
+    public EntityRegistry Entities { get; } = new();
+    public SpatialIndex Spatial { get; } = new(interestRadius);
+    public void Add(Entity entity) { Entities.Add(entity); Spatial.Update(entity.Id, entity.Position); }
+    public bool Remove(EntityId id, out Entity? entity) { Spatial.Remove(id); return Entities.Remove(id, out entity); }
+    public void Refresh(Entity entity) => Spatial.Update(entity.Id, entity.Position);
+}
+
+public sealed class WorldManager
+{
+    private readonly Dictionary<MapInstanceId, MapInstance> maps = [];
+    public void Add(MapInstance map) { if (!maps.TryAdd(map.Id, map)) throw new InvalidOperationException("Instancia duplicada."); }
+    public MapInstance Get(MapInstanceId id) => maps.TryGetValue(id, out var map) ? map : throw new KeyNotFoundException("Instancia inexistente.");
+}
+
+public enum PlayerSessionState { Connected, ProtocolAccepted, Authenticated, CharacterSelected, WaitingForMap, InWorld, Disconnected }
+public sealed class PlayerSession(ConnectionId connection)
+{
+    public ConnectionId Connection { get; } = connection;
+    public PlayerSessionState State { get; set; } = PlayerSessionState.Connected;
+    public AccountId Account { get; set; }
+    public SessionId Session { get; set; }
+    public string SessionToken { get; set; } = string.Empty;
+    public CharacterId Character { get; set; }
+    public Player? Player { get; set; }
+    public Dictionary<EntityId, EntityState> Baseline { get; } = [];
+    public bool HasSnapshot { get; set; }
+}
+
+public sealed record CharacterSpawn(CharacterId Character, string Name, DefinitionId MapDefinition, Vector2Data Position);
+public sealed record WorldOptions(MapInstanceId Instance, float MovementSpeed, float MobSpeed, int TickMilliseconds,
+    float InterestRadius, int MaxPlayers);
+
+public sealed class WorldRuntime
+{
+    private readonly object gate = new();
+    private readonly WorldOptions options;
+    private readonly MapInstance map;
+    private readonly MovementSystem movement;
+    private readonly MobMovementSystem mobMovement;
+    private readonly InterestManager interest;
+    private readonly SpawnManager spawns = new();
+    private readonly Dictionary<ConnectionId, PlayerSession> sessions = [];
+    private long tick;
+    public int TickMilliseconds => options.TickMilliseconds;
+    public int PlayerCount { get { lock (gate) return sessions.Values.Count(value => value.State == PlayerSessionState.InWorld); } }
+    public int EntityCount { get { lock (gate) return map.Entities.Count; } }
+    public long Tick { get { lock (gate) return tick; } }
+    public MapDefinition Map => map.Definition;
+    public MapInstanceId Instance => map.Id;
+
+    public WorldRuntime(MapDefinition definition, MobDefinition mobDefinition, WorldOptions options, IMobMovementPolicy mobPolicy,
+        Vector2Data mobSpawn)
+    {
+        if (options.MaxPlayers is < 1 or > 4096 || options.InterestRadius <= 0 || !float.IsFinite(options.InterestRadius))
+            throw new ArgumentException("Opciones de mundo inválidas.");
+        this.options = options; map = new(options.Instance, definition, options.InterestRadius);
+        movement = new(options.MovementSpeed, options.TickMilliseconds);
+        mobMovement = new(options.MobSpeed, options.TickMilliseconds, mobPolicy);
+        interest = new(map.Spatial, options.InterestRadius);
+        map.Add(spawns.Mob(mobDefinition, map.Id, mobSpawn));
+    }
+
+    public PlayerSession AddConnection(ConnectionId connection)
+    {
+        lock (gate)
+        {
+            if (sessions.Count >= options.MaxPlayers || sessions.ContainsKey(connection)) throw new InvalidOperationException("Sesión no disponible.");
+            var session = new PlayerSession(connection); sessions.Add(connection, session); return session;
+        }
+    }
+
+    public PlayerSession Session(ConnectionId connection)
+    {
+        lock (gate) return sessions.TryGetValue(connection, out var session) ? session : throw new KeyNotFoundException("Conexión inexistente.");
+    }
+
+    public Player Join(PlayerSession session, CharacterSpawn character)
+    {
+        lock (gate)
+        {
+            if (session.State != PlayerSessionState.Authenticated || character.MapDefinition != map.Definition.Id)
+                throw new InvalidOperationException("Selección de personaje inválida.");
+            var position = IsValidPosition(character.Position) ? character.Position : map.Definition.Spawn;
+            var player = spawns.Player(character with { Position = position }, map.Id); map.Add(player);
+            session.Character = character.Character; session.Player = player; session.State = PlayerSessionState.WaitingForMap; return player;
+        }
+    }
+
+    public void Activate(PlayerSession session, MapInstanceId instance)
+    {
+        lock (gate)
+        {
+            if (session.State != PlayerSessionState.WaitingForMap || session.Player is null || instance != map.Id)
+                throw new InvalidOperationException("Entrada al mapa inválida.");
+            session.State = PlayerSessionState.InWorld;
+        }
+    }
+
+    public void SubmitMovement(PlayerSession session, InputFrame input)
+    {
+        lock (gate)
+        {
+            if (session.State != PlayerSessionState.InWorld || session.Player is null) throw new InvalidOperationException("Jugador fuera del mundo.");
+            session.Player.Inputs.Enqueue(input);
+        }
+    }
+
+    public IReadOnlyDictionary<ConnectionId, EntityStatePacket> Step()
+    {
+        lock (gate)
+        {
+            tick++;
+            foreach (var entity in map.Entities.All)
+            {
+                if (entity is Player player) movement.Step(player, map.Definition);
+                else if (entity is Mob mob) mobMovement.Step(mob, map.Definition, tick);
+                map.Refresh(entity);
+            }
+            return sessions.Values.Where(session => session.State == PlayerSessionState.InWorld)
+                .ToDictionary(session => session.Connection, Project);
+        }
+    }
+
+    private EntityStatePacket Project(PlayerSession session)
+    {
+        var player = session.Player!;
+        var current = interest.Relevant(player, map.Entities).Select(entity => entity.ToState()).ToDictionary(entity => entity.Id);
+        var upserts = current.Where(pair => !session.Baseline.TryGetValue(pair.Key, out var previous) || previous != pair.Value).Select(pair => pair.Value).ToArray();
+        var despawns = session.Baseline.Keys.Where(id => !current.ContainsKey(id)).ToArray(); var full = !session.HasSnapshot;
+        session.Baseline.Clear(); foreach (var pair in current) session.Baseline.Add(pair.Key, pair.Value); session.HasSnapshot = true;
+        return new(tick, full, new(player.Id, player.Position, player.Inputs.LastProcessed), upserts, despawns);
+    }
+
+    public Player? Disconnect(ConnectionId connection)
+    {
+        lock (gate)
+        {
+            if (!sessions.Remove(connection, out var session)) return null;
+            session.State = PlayerSessionState.Disconnected;
+            if (session.Player is null) return null;
+            map.Remove(session.Player.Id, out _); return session.Player;
+        }
+    }
+
+    public IReadOnlyList<Player> DirtyPlayers()
+    {
+        lock (gate) return sessions.Values.Select(value => value.Player).Where(value => value?.DirtyPosition == true).Cast<Player>().ToArray();
+    }
+
+    public bool IsValidPosition(Vector2Data position) => position.IsFinite && map.Definition.Bounds.Clamp(position) == position && !MovementSystem.IsBlocked(map.Definition, position);
+    public MapProjection Projection(string contentVersion) => new(map.Definition.Id, map.Id, map.Definition.VisualKey,
+        map.Definition.Bounds, options.MovementSpeed, options.TickMilliseconds, contentVersion);
+}
