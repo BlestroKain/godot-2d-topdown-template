@@ -25,6 +25,11 @@ public sealed record HealingResult(
 /// </summary>
 public sealed class CombatSystem
 {
+    public CombatSystem(CombatTelemetry? telemetry = null)
+        => Telemetry = telemetry ?? new CombatTelemetry();
+
+    public CombatTelemetry Telemetry { get; }
+
     public DamageResult ExecuteMobBasicAttack(
         Mob attacker,
         LivingEntity target,
@@ -46,7 +51,37 @@ public sealed class CombatSystem
         if (critical) raw *= profile.CriticalMultiplier;
 
         attacker.MarkBasicAttack(nowMilliseconds);
-        return ApplyDamage(attacker, target, raw, profile.BasicAttackElement, critical);
+        return ApplyDamage(attacker, target, raw, profile.BasicAttackElement, critical, nowMilliseconds);
+    }
+
+    /// <summary>
+    /// Ataque de prueba/data-driven donde DamageType y ScalingAttribute son independientes.
+    /// Útil para técnicas elementales y neutral sin convertir Neutral en STR implícitamente.
+    /// </summary>
+    public DamageResult ExecuteAttributeDamage(
+        LivingEntity attacker,
+        LivingEntity target,
+        AttributeDamageFormula formula,
+        long nowMilliseconds)
+    {
+        ArgumentNullException.ThrowIfNull(attacker);
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(formula);
+        if (!attacker.IsAlive || !target.IsAlive)
+            throw new InvalidOperationException("Atacante y objetivo deben estar vivos.");
+        if (attacker.MapInstanceId != target.MapInstanceId)
+            throw new InvalidOperationException("Atacante y objetivo no están en la misma instancia.");
+
+        var resistance = Resistance(target, formula.DamageType);
+        var resolved = CanonicalDamageRules.Resolve(formula, attacker.Stats.Primary, resistance);
+        return ApplyDamage(
+            attacker,
+            target,
+            resolved.RawDamage,
+            formula.DamageType,
+            resolved.Critical,
+            nowMilliseconds,
+            usePveResistanceCap: true);
     }
 
     public DamageResult ApplyDamage(
@@ -54,7 +89,9 @@ public sealed class CombatSystem
         LivingEntity target,
         float rawDamage,
         Element element,
-        bool critical = false)
+        bool critical = false,
+        long? nowMilliseconds = null,
+        bool usePveResistanceCap = false)
     {
         ArgumentNullException.ThrowIfNull(target);
         if (!float.IsFinite(rawDamage) || rawDamage < 0) throw new ArgumentOutOfRangeException(nameof(rawDamage));
@@ -64,7 +101,10 @@ public sealed class CombatSystem
             throw new InvalidOperationException("Atacante y objetivo no están en la misma instancia.");
 
         var resistance = Resistance(target, element);
-        var multiplier = Math.Max(0f, 1f - resistance / 100f);
+        var effectiveResistance = usePveResistanceCap
+            ? Math.Min(resistance, CanonicalDamageRules.PositivePveResistanceCap)
+            : resistance;
+        var multiplier = Math.Max(0f, 1f - effectiveResistance / 100f);
         var afterResistance = rawDamage * multiplier;
         if (!float.IsFinite(afterResistance) || afterResistance > int.MaxValue)
             throw new OverflowException("El daño resultante excede el rango soportado.");
@@ -85,7 +125,13 @@ public sealed class CombatSystem
             }
         }
 
-        return new DamageResult(attacker?.Id, target.Id, element, rawDamage, resistance, critical, applied, killed);
+        var result = new DamageResult(attacker?.Id, target.Id, element, rawDamage, effectiveResistance, critical, applied, killed);
+        if (target is Mob targetMob &&
+            targetMob.Combat.Parameters.GetValueOrDefault("track_damage_telemetry") > 0)
+        {
+            Telemetry.Record(target.Id, result, nowMilliseconds ?? Environment.TickCount64);
+        }
+        return result;
     }
 
     public HealingResult ApplyHealing(LivingEntity? source, LivingEntity target, int amount)
