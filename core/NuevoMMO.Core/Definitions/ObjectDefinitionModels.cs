@@ -100,7 +100,6 @@ public sealed record ItemStackDefinition
         if (maxBankStack < 1) throw new ArgumentOutOfRangeException(nameof(maxBankStack));
         if (!stackable && (maxInventoryStack != 1 || maxBankStack != 1))
             throw new ArgumentException("Un objeto no apilable debe usar stack máximo 1.");
-
         Stackable = stackable;
         MaxInventoryStack = maxInventoryStack;
         MaxBankStack = maxBankStack;
@@ -126,7 +125,6 @@ public sealed record ItemEquipmentDefinition
             throw new ArgumentException("Un ItemEquipmentDefinition requiere slot.", nameof(slot));
         if (maxDurability is <= 0)
             throw new ArgumentOutOfRangeException(nameof(maxDurability), "MaxDurability debe ser positivo cuando se define.");
-
         Slot = slot;
         WeaponFamily = weaponFamily;
         TwoHanded = twoHanded;
@@ -159,9 +157,7 @@ public sealed record ItemUseDefinition
     {
         if (techniqueId is { } technique && technique.IsEmpty)
             throw new ArgumentException("TechniqueId vacío.", nameof(techniqueId));
-        if (cooldownMilliseconds < 0)
-            throw new ArgumentOutOfRangeException(nameof(cooldownMilliseconds));
-
+        if (cooldownMilliseconds < 0) throw new ArgumentOutOfRangeException(nameof(cooldownMilliseconds));
         TechniqueId = techniqueId;
         CooldownMilliseconds = cooldownMilliseconds;
         CooldownGroup = cooldownGroup?.Trim() ?? string.Empty;
@@ -198,7 +194,6 @@ public sealed record CreatureBehaviorDefinition
         if (fleeHealthPercentage > 100) throw new ArgumentOutOfRangeException(nameof(fleeHealthPercentage));
         if (!float.IsFinite(sightRange) || sightRange < 0) throw new ArgumentOutOfRangeException(nameof(sightRange));
         if (!float.IsFinite(resetRadius) || resetRadius < 0) throw new ArgumentOutOfRangeException(nameof(resetRadius));
-
         Aggressive = aggressive;
         AttackAllies = attackAllies;
         Swarm = swarm;
@@ -251,7 +246,6 @@ public sealed record CreatureCombatDefinition
         if (!float.IsFinite(tenacity) || tenacity < 0) throw new ArgumentOutOfRangeException(nameof(tenacity));
         if (attackIntervalMilliseconds < 0) throw new ArgumentOutOfRangeException(nameof(attackIntervalMilliseconds));
         if (techniqueIntervalMilliseconds < 0) throw new ArgumentOutOfRangeException(nameof(techniqueIntervalMilliseconds));
-
         Level = level;
         Experience = experience;
         BaseDamage = baseDamage;
@@ -305,9 +299,10 @@ public sealed record ResourceHarvestDefinition
         if (requiredProfessionId is { } profession && profession.IsEmpty)
             throw new ArgumentException("RequiredProfessionId vacío.", nameof(requiredProfessionId));
         if (requiredProfessionLevel < 0) throw new ArgumentOutOfRangeException(nameof(requiredProfessionLevel));
+        if (requiredProfessionLevel > 0 && requiredProfessionId is null)
+            throw new ArgumentException("RequiredProfessionLevel requiere RequiredProfessionId.", nameof(requiredProfessionLevel));
         if (requiredToolKey is { } tool && tool.IsEmpty) throw new ArgumentException("RequiredToolKey vacío.", nameof(requiredToolKey));
         if (respawnMilliseconds < 0) throw new ArgumentOutOfRangeException(nameof(respawnMilliseconds));
-
         LootTableId = lootTableId;
         RequiredProfessionId = requiredProfessionId;
         RequiredProfessionLevel = requiredProfessionLevel;
@@ -334,25 +329,25 @@ public sealed record LootEntryDefinition
 {
     public LootEntryDefinition(
         DefinitionId itemId,
-        float chance,
+        float chancePercent,
         int minimumQuantity = 1,
         int maximumQuantity = 1,
         Dictionary<DefinitionId, NumericRange>? propertyOverrides = null)
     {
         if (itemId.IsEmpty) throw new ArgumentException("ItemId vacío.", nameof(itemId));
-        if (!float.IsFinite(chance) || chance is < 0 or > 1) throw new ArgumentOutOfRangeException(nameof(chance));
+        if (!float.IsFinite(chancePercent) || chancePercent is < 0 or > 100)
+            throw new ArgumentOutOfRangeException(nameof(chancePercent));
         if (minimumQuantity < 1) throw new ArgumentOutOfRangeException(nameof(minimumQuantity));
         if (maximumQuantity < minimumQuantity) throw new ArgumentOutOfRangeException(nameof(maximumQuantity));
-
         ItemId = itemId;
-        Chance = chance;
+        ChancePercent = chancePercent;
         MinimumQuantity = minimumQuantity;
         MaximumQuantity = maximumQuantity;
         PropertyOverrides = DefinitionModelGuards.CopyRanges(propertyOverrides, nameof(propertyOverrides));
     }
 
     public DefinitionId ItemId { get; }
-    public float Chance { get; }
+    public float ChancePercent { get; }
     public int MinimumQuantity { get; }
     public int MaximumQuantity { get; }
     public Dictionary<DefinitionId, NumericRange> PropertyOverrides { get; }
