@@ -126,7 +126,8 @@ public sealed class WorldRuntime
     private readonly MapInstance map;
     private readonly MovementSystem movement;
     private readonly MobMovementSystem mobMovement;
-    private readonly ProjectileSystem projectiles = new();
+    private readonly ProjectileSystem projectiles;
+    private readonly GameSystems? systems;
     private readonly InterestManager interest;
     private readonly SpawnManager spawns = new();
     private readonly Dictionary<ConnectionId, PlayerSession> sessions = [];
@@ -138,16 +139,19 @@ public sealed class WorldRuntime
     public MapDefinition Map => map.Definition;
     public MapInstanceId Instance => map.Id;
     public MapInstance MapInstance => map;
+    public GameSystems? Systems => systems;
 
     public WorldRuntime(MapDefinition definition, MobDefinition mobDefinition, WorldOptions options, IMobMovementPolicy mobPolicy,
-        Vector2Data mobSpawn)
+        Vector2Data mobSpawn, GameSystems? systems = null)
     {
         if (options.MaxPlayers is < 1 or > 4096 || options.InterestRadius <= 0 || !float.IsFinite(options.InterestRadius))
             throw new ArgumentException("Opciones de mundo inválidas.");
         this.options = options;
+        this.systems = systems;
         map = new(options.Instance, definition, options.InterestRadius);
         movement = new(options.MovementSpeed, options.TickMilliseconds);
         mobMovement = new(options.MobSpeed, options.TickMilliseconds, mobPolicy);
+        projectiles = systems?.Projectiles ?? new ProjectileSystem();
         interest = new(map.Spatial, options.InterestRadius);
         map.Add(spawns.Mob(mobDefinition, map.Id, mobSpawn));
     }
@@ -240,6 +244,12 @@ public sealed class WorldRuntime
         }
     }
 
+    public InteractionResult TryPickup(PlayerSession session, EntityId worldItemId, long nowMilliseconds)
+    {
+        if (systems is null) throw new InvalidOperationException("GameSystems no está configurado en este WorldRuntime.");
+        return TryPickup(session, worldItemId, systems.Interactions, nowMilliseconds);
+    }
+
     public InteractionResult TryPickup(PlayerSession session, EntityId worldItemId, InteractionSystem interactions, long nowMilliseconds)
     {
         ArgumentNullException.ThrowIfNull(session);
@@ -254,6 +264,13 @@ public sealed class WorldRuntime
             if (result.Success) map.Remove(worldItem.Id, out _);
             return result;
         }
+    }
+
+    public HarvestInteractionResult TryHarvest(PlayerSession session, EntityId resourceId, float workPower,
+        long nowMilliseconds, float? range = null)
+    {
+        if (systems is null) throw new InvalidOperationException("GameSystems no está configurado en este WorldRuntime.");
+        return TryHarvest(session, resourceId, systems.Interactions, workPower, nowMilliseconds, range);
     }
 
     public HarvestInteractionResult TryHarvest(PlayerSession session, EntityId resourceId, InteractionSystem interactions,
@@ -304,6 +321,7 @@ public sealed class WorldRuntime
             }
 
             foreach (var id in despawn.Distinct()) map.Remove(id, out _);
+            systems?.Advance(map, nowMilliseconds, options.TickMilliseconds);
 
             return sessions.Values.Where(session => session.State == PlayerSessionState.InWorld)
                 .ToDictionary(session => session.Connection, Project);
@@ -333,6 +351,7 @@ public sealed class WorldRuntime
             session.State = PlayerSessionState.Disconnected;
             if (session.Player is null) return null;
             map.Remove(session.Player.Id, out _);
+            systems?.OnEntityRemoved(session.Player);
             return session.Player;
         }
     }
