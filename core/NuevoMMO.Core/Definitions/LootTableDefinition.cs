@@ -33,20 +33,14 @@ public sealed record LootTableDefinition : GameDefinition
             .ToArray();
     }
 
-    /// <summary>
-    /// Vista rápida de todos los ItemDefinition referenciados por la tabla.
-    /// </summary>
     public DefinitionId[] ItemIds { get; }
 
     /// <summary>
-    /// Entradas reales de generación de loot. Chance usa rango 0..1.
-    /// Una misma ItemDefinition puede aparecer varias veces si se necesitan entradas distintas.
+    /// Entradas reales de generación de loot. ChancePercent usa rango 0..100,
+    /// igual que el modelo de edición de drops tomado como referencia de Intersect/Broken_Reborn.
     /// </summary>
     public LootEntryDefinition[] Entries { get; }
 
-    /// <summary>
-    /// Parámetros extensibles para futuros sistemas de loot sin romper el contrato base.
-    /// </summary>
     public Dictionary<string, float> Parameters { get; }
     public Dictionary<string, string> Metadata { get; }
 }
