@@ -7,6 +7,7 @@ public static class PacketRegistry
         {
             [typeof(ConnectRequest)] = (PacketId.ConnectRequest, PacketDirection.ClientToServer),
             [typeof(LoginRequest)] = (PacketId.LoginRequest, PacketDirection.ClientToServer),
+            [typeof(RegisterRequest)] = (PacketId.RegisterRequest, PacketDirection.ClientToServer),
             [typeof(CharacterListRequest)] = (PacketId.CharacterListRequest, PacketDirection.ClientToServer),
             [typeof(CreateCharacterRequest)] = (PacketId.CreateCharacterRequest, PacketDirection.ClientToServer),
             [typeof(CharacterSelectRequest)] = (PacketId.CharacterSelectRequest, PacketDirection.ClientToServer),
@@ -16,6 +17,7 @@ public static class PacketRegistry
             [typeof(DisconnectRequest)] = (PacketId.DisconnectRequest, PacketDirection.ClientToServer),
             [typeof(ConnectionAccepted)] = (PacketId.ConnectionAccepted, PacketDirection.ServerToClient),
             [typeof(LoginResult)] = (PacketId.LoginResult, PacketDirection.ServerToClient),
+            [typeof(RegisterResult)] = (PacketId.RegisterResult, PacketDirection.ServerToClient),
             [typeof(CharacterListResult)] = (PacketId.CharacterListResult, PacketDirection.ServerToClient),
             [typeof(CharacterCreated)] = (PacketId.CharacterCreated, PacketDirection.ServerToClient),
             [typeof(CharacterSelected)] = (PacketId.CharacterSelected, PacketDirection.ServerToClient),
