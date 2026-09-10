@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <AssemblyName>NuevoMMO Editor</AssemblyName>
+    <RootNamespace>NuevoMMO.Editor</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../NuevoMMO.Editor/NuevoMMO.Editor.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DockPanelSuite" Version="3.1.1" />
+    <PackageReference Include="DockPanelSuite.ThemeVS2015" Version="3.1.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="../NuevoMMO.Editor/Program.cs" Link="Program.cs" />
+    <Compile Include="../NuevoMMO.Editor/Content/TilesetImageProvider.cs" Link="Content/TilesetImageProvider.cs" />
+    <Compile Include="../NuevoMMO.Editor/Content/TilesetImporter.cs" Link="Content/TilesetImporter.cs" />
+    <Compile Include="../NuevoMMO.Editor/Interface/ContentExplorerDock.cs" Link="Interface/ContentExplorerDock.cs" />
+    <Compile Include="../NuevoMMO.Editor/Interface/MainEditorForm.cs" Link="Interface/MainEditorForm.cs" />
+    <Compile Include="../NuevoMMO.Editor/Interface/MapEditorDocument.cs" Link="Interface/MapEditorDocument.cs" />
+    <Compile Include="../NuevoMMO.Editor/Interface/MapToolsDock.cs" Link="Interface/MapToolsDock.cs" />
+    <Compile Include="../NuevoMMO.Editor/Interface/MapViewportControl.cs" Link="Interface/MapViewportControl.cs" />
+    <Compile Include="../NuevoMMO.Editor/Interface/ProblemsDock.cs" Link="Interface/ProblemsDock.cs" />
+    <Compile Include="../NuevoMMO.Editor/Interface/PropertiesDock.cs" Link="Interface/PropertiesDock.cs" />
+    <Compile Include="../NuevoMMO.Editor/Interface/TilesetPaletteDock.cs" Link="Interface/TilesetPaletteDock.cs" />
+  </ItemGroup>
+</Project>
