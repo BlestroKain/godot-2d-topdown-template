@@ -34,6 +34,7 @@ public sealed class ContentExplorerDock : DockContent
 
         var definitions = application.Content.Snapshot().All().ToArray();
         AddCategory<MapDefinition>("Mapas", definitions);
+        AddCategory<TilesetDefinition>("Tilesets", definitions);
         AddCategory<ItemDefinition>("Items", definitions);
         AddCategory<MobDefinition>("Mobs", definitions);
         AddCategory<NpcDefinition>("NPCs", definitions);
