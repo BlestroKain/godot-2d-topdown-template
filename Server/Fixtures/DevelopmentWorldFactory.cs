@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
 using NuevoMMO.Core;
 using NuevoMMO.Network;
+using NuevoMMO.Server.Configuration;
 using NuevoMMO.Server.Database;
 using NuevoMMO.Server.Entities;
 using NuevoMMO.Server.NetworkHandlers;
@@ -28,8 +29,15 @@ public sealed class ServerComposition
 public static class DevelopmentWorldFactory
 {
     public static ServerComposition Create(string environment)
+        => Create(environment, ServerConfiguration.Development());
+
+    public static ServerComposition Create(string environment, ServerConfiguration configuration)
     {
+        ArgumentNullException.ThrowIfNull(configuration);
         if (environment is not ("Development" or "Test")) throw new InvalidOperationException("Fixtures solo en Development/Test.");
+        if (!string.Equals(environment, configuration.Environment, StringComparison.Ordinal))
+            throw new InvalidOperationException("Environment no coincide con ServerConfiguration.");
+
         using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "movement.json")));
         var data = document.RootElement;
         var map = new MapDefinition(
@@ -59,9 +67,9 @@ public static class DevelopmentWorldFactory
             new(data.GetProperty("instance").GetInt64()),
             data.GetProperty("speed").GetSingle(),
             data.GetProperty("mobSpeed").GetSingle(),
-            data.GetProperty("tickMilliseconds").GetInt32(),
+            configuration.TickMilliseconds,
             data.GetProperty("interestRadius").GetSingle(),
-            data.GetProperty("maxPlayers").GetInt32());
+            configuration.MaxPlayers);
         var world = new WorldRuntime(map, mob, options, new OscillatingMobPolicy(),
             new(data.GetProperty("mobX").GetSingle(), data.GetProperty("mobY").GetSingle()));
         var accounts = new InMemoryAccountRepository();
