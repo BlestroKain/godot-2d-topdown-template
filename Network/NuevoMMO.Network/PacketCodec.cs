@@ -62,6 +62,7 @@ public static class PacketCodec
         {
             case ConnectRequest value: writer.Write(value.ClientVersion, 64); writer.Write(value.ProtocolVersion); break;
             case LoginRequest value: writer.Write(value.Username, 128); writer.Write(value.Password, 256); break;
+            case RegisterRequest value: writer.Write(value.Username, 128); writer.Write(value.Password, 256); break;
             case CharacterListRequest value: WriteSession(writer, value.Session, value.SessionToken); break;
             case CreateCharacterRequest value: WriteSession(writer, value.Session, value.SessionToken); writer.Write(value.Name, 128); break;
             case CharacterSelectRequest value: WriteSession(writer, value.Session, value.SessionToken); writer.Write(value.Character.Value); break;
@@ -73,6 +74,7 @@ public static class PacketCodec
             case LoginResult value:
                 writer.Write(value.Succeeded); writer.Write(value.Error, 256); writer.Write(value.Account.Value);
                 writer.Write(value.Session.Value); writer.Write(value.SessionToken, 256); break;
+            case RegisterResult value: writer.Write(value.Succeeded); writer.Write(value.Error, 256); writer.Write(value.Account.Value); break;
             case CharacterListResult value: WriteCount(writer, value.Characters.Length, 32); foreach (var character in value.Characters) WriteCharacter(writer, character); break;
             case CharacterCreated value: WriteCharacter(writer, value.Character); break;
             case CharacterSelected value: writer.Write(value.Character.Value); break;
@@ -97,6 +99,7 @@ public static class PacketCodec
     {
         PacketId.ConnectRequest => new ConnectRequest(reader.ReadString(64), reader.ReadUInt16()),
         PacketId.LoginRequest => new LoginRequest(reader.ReadString(128), reader.ReadString(256)),
+        PacketId.RegisterRequest => new RegisterRequest(reader.ReadString(128), reader.ReadString(256)),
         PacketId.CharacterListRequest => new CharacterListRequest(new(reader.ReadGuid()), reader.ReadString(256)),
         PacketId.CreateCharacterRequest => new CreateCharacterRequest(new(reader.ReadGuid()), reader.ReadString(256), reader.ReadString(128)),
         PacketId.CharacterSelectRequest => new CharacterSelectRequest(new(reader.ReadGuid()), reader.ReadString(256), new(reader.ReadGuid())),
@@ -106,6 +109,7 @@ public static class PacketCodec
         PacketId.DisconnectRequest => new DisconnectRequest(reader.ReadString(256)),
         PacketId.ConnectionAccepted => new ConnectionAccepted(new(reader.ReadGuid()), reader.ReadInt64(), reader.ReadUInt16()),
         PacketId.LoginResult => new LoginResult(reader.ReadBool(), reader.ReadString(256), new(reader.ReadGuid()), new(reader.ReadGuid()), reader.ReadString(256)),
+        PacketId.RegisterResult => new RegisterResult(reader.ReadBool(), reader.ReadString(256), new(reader.ReadGuid())),
         PacketId.CharacterListResult => new CharacterListResult(ReadArray(reader, 32, () => ReadCharacter(reader))),
         PacketId.CharacterCreated => new CharacterCreated(ReadCharacter(reader)),
         PacketId.CharacterSelected => new CharacterSelected(new(reader.ReadGuid())),
