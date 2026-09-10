@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using Godot;
 using NuevoMMO.Client;
-using NuevoMMO.Contracts;
+using NuevoMMO.Network;
 
 namespace NuevoMMO.GodotClient;
 
@@ -9,7 +9,7 @@ public partial class NetworkBridge : Node
 {
     [Signal] public delegate void ConnectionChangedEventHandler(string state);
     [Signal] public delegate void WorldUpdatedEventHandler();
-    private readonly ConcurrentQueue<(GameConnection Connection, IMessage? Message, string? Error)> inbox = new();
+    private readonly ConcurrentQueue<(GameConnection Connection, IPacket? Message, string? Error)> inbox = new();
     private GameConnection? connection;
     private int queued;
     private int overflow;
@@ -30,7 +30,7 @@ public partial class NetworkBridge : Node
         catch (Exception exception) { Enqueue(current, null, exception.Message); }
     }
 
-    private void Enqueue(GameConnection current, IMessage? message, string? error)
+    private void Enqueue(GameConnection current, IPacket? message, string? error)
     {
         if (Interlocked.Increment(ref queued) > 256)
         {
@@ -51,9 +51,10 @@ public partial class NetworkBridge : Node
                 if (item.Error is not null) { DisconnectFromServer(); SetStatus("Conexión cerrada: " + item.Error); continue; }
                 switch (item.Message)
                 {
-                    case HandshakeAccepted accepted: World.Start(accepted); SetStatus("Conectado · entrando al mundo"); break;
-                    case WorldSnapshot snapshot:
+                    case MapLoadPacket map: World.Start(map); SetStatus("Conectado · entrando al mundo"); break;
+                    case EntityStatePacket snapshot:
                         World.Apply(snapshot, Now); SetStatus("En el mundo"); EmitSignal(SignalName.WorldUpdated); break;
+                    case ErrorPacket error: DisconnectFromServer(); SetStatus(error.Message); break;
                 }
             }
             catch (Exception exception) { DisconnectFromServer(); SetStatus("Estado rechazado: " + exception.Message); }

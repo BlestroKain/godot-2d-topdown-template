@@ -1,12 +1,11 @@
 #if DEBUG
 using System.Text.Json;
 using Godot;
-using NuevoMMO.Contracts;
+using NuevoMMO.Core;
 using NuevoMMO.GodotClient;
 
 namespace NuevoMMO.Testing;
 
-/// <summary>Explicit test scene; not loaded by the game. Inputs still pass through the real protocol.</summary>
 public partial class ClientSmokeTest : Node
 {
     private MmoGame game = null!;
@@ -21,8 +20,8 @@ public partial class ClientSmokeTest : Node
     private int maxVisible;
     private int despawns;
     private float maxDistance;
-    private WorldPosition? initial;
-    private readonly Dictionary<EntityId, WorldPosition> firstRemote = [];
+    private Vector2Data? initial;
+    private readonly Dictionary<EntityId, Vector2Data> firstRemote = [];
     private float remoteDistance;
 
     public override void _Ready()
@@ -46,24 +45,24 @@ public partial class ClientSmokeTest : Node
         var elapsed = NetworkBridge.Now - start;
         game.TestInput = elapsed is > 2 and < 3 ? new Vector2(direction, 0) : Vector2.Zero;
         var state = game.Network.World;
-        if (state.Session is { } session && state.Predictor is { } predictor)
+        if (state.Session.Map is not null && state.Predictor is { } predictor)
         {
             initial ??= predictor.Position;
             maxDistance = Math.Max(maxDistance, Distance(initial.Value, predictor.Position));
-            maxVisible = Math.Max(maxVisible, state.Entities.Count);
-            foreach (var entity in state.Entities.Values.Where(entity => entity.Id != session.Self))
+            maxVisible = Math.Max(maxVisible, state.Entities.All.Count);
+            foreach (var entity in state.Entities.All.Values.Where(entity => entity.Id != state.Session.Self))
             {
                 firstRemote.TryAdd(entity.Id, entity.Position);
                 remoteDistance = Math.Max(remoteDistance, Distance(firstRemote[entity.Id], entity.Position));
             }
-            despawns = Math.Max(despawns, firstRemote.Keys.Count(id => !state.Entities.ContainsKey(id)));
+            despawns = Math.Max(despawns, firstRemote.Keys.Count(id => !state.Entities.Contains(id)));
         }
         if (screenshotPath is not null && !captured && elapsed > 4) { captured = true; Capture(); }
         if (elapsed < duration) return;
         ended = true;
         var passed = game.Network.InWorld && snapshots > 20 && maxVisible >= 2 && maxDistance > 20 && remoteDistance > 20;
         File.WriteAllText(reportPath, JsonSerializer.Serialize(new { passed, snapshots, maxVisible, maxDistance, remoteDistance,
-            despawns, entityId = state.Session?.Self.Value, pending = state.Predictor?.PendingCount, status = game.Network.Status }));
+            despawns, entityId = state.Session.Self.Value, pending = state.Predictor?.PendingCount, status = game.Network.Status }));
         game.Network.DisconnectFromServer(); GetTree().Quit(passed ? 0 : 1);
     }
 
@@ -74,6 +73,6 @@ public partial class ClientSmokeTest : Node
         image.SavePng(screenshotPath!);
     }
 
-    private static float Distance(WorldPosition a, WorldPosition b) => MathF.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
+    private static float Distance(Vector2Data a, Vector2Data b) => MathF.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
 }
 #endif

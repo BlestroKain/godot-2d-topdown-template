@@ -148,7 +148,7 @@ public static class PacketCodec
         writer.Write(entity.Id.Value); writer.Write((byte)entity.Kind); writer.Write(entity.Definition is not null);
         if (entity.Definition is { } definition) writer.Write(definition.Value);
         writer.Write(entity.MapInstance.Value); writer.Write(entity.Position); writer.Write(entity.Velocity);
-        writer.Write(entity.VisualKey); writer.Write(entity.DisplayName, 128);
+        writer.Write((byte)entity.Facing); writer.Write(entity.VisualKey); writer.Write(entity.DisplayName, 128);
         writer.Write(entity is PlayerState);
         if (entity is PlayerState player) writer.Write(player.Character.Value);
         writer.Write(entity is WorldItemState);
@@ -160,19 +160,20 @@ public static class PacketCodec
         var id = new EntityId(reader.ReadInt64()); var kind = (EntityKind)reader.ReadByte();
         DefinitionId? definition = reader.ReadBool() ? new(reader.ReadGuid()) : null;
         var instance = new MapInstanceId(reader.ReadInt64()); var position = reader.ReadVector2(); var velocity = reader.ReadVector2();
+        var facing = (Direction)reader.ReadByte();
         var visual = reader.ReadContentKey(); var name = reader.ReadString(128);
         CharacterId? character = reader.ReadBool() ? new(reader.ReadGuid()) : null;
         ItemInstanceId? item = reader.ReadBool() ? new(reader.ReadGuid()) : null;
         if (id.Value <= 0 || instance.Value <= 0 || !position.IsFinite || !velocity.IsFinite) throw new InvalidDataException("Entidad inválida.");
         return kind switch
         {
-            EntityKind.Player when character is { } value => new PlayerState(id, value, instance, position, velocity, visual, name),
-            EntityKind.Mob when definition is { } value => new MobState(id, value, instance, position, velocity, visual, name),
-            EntityKind.Npc when definition is { } value => new NpcState(id, value, instance, position, velocity, visual, name),
-            EntityKind.Resource when definition is { } value => new ResourceState(id, value, instance, position, visual, name),
-            EntityKind.Projectile => new ProjectileState(id, definition, instance, position, velocity, visual, name),
-            EntityKind.WorldItem when definition is { } value && item is { } itemValue => new WorldItemState(id, value, itemValue, instance, position, visual, name),
-            EntityKind.InteractiveObject => new EntityState(id, kind, definition, instance, position, velocity, visual, name),
+            EntityKind.Player when character is { } value => new PlayerState(id, value, instance, position, velocity, facing, visual, name),
+            EntityKind.Mob when definition is { } value => new MobState(id, value, instance, position, velocity, facing, visual, name),
+            EntityKind.Npc when definition is { } value => new NpcState(id, value, instance, position, velocity, facing, visual, name),
+            EntityKind.Resource when definition is { } value => new ResourceState(id, value, instance, position, facing, visual, name),
+            EntityKind.Projectile => new ProjectileState(id, definition, instance, position, velocity, facing, visual, name),
+            EntityKind.WorldItem when definition is { } value && item is { } itemValue => new WorldItemState(id, value, itemValue, instance, position, facing, visual, name),
+            EntityKind.InteractiveObject => new EntityState(id, kind, definition, instance, position, velocity, facing, visual, name),
             _ => throw new InvalidDataException("Entidad incompleta para su tipo.")
         };
     }

@@ -1,37 +1,65 @@
 using System.Net.Sockets;
-using NuevoMMO.Contracts;
-using NuevoMMO.Protocol;
+using NuevoMMO.Network;
 
 namespace NuevoMMO.Client;
 
-// Adaptation of GodotMMO's own GameConnection, without gameplay dependencies or local persistence.
 public sealed class GameConnection : IDisposable
 {
     private readonly TcpClient tcp = new() { NoDelay = true };
     private readonly SemaphoreSlim writer = new(1);
     private readonly CancellationTokenSource lifetime = new();
     private int disposed;
-    public event Action<IMessage>? Message;
+    public event Action<IPacket>? Message;
     public event Action<string>? Closed;
+    public MapLoadPacket? Map { get; private set; }
 
     public async Task ConnectAsync(string host, int port, string name)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
-        timeout.CancelAfter(TimeSpan.FromSeconds(5));
+        timeout.CancelAfter(TimeSpan.FromSeconds(8));
         await tcp.ConnectAsync(host, port, timeout.Token);
-        await Frames.WriteAsync(tcp.GetStream(), new HandshakeRequest(name), timeout.Token);
-        var message = await Frames.ReadAsync(tcp.GetStream(), timeout.Token);
-        if (message is not HandshakeAccepted) throw new IOException((message as HandshakeRejected)?.Reason ?? "Handshake inválido.");
-        Message?.Invoke(message);
+        var stream = tcp.GetStream();
+        await TcpPacketFraming.WriteAsync(stream, new ConnectRequest("client-dev", ProtocolVersion.Current), timeout.Token);
+        if (await TcpPacketFraming.ReadAsync(stream, timeout.Token) is not ConnectionAccepted accepted)
+            throw new IOException("Handshake inválido.");
+        Message?.Invoke(accepted);
+        await TcpPacketFraming.WriteAsync(stream, new LoginRequest(name, "development"), timeout.Token);
+        if (await TcpPacketFraming.ReadAsync(stream, timeout.Token) is not LoginResult login)
+            throw new IOException("Login inválido.");
+        if (!login.Succeeded) throw new IOException(login.Error);
+        Message?.Invoke(login);
+        await TcpPacketFraming.WriteAsync(stream, new CharacterListRequest(login.Session, login.SessionToken), timeout.Token);
+        if (await TcpPacketFraming.ReadAsync(stream, timeout.Token) is not CharacterListResult list)
+            throw new IOException("Lista de personajes inválida.");
+        Message?.Invoke(list);
+        CharacterSummary character;
+        if (list.Characters.Length == 0)
+        {
+            await TcpPacketFraming.WriteAsync(stream, new CreateCharacterRequest(login.Session, login.SessionToken, name), timeout.Token);
+            if (await TcpPacketFraming.ReadAsync(stream, timeout.Token) is not CharacterCreated created)
+                throw new IOException("Creación de personaje inválida.");
+            Message?.Invoke(created);
+            character = created.Character;
+        }
+        else character = list.Characters[0];
+        await TcpPacketFraming.WriteAsync(stream, new CharacterSelectRequest(login.Session, login.SessionToken, character.Id), timeout.Token);
+        IPacket selected = await TcpPacketFraming.ReadAsync(stream, timeout.Token);
+        if (selected is not CharacterSelected) throw new IOException("Selección de personaje inválida.");
+        Message?.Invoke(selected);
+        if (await TcpPacketFraming.ReadAsync(stream, timeout.Token) is not MapLoadPacket map)
+            throw new IOException("Carga de mapa inválida.");
+        Map = map;
+        Message?.Invoke(map);
+        await TcpPacketFraming.WriteAsync(stream, new MapReadyRequest(map.Map.Instance), timeout.Token);
         _ = ReceiveAsync();
     }
 
-    public async Task SendAsync(IMessage message)
+    public async Task SendAsync(IPacket packet)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
         timeout.CancelAfter(TimeSpan.FromSeconds(3));
         await writer.WaitAsync(timeout.Token);
-        try { await Frames.WriteAsync(tcp.GetStream(), message, timeout.Token); }
+        try { await TcpPacketFraming.WriteAsync(tcp.GetStream(), packet, timeout.Token); }
         finally { writer.Release(); }
     }
 
@@ -43,9 +71,10 @@ public sealed class GameConnection : IDisposable
             {
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
                 timeout.CancelAfter(TimeSpan.FromSeconds(10));
-                var message = await Frames.ReadAsync(tcp.GetStream(), timeout.Token);
-                if (message is not (WorldSnapshot or Pong)) throw new InvalidDataException("Mensaje servidor inesperado.");
-                Message?.Invoke(message);
+                var packet = await TcpPacketFraming.ReadAsync(tcp.GetStream(), timeout.Token);
+                if (packet is not (EntityStatePacket or PongPacket or ServerTimePacket or SpawnEntityPacket or DespawnEntityPacket or EntityMovedPacket or ErrorPacket))
+                    throw new InvalidDataException("Mensaje servidor inesperado.");
+                Message?.Invoke(packet);
             }
         }
         catch (Exception exception) when (exception is IOException or InvalidDataException or SocketException or OperationCanceledException or ObjectDisposedException)
@@ -58,7 +87,7 @@ public sealed class GameConnection : IDisposable
     public void Dispose()
     {
         if (Interlocked.Exchange(ref disposed, 1) != 0) return;
-        lifetime.Cancel(); tcp.Dispose();
-        // Pending operations own their wait handles until they finish.
+        lifetime.Cancel();
+        tcp.Dispose();
     }
 }

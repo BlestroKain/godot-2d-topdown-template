@@ -1,24 +1,22 @@
 # Estado real
 
-Revisión: 2026-09-09. Checkpoint TCP del Vertical Slice 0 validado; migración a la arquitectura definitiva en curso.
+Revisión: 2026-09-09. Arquitectura `Core / Network / Server / Client / Editor` creada sobre el template. El slice de movimiento autoritativo se migró al protocolo nuevo.
 
 ## Incorporado y comprobado
 
-- Template trasladado íntegramente a `client/`, conservando rutas `res://`, recursos, GDScript reutilizable, créditos y licencia.
-- Solución C#/.NET 8 con contratos tipados, codec binario acotado y servidor independiente de Godot.
-- Servidor autoritativo Development con tick fijo, input secuenciado, AOI, spawn/despawn y cierre ordenado.
+- Template trasladado íntegramente a `Client/`, conservando rutas `res://`, recursos, GDScript reutilizable, créditos y licencia.
+- Solución C#/.NET 8 con `NuevoMMO.Core` sin Godot, `NuevoMMO.Network` (PacketId/codec/ENet + TCP de pruebas), `NuevoMMO.Server`, `NuevoMMO.Client.Core`, `NuevoMMO.Editor` y tests.
+- Definitions, States, Stats, ItemInstance, Entity/LivingEntity/Player/Mob y DefinitionRegistry.
+- Flujo Connect → Login → Character list/create/select → MapLoad → movimiento autoritativo.
+- Servidor Development con tick fijo, input secuenciado, AOI, mob de fixture, persistencia en memoria y cierre ordenado.
 - Cliente Godot C# con `NetworkBridge`, predicción/reconciliación local e interpolación remota.
-- Escena MMO separada del controller, inventario, combate y guardado single-player del template.
-- Build completo sin errores ni advertencias.
-- 76 comprobaciones de protocolo, movimiento, sesiones, AOI y transporte TCP real.
-- Prueba headless con dos procesos Godot: ambos ven movimiento local/remoto y el segundo observa el despawn del primero.
+- Editor offline mínimo sobre `Core.Definitions`.
 
 ## En implementación por decisión posterior
 
-- Consolidación en `Core`, `Network`, `Server`, `Client`, `Editor` y `Tests`.
-- ENet como transporte runtime; TCP se conserva solo como adaptador de pruebas.
-- Flujo de cuenta, sesión revocable, personaje y checkpoint de posición con PostgreSQL.
-- Primer mapa visual dedicado, primer mob de fixture y Editor offline mínimo.
+- ENet como transporte runtime de producción; TCP se conserva como adaptador de pruebas.
+- PostgreSQL real para cuentas, sesiones y checkpoint; el schema SQL está preparado.
+- Mapa visual dedicado importado desde TileMap, Editor Godot y validación de dos procesos Godot sobre el protocolo nuevo.
 - CI de .NET, PostgreSQL y smoke Godot; releases únicamente mediante tag manual.
 
 ## Límites actuales

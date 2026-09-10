@@ -64,17 +64,17 @@ public partial class MmoGame : Node2D
     {
         var typing = GetViewport().GuiGetFocusOwner() is LineEdit;
         var input = TestInput ?? (focused && !typing ? Input.GetVector("mmo_left", "mmo_right", "mmo_up", "mmo_down") : Vector2.Zero);
-        if (Network.World.Session is { } session && Network.InWorld)
+        if (Network.World.Session.Map is { } map && Network.InWorld)
         {
-            var step = session.Map.TickMilliseconds / 1000d;
+            var step = map.TickMilliseconds / 1000d;
             accumulator += Math.Min(delta, step * 2);
             if (accumulator >= step) { accumulator %= step; Network.SubmitInput(input.X, input.Y); }
             world.Present(Network.World, input, (float)(accumulator / step));
-            details.Text = $"Jugador {session.Self.Value} · visibles {Network.World.Entities.Count} · tick {Network.World.LastTick} · pendientes {Network.World.Predictor!.PendingCount}";
+            details.Text = $"Jugador {Network.World.Session.Self.Value} · visibles {Network.World.Entities.All.Count} · tick {Network.World.LastTick} · pendientes {Network.World.Predictor!.PendingCount}";
         }
         else { accumulator = 0; world.Present(Network.World, Vector2.Zero, 0); }
         status.Text = Network.Status;
-        connect.Disabled = Network.Status.StartsWith("Conectando", StringComparison.Ordinal) || Network.World.Session is not null;
+        connect.Disabled = Network.Status.StartsWith("Conectando", StringComparison.Ordinal) || Network.World.Session.Map is not null;
         disconnect.Disabled = Network.Status == "Desconectado";
     }
 

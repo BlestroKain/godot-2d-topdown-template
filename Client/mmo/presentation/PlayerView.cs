@@ -1,5 +1,5 @@
 using Godot;
-using NuevoMMO.Contracts;
+using NuevoMMO.Core;
 
 namespace NuevoMMO.GodotClient;
 
@@ -18,13 +18,13 @@ public partial class PlayerView : Node2D
         AddChild(sprite); AddChild(caption); sprite.Play("idle-down");
     }
 
-    public void Present(EntityProjection entity, WorldPosition position, Vector2 motion, bool local)
+    public void Present(EntityState entity, Vector2Data position, Vector2 motion, bool local)
     {
         Position = new(position.X, position.Y);
         if (motion.LengthSquared() > .001f)
             facing = MathF.Abs(motion.X) > MathF.Abs(motion.Y) ? (motion.X < 0 ? "left" : "right") : (motion.Y < 0 ? "up" : "down");
         var animation = (motion.LengthSquared() > .001f ? "walk-" : "idle-") + facing;
         if (sprite.Animation != animation) sprite.Play(animation);
-        caption.Text = entity.Name + (local ? " · tú" : "");
+        caption.Text = entity.DisplayName + (local ? " · tú" : "");
     }
 }

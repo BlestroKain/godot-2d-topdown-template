@@ -1,21 +1,25 @@
 # Nuevo MMO
 
-Repositorio principal del nuevo MMO, basado en Godot 2D Top-Down Template. Godot será el cliente; el servidor C#/.NET será independiente y autoritativo.
+Repositorio principal del nuevo MMO, basado en Godot 2D Top-Down Template. Godot es el cliente; el servidor C#/.NET es independiente y autoritativo.
+
+Arquitectura: `Core` → `Network` → `Server` / `Client` / `Editor`.
 
 ## Empezar
 
-Abrir `client/project.godot` en Godot .NET. La escena inicial muestra la preparación del proyecto; todavía no ofrece conexión MMO.
+Abrir `Client/project.godot` en Godot .NET.
+
+Servidor Development: `dotnet run --project Server/NuevoMMO.Server -- --development`
 
 Desde PowerShell: `./tools/run-client.ps1 -GodotExe <ruta-a-Godot>`.
 Para repetir importación y arranque headless: `./tools/verify-client.ps1 -GodotExe <ruta-a-Godot>`.
 
 - [Diseño vigente](docs/design.md)
-- [Arquitectura](docs/architecture.md)
+- [Arquitectura](docs/architecture/overview.md)
 - [Ruta de trabajo](docs/roadmap.md)
 - [Estado real y validación](docs/IMPLEMENTATION_STATUS.md)
 - [Reglas para trabajar](AGENTS.md)
 
-El primer hito es movimiento entre dos clientes con autoridad servidor, predicción, reconciliación e interpolación. Las fases completas de gameplay se implementarán después.
+El primer hito es movimiento entre dos clientes con autoridad servidor, predicción, reconciliación, interpolación y un mob de fixture. Las fases completas de gameplay se implementarán después.
 
 ## Procedencia
 

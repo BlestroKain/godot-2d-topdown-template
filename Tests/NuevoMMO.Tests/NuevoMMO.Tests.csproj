@@ -1,8 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../server/NuevoMMO.Server/NuevoMMO.Server.csproj" />
-    <ProjectReference Include="../../client/mmo/core/NuevoMMO.Client.Core.csproj" />
-    <None Include="../../server/Fixtures/movement.json" Link="Fixtures/movement.json" CopyToOutputDirectory="PreserveNewest" />
+    <ProjectReference Include="../../Server/NuevoMMO.Server/NuevoMMO.Server.csproj" />
+    <ProjectReference Include="../../Client/mmo/core/NuevoMMO.Client.Core.csproj" />
+    <ProjectReference Include="../../Editor/NuevoMMO.Editor/NuevoMMO.Editor.csproj" />
+    <None Include="../../Server/Fixtures/movement.json" Link="Fixtures/movement.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -1,3 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup><ProjectReference Include="../../../shared/NuevoMMO.Protocol/NuevoMMO.Protocol.csproj" /></ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../Network/NuevoMMO.Network/NuevoMMO.Network.csproj" />
+  </ItemGroup>
 </Project>
