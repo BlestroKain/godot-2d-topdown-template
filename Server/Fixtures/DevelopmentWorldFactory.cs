@@ -29,11 +29,42 @@ public sealed class ServerComposition
 public static class DevelopmentWorldFactory
 {
     public static ServerComposition Create(string environment)
-        => Create(environment, ServerConfiguration.Development());
+        => CreateInMemory(environment, ServerConfiguration.Development());
 
     public static ServerComposition Create(string environment, ServerConfiguration configuration)
+        => CreateInMemory(environment, configuration);
+
+    public static async Task<ServerComposition> CreateAsync(
+        string environment,
+        ServerConfiguration configuration,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(configuration);
+        configuration.Validate();
+        if (!configuration.Database.Enabled) return CreateInMemory(environment, configuration);
+
+        if (configuration.Database.AutoMigrate)
+            await PostgresMigrator.ApplyAsync(configuration.Database.ConnectionString, cancellationToken);
+
+        return CreateInternal(
+            environment,
+            configuration,
+            new PostgresAccountRepository(configuration.Database.ConnectionString),
+            new PostgresSessionRepository(configuration.Database.ConnectionString),
+            new PostgresCharacterRepository(configuration.Database.ConnectionString));
+    }
+
+    private static ServerComposition CreateInMemory(string environment, ServerConfiguration configuration)
+        => CreateInternal(environment, configuration,
+            new InMemoryAccountRepository(), new InMemorySessionRepository(), new InMemoryCharacterRepository());
+
+    private static ServerComposition CreateInternal(
+        string environment,
+        ServerConfiguration configuration,
+        IAccountRepository accounts,
+        ISessionRepository sessions,
+        ICharacterRepository characters)
+    {
         if (environment is not ("Development" or "Test")) throw new InvalidOperationException("Fixtures solo en Development/Test.");
         if (!string.Equals(environment, configuration.Environment, StringComparison.Ordinal))
             throw new InvalidOperationException("Environment no coincide con ServerConfiguration.");
@@ -41,41 +72,23 @@ public static class DevelopmentWorldFactory
         using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "movement.json")));
         var data = document.RootElement;
         var map = new MapDefinition(
-            new(data.GetProperty("map").GetGuid()),
-            new("maps.development"),
-            "Development",
-            "Mapa técnico local.",
-            true,
-            1,
-            ["fixture"],
-            new("maps.development.visual"),
+            new(data.GetProperty("map").GetGuid()), new("maps.development"), "Development", "Mapa técnico local.",
+            true, 1, ["fixture"], new("maps.development.visual"),
             new(new(0, 0), new(data.GetProperty("width").GetSingle(), data.GetProperty("height").GetSingle())),
-            new(data.GetProperty("spawnX").GetSingle(), data.GetProperty("spawnY").GetSingle()),
-            new(32, 32));
+            new(data.GetProperty("spawnX").GetSingle(), data.GetProperty("spawnY").GetSingle()), new(32, 32));
         var mob = new MobDefinition(
-            new(data.GetProperty("mob").GetGuid()),
-            new("mobs.scout"),
-            "Explorador",
-            "Mob de fixture.",
-            true,
-            1,
-            ["fixture"],
-            new("template.player"));
+            new(data.GetProperty("mob").GetGuid()), new("mobs.scout"), "Explorador", "Mob de fixture.",
+            true, 1, ["fixture"], new("template.player"));
         var package = ContentPackage.Empty("dev-1") with { Maps = [map], Mobs = [mob] };
         var definitions = new GameDataLoader().Load(package);
         var options = new WorldOptions(
-            new(data.GetProperty("instance").GetInt64()),
-            data.GetProperty("speed").GetSingle(),
-            data.GetProperty("mobSpeed").GetSingle(),
-            configuration.TickMilliseconds,
-            data.GetProperty("interestRadius").GetSingle(),
-            configuration.MaxPlayers);
+            new(data.GetProperty("instance").GetInt64()), data.GetProperty("speed").GetSingle(),
+            data.GetProperty("mobSpeed").GetSingle(), configuration.TickMilliseconds,
+            data.GetProperty("interestRadius").GetSingle(), configuration.MaxPlayers);
         var world = new WorldRuntime(map, mob, options, new OscillatingMobPolicy(),
             new(data.GetProperty("mobX").GetSingle(), data.GetProperty("mobY").GetSingle()));
-        var accounts = new InMemoryAccountRepository();
-        var characters = new InMemoryCharacterRepository();
         var persistence = new PersistenceService(characters, map);
-        var auth = new AuthService(accounts, new PasswordHasher<string>());
+        var auth = new AuthService(accounts, sessions, new PasswordHasher<string>());
         var characterService = new CharacterService(characters, map);
         var dispatcher = new PacketDispatcher<ServerPacketContext>(
             ServerHandlerRegistry.Create(world, auth, characterService, persistence), PacketDirection.ClientToServer);
