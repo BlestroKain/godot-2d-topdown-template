@@ -4,6 +4,7 @@ using System.Net;
 using System.Net.Sockets;
 using NuevoMMO.Core;
 using NuevoMMO.Network;
+using NuevoMMO.Server.Configuration;
 using NuevoMMO.Server.Database;
 using NuevoMMO.Server.NetworkHandlers;
 using NuevoMMO.Server.Telemetry;
@@ -11,7 +12,7 @@ using NuevoMMO.Server.World;
 
 namespace NuevoMMO.Server;
 
-internal sealed class PeerConnection(TcpClient tcp, CancellationToken stopping) : IDisposable
+internal sealed class PeerConnection(TcpClient tcp, CancellationToken stopping, int writeTimeoutSeconds) : IDisposable
 {
     private readonly System.Threading.Channels.Channel<IPacket> outbound = System.Threading.Channels.Channel.CreateBounded<IPacket>(
         new System.Threading.Channels.BoundedChannelOptions(32) { SingleReader = true, FullMode = System.Threading.Channels.BoundedChannelFullMode.Wait });
@@ -30,7 +31,7 @@ internal sealed class PeerConnection(TcpClient tcp, CancellationToken stopping) 
             await foreach (var packet in outbound.Reader.ReadAllAsync(Token))
             {
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(Token);
-                timeout.CancelAfter(TimeSpan.FromSeconds(3));
+                timeout.CancelAfter(TimeSpan.FromSeconds(writeTimeoutSeconds));
                 await TcpPacketFraming.WriteAsync(Stream, packet, timeout.Token);
             }
         }
@@ -51,6 +52,7 @@ public sealed class ServerHost
     private readonly PersistenceService persistence;
     private readonly PacketDispatcher<ServerPacketContext> dispatcher;
     private readonly TcpListener listener;
+    private readonly ServerConfiguration configuration;
     private readonly ConcurrentDictionary<ConnectionId, PeerConnection> peers = [];
     private readonly ConcurrentDictionary<ConnectionId, Task> connections = [];
     private readonly SemaphoreSlim slots;
@@ -61,18 +63,33 @@ public sealed class ServerHost
     public double LastTickMilliseconds { get; private set; }
 
     public ServerHost(WorldRuntime world, PersistenceService persistence, PacketDispatcher<ServerPacketContext> dispatcher, int port = 7777)
+        : this(world, persistence, dispatcher, ServerConfiguration.Development(port))
+    {
+    }
+
+    public ServerHost(
+        WorldRuntime world,
+        PersistenceService persistence,
+        PacketDispatcher<ServerPacketContext> dispatcher,
+        ServerConfiguration configuration)
     {
         this.world = world;
         this.persistence = persistence;
         this.dispatcher = dispatcher;
-        listener = new(IPAddress.Loopback, port);
-        slots = new(32);
+        this.configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+        configuration.Validate();
+
+        if (!IPAddress.TryParse(configuration.Host, out var address))
+            throw new ArgumentException($"Host debe ser una dirección IP válida: {configuration.Host}.", nameof(configuration));
+
+        listener = new(address, configuration.Port);
+        slots = new(configuration.MaxConnections);
     }
 
     public async Task RunAsync(CancellationToken stopping)
     {
         listener.Start();
-        Console.WriteLine($"Servidor Development escuchando 127.0.0.1:{Port}; tick={world.TickMilliseconds}ms.");
+        Console.WriteLine($"Servidor {configuration.Environment} escuchando {configuration.Host}:{Port}; tick={world.TickMilliseconds}ms; maxPlayers={configuration.MaxPlayers}; maxConnections={configuration.MaxConnections}.");
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(stopping);
         var simulation = SimulateAsync(lifetime.Token);
         try
@@ -111,31 +128,32 @@ public sealed class ServerHost
                 if (peers.TryGetValue(pair.Key, out var peer)) peer.Send(pair.Value);
             LastTickMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
             metrics.ObserveTick(LastTickMilliseconds, world.PlayerCount, world.EntityCount, 1);
-            if (++autosave % 40 == 0) await persistence.SaveDirtyAsync(world.DirtyPlayers(), stopping);
+            if (++autosave % configuration.AutosaveIntervalTicks == 0)
+                await persistence.SaveDirtyAsync(world.DirtyPlayers(), stopping);
         }
     }
 
     private async Task ServeAsync(ConnectionId id, TcpClient tcp, CancellationToken stopping)
     {
-        using var peer = new PeerConnection(tcp, stopping);
+        using var peer = new PeerConnection(tcp, stopping, configuration.WriteTimeoutSeconds);
         Task? writer = null;
         PlayerSession? session = null;
         try
         {
             session = world.AddConnection(id);
             using var handshakeTimeout = CancellationTokenSource.CreateLinkedTokenSource(peer.Token);
-            handshakeTimeout.CancelAfter(TimeSpan.FromSeconds(5));
+            handshakeTimeout.CancelAfter(TimeSpan.FromSeconds(configuration.HandshakeTimeoutSeconds));
             var first = await TcpPacketFraming.ReadAsync(peer.Stream, handshakeTimeout.Token);
             if (first is not ConnectRequest) throw new InvalidDataException("Se requiere ConnectRequest.");
             var context = new ServerPacketContext { Connection = id, Session = session, Send = peer.Send };
             await dispatcher.DispatchAsync(context, first, handshakeTimeout.Token);
             peers[id] = peer;
             writer = peer.WriteLoopAsync();
-            var rate = new RateLimiter(100);
+            var rate = new RateLimiter(configuration.MaxMessagesPerWindow);
             while (!peer.Token.IsCancellationRequested)
             {
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(peer.Token);
-                timeout.CancelAfter(TimeSpan.FromSeconds(10));
+                timeout.CancelAfter(TimeSpan.FromSeconds(configuration.ReadTimeoutSeconds));
                 var packet = await TcpPacketFraming.ReadAsync(peer.Stream, timeout.Token);
                 metrics.PacketIn();
                 if (!rate.TryAdmit()) throw new InvalidDataException("Límite de mensajes excedido.");
