@@ -4,18 +4,5 @@
     <ProjectReference Include="../../Network/NuevoMMO.Network/NuevoMMO.Network.csproj" />
   </ItemGroup>
 
-  <!-- La lógica del Editor sigue siendo net8.0 y testeable sin Windows Forms. -->
-  <ItemGroup>
-    <Compile Remove="Program.cs" />
-    <Compile Remove="Content/TilesetImageProvider.cs" />
-    <Compile Remove="Content/TilesetImporter.cs" />
-    <Compile Remove="Interface/ContentExplorerDock.cs" />
-    <Compile Remove="Interface/MainEditorForm.cs" />
-    <Compile Remove="Interface/MapEditorDocument.cs" />
-    <Compile Remove="Interface/MapToolsDock.cs" />
-    <Compile Remove="Interface/MapViewportControl.cs" />
-    <Compile Remove="Interface/ProblemsDock.cs" />
-    <Compile Remove="Interface/PropertiesDock.cs" />
-    <Compile Remove="Interface/TilesetPaletteDock.cs" />
-  </ItemGroup>
+  <!-- Lógica portable y testeable. La aplicación visual vive en NuevoMMO.Editor.WinForms. -->
 </Project>

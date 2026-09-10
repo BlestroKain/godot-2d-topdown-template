@@ -8,29 +8,24 @@ namespace NuevoMMO.Editor;
 /// Ventana principal del NuevoMMO Editor. Sigue el flujo de Intersect: un único ejecutable,
 /// mapa como documento central y herramientas/editores acoplables alrededor.
 /// </summary>
-public sealed class MainEditorForm : Form
+public sealed partial class MainForm : Form
 {
     private readonly EditorApplication application;
     private readonly TilesetImageProvider images;
-    private readonly DockPanel dockPanel = new() { Dock = DockStyle.Fill };
+    private readonly DefinitionEditorCatalog definitionEditors;
     private readonly ContentExplorerDock contentExplorer;
     private readonly PropertiesDock properties;
     private readonly ProblemsDock problems;
     private readonly MapToolsDock mapTools;
     private readonly TilesetPaletteDock tilesetPalette;
     private readonly MapEditorDocument mapDocument;
-    private readonly ToolStripStatusLabel status = new("Listo");
 
-    public MainEditorForm(EditorApplication application)
+    public MainForm(EditorApplication application)
     {
+        InitializeComponent();
         this.application = application ?? throw new ArgumentNullException(nameof(application));
         images = new TilesetImageProvider(application.Configuration, application.Definitions);
-
-        Text = "NuevoMMO Editor";
-        WindowState = FormWindowState.Maximized;
-        StartPosition = FormStartPosition.CenterScreen;
-        Width = 1440;
-        Height = 900;
+        definitionEditors = new DefinitionEditorCatalog(application);
 
         dockPanel.Theme = new VS2015DarkTheme();
         dockPanel.DocumentStyle = DocumentStyle.DockingWindow;
@@ -43,6 +38,14 @@ public sealed class MainEditorForm : Form
         mapDocument = new MapEditorDocument(application, images);
 
         contentExplorer.DefinitionActivated += OpenDefinition;
+        definitionEditors.ContentChanged += definition =>
+        {
+            contentExplorer.RefreshTree();
+            tilesetPalette.RefreshTilesets();
+            properties.SelectedObject = definition;
+            problems.SetProblems(ValidateProject(showMessage: false));
+            Text = "NuevoMMO Editor *";
+        };
         mapTools.ToolSelected += tool => mapDocument.ActiveTool = tool;
         mapTools.LayerSelected += key =>
         {
@@ -61,28 +64,15 @@ public sealed class MainEditorForm : Form
             Text = "NuevoMMO Editor *";
         };
 
-        var menu = BuildMenu();
-        var statusStrip = new StatusStrip();
-        statusStrip.Items.Add(status);
-
-        MainMenuStrip = menu;
-        Controls.Add(dockPanel);
-        Controls.Add(statusStrip);
-        Controls.Add(menu);
+        BuildMenu();
 
         Load += (_, _) => InitializeDockLayout();
         FormClosing += OnFormClosing;
     }
 
-    protected override void Dispose(bool disposing)
+    private void BuildMenu()
     {
-        if (disposing) images.Dispose();
-        base.Dispose(disposing);
-    }
-
-    private MenuStrip BuildMenu()
-    {
-        var menu = new MenuStrip();
+        mainMenuStrip.Items.Clear();
 
         var file = new ToolStripMenuItem("Archivo");
         file.DropDownItems.Add("Nuevo proyecto", null, (_, _) => NewProject());
@@ -114,13 +104,18 @@ public sealed class MainEditorForm : Form
         AddContentEntry(content, "Items", typeof(ItemDefinition));
         AddContentEntry(content, "Mobs", typeof(MobDefinition));
         AddContentEntry(content, "NPCs", typeof(NpcDefinition));
+        AddContentEntry(content, "Recursos", typeof(ResourceDefinition));
         AddContentEntry(content, "Técnicas / Spells", typeof(TechniqueDefinition));
         AddContentEntry(content, "Efectos", typeof(EffectDefinition));
         AddContentEntry(content, "Tradiciones / Clases", typeof(TraditionDefinition));
         AddContentEntry(content, "Profesiones", typeof(ProfessionDefinition));
         AddContentEntry(content, "Recetas", typeof(RecipeDefinition));
+        AddContentEntry(content, "Loot Tables", typeof(LootTableDefinition));
+        AddContentEntry(content, "Spawn Tables", typeof(SpawnTableDefinition));
         AddContentEntry(content, "Quests", typeof(QuestDefinition));
         AddContentEntry(content, "Eventos", typeof(EventDefinition));
+        AddContentEntry(content, "Dungeons", typeof(DungeonDefinition));
+        AddContentEntry(content, "Propiedades de item", typeof(ItemPropertyDefinition));
         AddContentEntry(content, "Tilesets", typeof(TilesetDefinition));
 
         var view = new ToolStripMenuItem("Ver");
@@ -133,8 +128,7 @@ public sealed class MainEditorForm : Form
         var tools = new ToolStripMenuItem("Herramientas");
         tools.DropDownItems.Add("Validar proyecto", null, (_, _) => ValidateProject(showMessage: true));
 
-        menu.Items.AddRange([file, edit, map, content, view, tools]);
-        return menu;
+        mainMenuStrip.Items.AddRange([file, edit, map, content, view, tools]);
     }
 
     private void InitializeDockLayout()
@@ -153,6 +147,7 @@ public sealed class MainEditorForm : Form
         if (!ConfirmDiscardChanges()) return;
         application.Content.New();
         application.Maps.Close();
+        definitionEditors.RefreshOpenEditors();
         contentExplorer.RefreshTree();
         tilesetPalette.RefreshTilesets();
         properties.SelectedObject = null;
@@ -176,6 +171,7 @@ public sealed class MainEditorForm : Form
             application.Content.Load(dialog.FileName);
             application.Maps.Close();
             images.Clear();
+            definitionEditors.RefreshOpenEditors();
             contentExplorer.RefreshTree();
             tilesetPalette.RefreshTilesets();
             properties.SelectedObject = null;
@@ -266,9 +262,9 @@ public sealed class MainEditorForm : Form
             return;
         }
 
+        definitionEditors.Open(definition, dockPanel);
         properties.SelectedObject = definition;
-        properties.Show(dockPanel, DockState.DockRight);
-        SetStatus($"Seleccionado: {definition.Name} ({definition.GetType().Name})");
+        SetStatus($"Editor abierto: {definition.Name} ({definition.GetType().Name})");
     }
 
     private void SaveCurrentMap()
@@ -297,6 +293,7 @@ public sealed class MainEditorForm : Form
         {
             var imported = importer.ImportClientTilesets(size);
             if (imported.Count > 0) application.Dirty.Mark();
+            definitionEditors.RefreshOpenEditors();
             tilesetPalette.RefreshTilesets();
             contentExplorer.RefreshTree();
             SetStatus($"Tilesets importados: {imported.Count}");
@@ -354,16 +351,7 @@ public sealed class MainEditorForm : Form
     }
 
     private void AddContentEntry(ToolStripMenuItem parent, string label, Type type)
-        => parent.DropDownItems.Add(label, null, (_, _) =>
-        {
-            var first = application.Content.Snapshot().All().FirstOrDefault(type.IsInstanceOfType);
-            if (first is null)
-            {
-                MessageBox.Show(this, $"Todavía no hay contenido de tipo {label}.", "Contenido");
-                return;
-            }
-            OpenDefinition(first);
-        });
+        => parent.DropDownItems.Add(label, null, (_, _) => definitionEditors.Open(type, dockPanel));
 
     private bool ConfirmDiscardChanges()
     {
@@ -384,7 +372,7 @@ public sealed class MainEditorForm : Form
         e.Cancel = true;
     }
 
-    private void SetStatus(string value) => status.Text = value;
+    private void SetStatus(string value) => statusLabel.Text = value;
 
     private void SetCleanTitle() => Text = "NuevoMMO Editor";
 }

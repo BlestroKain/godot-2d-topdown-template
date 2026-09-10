@@ -16,6 +16,6 @@ internal static class Program
         };
 
         var application = new EditorApplication(configuration);
-        Application.Run(new MainEditorForm(application));
+        Application.Run(new MainForm(application));
     }
 }
