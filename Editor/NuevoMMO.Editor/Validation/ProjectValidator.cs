@@ -37,7 +37,8 @@ public sealed class ProjectValidator
             Quests: registry.GetAll<QuestDefinition>().ToArray(),
             ItemProperties: registry.GetAll<ItemPropertyDefinition>().ToArray())
         {
-            Events = registry.GetAll<EventDefinition>().ToArray()
+            Events = registry.GetAll<EventDefinition>().ToArray(),
+            Tilesets = registry.GetAll<TilesetDefinition>().ToArray()
         };
     }
 
