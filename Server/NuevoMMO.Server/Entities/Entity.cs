@@ -9,6 +9,7 @@ public abstract class Entity
         if (id.Value <= 0) throw new ArgumentException("EntityId inválido.", nameof(id));
         if (mapInstance.Value <= 0) throw new ArgumentException("MapInstanceId inválido.", nameof(mapInstance));
         if (!position.IsFinite) throw new ArgumentException("Posición inválida.", nameof(position));
+        if (visualKey.IsEmpty) throw new ArgumentException("VisualKey vacío.", nameof(visualKey));
         if (string.IsNullOrWhiteSpace(displayName)) throw new ArgumentException("Nombre vacío.", nameof(displayName));
         Id = id;
         MapInstanceId = mapInstance;
@@ -22,7 +23,7 @@ public abstract class Entity
     public Vector2Data Position { get; private set; }
     public Vector2Data Velocity { get; private set; }
     public Direction Direction { get; protected set; }
-    public ContentKey VisualKey { get; }
+    public ContentKey VisualKey { get; private set; }
     public string DisplayName { get; }
 
     public void MoveTo(Vector2Data position, Vector2Data velocity, Direction? facing = null)
@@ -41,6 +42,12 @@ public abstract class Entity
     {
         if (mapInstance.Value <= 0) throw new ArgumentException("MapInstanceId inválido.", nameof(mapInstance));
         MapInstanceId = mapInstance;
+    }
+
+    protected void SetVisualKey(ContentKey visualKey)
+    {
+        if (visualKey.IsEmpty) throw new ArgumentException("VisualKey vacío.", nameof(visualKey));
+        VisualKey = visualKey;
     }
 
     public abstract EntityState ToState();
