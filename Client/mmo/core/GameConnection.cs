@@ -13,6 +13,9 @@ public sealed class GameConnection : IDisposable
     public event Action<string>? Closed;
     public MapLoadPacket? Map { get; private set; }
 
+    public Task ConnectAsync(string host, int port, string name)
+        => ConnectAsync(host, port, name, "development", true);
+
     public async Task ConnectAsync(string host, int port, string username, string password, bool registerAccount = false)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
