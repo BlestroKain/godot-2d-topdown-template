@@ -43,8 +43,8 @@ No refactors masivos. No sobreingeniería. No duplicar tipos. Validar temprano. 
 
 ## Ya revisadas
 
-DefinitionId, ContentKey, GameDefinition, DefinitionRegistry, ContentPackage, MapDefinition, BoundsData, Vector2Data, Vector2IntData, MapId, MobDefinition.
+DefinitionId, ContentKey, GameDefinition, DefinitionRegistry, ContentPackage, MapDefinition, BoundsData, Vector2Data, Vector2IntData, MapId, MobDefinition, NpcDefinition, ItemDefinition, ItemPropertyDefinition, ResourceDefinition, LootTableDefinition.
 
 ## Siguiente
 
-`NpcDefinition.cs`
+`RecipeDefinition.cs`
