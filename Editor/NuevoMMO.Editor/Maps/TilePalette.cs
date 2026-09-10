@@ -10,6 +10,7 @@ public sealed class TilePalette
     public int RotationQuarterTurns { get; private set; }
     public bool FlipHorizontal { get; private set; }
     public bool FlipVertical { get; private set; }
+    public MapAutotileMode AutotileMode { get; private set; }
 
     public bool HasSelection => SelectedTilesetKey is not null;
 
@@ -19,7 +20,8 @@ public sealed class TilePalette
         int alternative = 0,
         int rotationQuarterTurns = 0,
         bool flipHorizontal = false,
-        bool flipVertical = false)
+        bool flipVertical = false,
+        MapAutotileMode autotileMode = MapAutotileMode.None)
     {
         if (tilesetKey.IsEmpty) throw new ArgumentException("TilesetKey vacío.", nameof(tilesetKey));
         if (alternative < 0) throw new ArgumentOutOfRangeException(nameof(alternative));
@@ -31,9 +33,16 @@ public sealed class TilePalette
         RotationQuarterTurns = rotationQuarterTurns;
         FlipHorizontal = flipHorizontal;
         FlipVertical = flipVertical;
+        AutotileMode = autotileMode;
     }
 
-    public void Clear() => SelectedTilesetKey = null;
+    public void SetAutotileMode(MapAutotileMode mode) => AutotileMode = mode;
+
+    public void Clear()
+    {
+        SelectedTilesetKey = null;
+        AutotileMode = MapAutotileMode.None;
+    }
 
     public MapTilePlacementDefinition CreatePlacement(Vector2IntData cell)
     {
@@ -45,6 +54,7 @@ public sealed class TilePalette
             Alternative,
             RotationQuarterTurns,
             FlipHorizontal,
-            FlipVertical);
+            FlipVertical,
+            AutotileMode);
     }
 }
