@@ -18,6 +18,7 @@ public sealed class GameSystems
         Func<Entity, Vector2Data, bool>? lineOfSight = null)
     {
         Definitions = definitions ?? throw new ArgumentNullException(nameof(definitions));
+        Conditions = new ConditionSystem();
         Combat = new CombatSystem();
         Effects = new EffectSystem(definitions);
         Inventory = new InventorySystem(definitions);
@@ -34,11 +35,12 @@ public sealed class GameSystems
             Combat,
             Effects,
             techniqueResources,
-            requirementsEvaluator,
+            requirementsEvaluator ?? ((player, group) => Conditions.Evaluate(player, group)),
             lineOfSight);
     }
 
     public DefinitionRegistry Definitions { get; }
+    public ConditionSystem Conditions { get; }
     public CombatSystem Combat { get; }
     public EffectSystem Effects { get; }
     public InventorySystem Inventory { get; }
