@@ -21,6 +21,12 @@ public sealed class ContentKeyJsonConverter : JsonConverter<ContentKey>
 
     public override void Write(Utf8JsonWriter writer, ContentKey value, JsonSerializerOptions options)
         => writer.WriteStringValue(value.Value);
+
+    public override ContentKey ReadAsPropertyName(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        => new(reader.GetString() ?? throw new JsonException("ContentKey nulo."));
+
+    public override void WriteAsPropertyName(Utf8JsonWriter writer, ContentKey value, JsonSerializerOptions options)
+        => writer.WritePropertyName(value.Value);
 }
 
 public sealed class DefinitionIdJsonConverter : JsonConverter<DefinitionId>
@@ -41,4 +47,10 @@ public sealed class DefinitionIdJsonConverter : JsonConverter<DefinitionId>
 
     public override void Write(Utf8JsonWriter writer, DefinitionId value, JsonSerializerOptions options)
         => writer.WriteStringValue(value.ToString());
+
+    public override DefinitionId ReadAsPropertyName(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        => DefinitionId.Parse(reader.GetString() ?? throw new JsonException("DefinitionId nulo."));
+
+    public override void WriteAsPropertyName(Utf8JsonWriter writer, DefinitionId value, JsonSerializerOptions options)
+        => writer.WritePropertyName(value.ToString());
 }
