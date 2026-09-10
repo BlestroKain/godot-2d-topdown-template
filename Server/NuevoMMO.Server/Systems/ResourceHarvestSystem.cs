@@ -65,9 +65,7 @@ public sealed class ResourceHarvestSystem
         var applied = resource.ApplyHarvestDamage(workPower, nowMilliseconds);
         var depleted = !resource.IsAvailable;
         var drops = depleted && harvest.LootTableId is not null
-            ? loot.Roll(resource.DefinitionId == default
-                ? throw new InvalidOperationException("ResourceEntity sin DefinitionId.")
-                : definitions.Get<ResourceDefinition>(resource.DefinitionId))
+            ? loot.Roll(definitions.Get<ResourceDefinition>(resource.DefinitionId))
             : [];
 
         return new(true, HarvestFailure.None, applied, depleted, drops, string.Empty);
