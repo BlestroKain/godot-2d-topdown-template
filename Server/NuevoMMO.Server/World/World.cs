@@ -126,6 +126,7 @@ public sealed class WorldRuntime
     private readonly MapInstance map;
     private readonly MovementSystem movement;
     private readonly MobMovementSystem mobMovement;
+    private readonly ProjectileSystem projectiles = new();
     private readonly InterestManager interest;
     private readonly SpawnManager spawns = new();
     private readonly Dictionary<ConnectionId, PlayerSession> sessions = [];
@@ -228,17 +229,82 @@ public sealed class WorldRuntime
         }
     }
 
+    /// <summary>Inserta entidades runtime creadas por sistemas autorizados (loot, proyectiles, recursos, summons).</summary>
+    public void AddEntity(Entity entity)
+    {
+        ArgumentNullException.ThrowIfNull(entity);
+        lock (gate)
+        {
+            if (entity.MapInstanceId != map.Id) throw new InvalidOperationException("La entidad pertenece a otra instancia de mapa.");
+            map.Add(entity);
+        }
+    }
+
+    public InteractionResult TryPickup(PlayerSession session, EntityId worldItemId, InteractionSystem interactions, long nowMilliseconds)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(interactions);
+        lock (gate)
+        {
+            EnsureInWorld(session);
+            if (!map.Entities.TryGet(worldItemId, out var entity) || entity is not WorldItem worldItem)
+                return InteractionResult.Fail(InteractionFailure.TargetUnavailable, "El item ya no existe en el mundo.");
+
+            var result = interactions.TryPickup(session.Player!, worldItem, nowMilliseconds);
+            if (result.Success) map.Remove(worldItem.Id, out _);
+            return result;
+        }
+    }
+
+    public HarvestInteractionResult TryHarvest(PlayerSession session, EntityId resourceId, InteractionSystem interactions,
+        float workPower, long nowMilliseconds, float? range = null)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(interactions);
+        lock (gate)
+        {
+            EnsureInWorld(session);
+            if (!map.Entities.TryGet(resourceId, out var entity) || entity is not ResourceEntity resource)
+                return HarvestInteractionResult.Fail(InteractionFailure.TargetUnavailable, "El recurso ya no existe en el mundo.");
+            return interactions.TryHarvest(session.Player!, resource, workPower, nowMilliseconds, range);
+        }
+    }
+
     public IReadOnlyDictionary<ConnectionId, EntityStatePacket> Step()
     {
         lock (gate)
         {
             tick++;
-            foreach (var entity in map.Entities.All)
+            var nowMilliseconds = checked(tick * options.TickMilliseconds);
+            var despawn = new List<EntityId>();
+
+            foreach (var entity in map.Entities.All.ToArray())
             {
-                if (entity is Player player) movement.Step(player, map.Definition);
-                else if (entity is Mob mob) mobMovement.Step(mob, map.Definition, tick);
-                map.Refresh(entity);
+                switch (entity)
+                {
+                    case Player player:
+                        movement.Step(player, map.Definition);
+                        break;
+                    case Mob mob:
+                        mobMovement.Step(mob, map.Definition, tick);
+                        break;
+                    case Projectile projectile:
+                        projectiles.Step(projectile, map.Definition, options.TickMilliseconds);
+                        if (projectile.IsExpired) despawn.Add(projectile.Id);
+                        break;
+                    case ResourceEntity resource:
+                        resource.TryRespawn(nowMilliseconds);
+                        break;
+                    case WorldItem worldItem when worldItem.PickedUp || worldItem.IsExpired(nowMilliseconds):
+                        despawn.Add(worldItem.Id);
+                        break;
+                }
+
+                if (!despawn.Contains(entity.Id)) map.Refresh(entity);
             }
+
+            foreach (var id in despawn.Distinct()) map.Remove(id, out _);
+
             return sessions.Values.Where(session => session.State == PlayerSessionState.InWorld)
                 .ToDictionary(session => session.Connection, Project);
         }
@@ -285,4 +351,10 @@ public sealed class WorldRuntime
 
     public MapProjection Projection(string contentVersion) => new(map.Definition.Id, map.Id, map.Definition.VisualKey,
         map.Definition.Bounds, options.MovementSpeed, options.TickMilliseconds, contentVersion);
+
+    private static void EnsureInWorld(PlayerSession session)
+    {
+        if (session.State != PlayerSessionState.InWorld || session.Player is null)
+            throw new InvalidOperationException("Jugador fuera del mundo.");
+    }
 }
