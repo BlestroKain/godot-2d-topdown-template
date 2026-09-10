@@ -1,5 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+
   <ItemGroup>
+    <ProjectReference Include="../../Core/NuevoMMO.Core/NuevoMMO.Core.csproj" />
     <ProjectReference Include="../../Network/NuevoMMO.Network/NuevoMMO.Network.csproj" />
   </ItemGroup>
 </Project>
