@@ -8,12 +8,13 @@ public enum ServerAction : byte
     Register = 1,
     Login = 2,
     ListCharacters = 3,
-    SelectCharacter = 4,
-    EnterWorld = 5,
-    Move = 6,
-    Interact = 7,
-    UseTechnique = 8,
-    Chat = 9
+    CreateCharacter = 4,
+    SelectCharacter = 5,
+    EnterWorld = 6,
+    Move = 7,
+    Interact = 8,
+    UseTechnique = 9,
+    Chat = 10
 }
 
 public readonly record struct AuthorizationDecision(bool Allowed, string Reason)
@@ -39,7 +40,8 @@ public sealed class AuthorizationService
         {
             ServerAction.AcceptProtocol => state == PlayerSessionState.Connected,
             ServerAction.Register or ServerAction.Login => state == PlayerSessionState.ProtocolAccepted,
-            ServerAction.ListCharacters or ServerAction.SelectCharacter => state == PlayerSessionState.Authenticated,
+            ServerAction.ListCharacters or ServerAction.CreateCharacter or ServerAction.SelectCharacter
+                => state == PlayerSessionState.Authenticated,
             ServerAction.EnterWorld => state == PlayerSessionState.WaitingForMap,
             ServerAction.Move or ServerAction.Interact or ServerAction.UseTechnique or ServerAction.Chat
                 => state == PlayerSessionState.InWorld && session.Player is not null,
