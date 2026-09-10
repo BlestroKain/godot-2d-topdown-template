@@ -20,6 +20,7 @@ public abstract class LivingEntity : Entity
     public int MaxHealth { get; private set; }
     public int Mana { get; private set; }
     public int MaxMana { get; private set; }
+    public bool Immortal { get; private set; }
     public StatBlock Stats { get; } = new();
     public EffectSet Effects { get; } = new();
     public CombatState CombatState { get; } = new();
@@ -28,13 +29,16 @@ public abstract class LivingEntity : Entity
     public float HealthPercent => MaxHealth <= 0 ? 0 : Health * 100f / MaxHealth;
     public float ManaPercent => MaxMana <= 0 ? 0 : Mana * 100f / MaxMana;
 
+    public void SetImmortal(bool value) => Immortal = value;
+
     public void ApplyDamage(int amount) => TakeDamage(amount);
 
     public int TakeDamage(int amount)
     {
         if (amount < 0) throw new ArgumentOutOfRangeException(nameof(amount));
         if (!IsAlive || amount == 0) return 0;
-        var applied = Math.Min(Health, amount);
+        var maximumApplicable = Immortal ? Math.Max(0, Health - 1) : Health;
+        var applied = Math.Min(maximumApplicable, amount);
         Health -= applied;
         if (Health == 0) Die();
         return applied;
@@ -91,9 +95,27 @@ public abstract class LivingEntity : Entity
         }
     }
 
+    /// <summary>
+    /// Cambia máximos conservando la cantidad que faltaba antes del recálculo.
+    /// Evita usar una subida de nivel/equipo como curación completa gratuita.
+    /// </summary>
+    public void SetMaximumVitalsPreservingDeficit(int maxHealth, int maxMana)
+    {
+        if (maxHealth < 1) throw new ArgumentOutOfRangeException(nameof(maxHealth));
+        if (maxMana < 0) throw new ArgumentOutOfRangeException(nameof(maxMana));
+        var missingHealth = MaxHealth - Health;
+        var missingMana = MaxMana - Mana;
+        MaxHealth = maxHealth;
+        MaxMana = maxMana;
+        Health = Math.Clamp(maxHealth - missingHealth, Immortal ? 1 : 0, maxHealth);
+        Mana = Math.Clamp(maxMana - missingMana, 0, maxMana);
+        if (Health == 0) Die();
+    }
+
     public void SetVitals(int health, int mana)
     {
         if (health < 0 || health > MaxHealth) throw new ArgumentOutOfRangeException(nameof(health));
+        if (Immortal && health < 1) throw new ArgumentOutOfRangeException(nameof(health), "Una entidad inmortal debe conservar al menos 1 HP.");
         if (mana < 0 || mana > MaxMana) throw new ArgumentOutOfRangeException(nameof(mana));
         Health = health;
         Mana = mana;
@@ -126,6 +148,7 @@ public abstract class LivingEntity : Entity
 
     public void Die()
     {
+        if (Immortal) return;
         if (Health == 0 && !MovementState.CanMove) return;
         Health = 0;
         LeaveCombat();
