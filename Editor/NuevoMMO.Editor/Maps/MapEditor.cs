@@ -4,7 +4,7 @@ namespace NuevoMMO.Editor;
 
 /// <summary>
 /// Coordinador del editor de mapas. Todas las herramientas operan sobre el mismo MapDocument.
-/// La UI Godot puede cambiar de herramienta sin crear copias divergentes del mapa.
+/// La UI WinForms cambia de herramienta sin crear copias divergentes del mapa.
 /// </summary>
 public sealed class MapEditor
 {
@@ -51,7 +51,9 @@ public sealed class MapEditor
     {
         definitions.Create(definition);
         dirty.Mark();
-        return Open(definition);
+        var document = Open(definition);
+        Layers.AddIntersectDefaultsIfEmpty();
+        return document;
     }
 
     public MapDefinition Save()
@@ -122,5 +124,6 @@ public sealed class MapEditor
             tiles,
             source.Visible,
             source.ParallaxFactor,
-            source.Parameters);
+            source.Parameters,
+            source.Band);
 }
