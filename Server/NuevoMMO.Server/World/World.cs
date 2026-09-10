@@ -74,8 +74,8 @@ public sealed class SpawnManager
     public EntityId NextId() => new(Interlocked.Increment(ref nextEntity));
     public Player Player(CharacterSpawn spawn, MapInstanceId instance) => new(NextId(), spawn.Account, spawn.Character, instance,
         spawn.Position, new("template.player"), spawn.Name);
-    public Mob Mob(MobDefinition definition, MapInstanceId instance, Vector2Data position) => new(NextId(), definition.Id,
-        instance, position, definition.VisualKey, definition.Name);
+    public Mob Mob(MobDefinition definition, MapInstanceId instance, Vector2Data position) => new(NextId(), definition,
+        instance, position);
 }
 
 public sealed class MapInstance(MapInstanceId id, MapDefinition definition, float interestRadius)
