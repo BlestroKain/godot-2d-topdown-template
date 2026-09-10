@@ -1,7 +1,8 @@
 namespace NuevoMMO.Core;
 
 /// <summary>
-/// Describe un tipo de recurso del mundo. No representa un nodo recolectable concreto del runtime.
+/// Definición maestra de un recurso recolectable del mundo.
+/// La entidad runtime conserva estado actual; esta Definition contiene su configuración editable.
 /// </summary>
 public sealed record ResourceDefinition : GameDefinition
 {
@@ -14,30 +15,46 @@ public sealed record ResourceDefinition : GameDefinition
         int version,
         string[]? tags,
         ContentKey visualKey,
-        DefinitionId[]? propertyIds = null)
+        DefinitionId[]? propertyIds = null,
+        ContentKey? exhaustedVisualKey = null,
+        ResourceHarvestDefinition? harvest = null,
+        Dictionary<DefinitionId, NumericRange>? propertyRanges = null,
+        Dictionary<string, DefinitionId>? eventHooks = null,
+        Dictionary<string, string>? metadata = null)
         : base(id, key, name, description, enabled, version, tags)
     {
-        if (visualKey.IsEmpty)
-            throw new ArgumentException("VisualKey vacío.", nameof(visualKey));
+        if (visualKey.IsEmpty) throw new ArgumentException("VisualKey vacío.", nameof(visualKey));
+        if (exhaustedVisualKey is { } exhausted && exhausted.IsEmpty)
+            throw new ArgumentException("ExhaustedVisualKey vacío.", nameof(exhaustedVisualKey));
 
-        var properties = propertyIds ?? [];
-        if (properties.Any(static property => property.IsEmpty))
-            throw new ArgumentException("PropertyIds contiene un DefinitionId vacío.", nameof(propertyIds));
-        if (properties.Distinct().Count() != properties.Length)
-            throw new ArgumentException("PropertyIds contiene referencias duplicadas.", nameof(propertyIds));
+        var ids = DefinitionModelGuards.CopyIds(propertyIds, nameof(propertyIds));
+        PropertyRanges = DefinitionModelGuards.CopyRanges(propertyRanges, nameof(propertyRanges));
 
         VisualKey = visualKey;
-        PropertyIds = [.. properties];
+        ExhaustedVisualKey = exhaustedVisualKey;
+        Harvest = harvest ?? new ResourceHarvestDefinition();
+        EventHooks = DefinitionModelGuards.CopyDefinitionHooks(eventHooks, nameof(eventHooks));
+        Metadata = metadata is null
+            ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, string>(metadata, StringComparer.OrdinalIgnoreCase);
+        PropertyIds = ids.Concat(PropertyRanges.Keys).Distinct().ToArray();
     }
 
-    /// <summary>
-    /// Clave visual resuelta por el cliente.
-    /// </summary>
     public ContentKey VisualKey { get; }
+    public ContentKey? ExhaustedVisualKey { get; }
 
     /// <summary>
-    /// Propiedades variables que pueden describir la calidad material del recurso,
-    /// por ejemplo pureza, conductividad Malden o integridad cuando el diseño lo requiera.
+    /// Configuración de recolección: loot, profesión/herramienta, salud, respawn y bloqueo de movimiento.
     /// </summary>
+    public ResourceHarvestDefinition Harvest { get; }
+
     public DefinitionId[] PropertyIds { get; }
+    public Dictionary<DefinitionId, NumericRange> PropertyRanges { get; }
+
+    /// <summary>
+    /// Hooks editables como onHarvest, onExhausted u otros futuros eventos de contenido.
+    /// Las claves son semánticas y el valor es la Definition objetivo.
+    /// </summary>
+    public Dictionary<string, DefinitionId> EventHooks { get; }
+    public Dictionary<string, string> Metadata { get; }
 }
