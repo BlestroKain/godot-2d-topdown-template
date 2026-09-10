@@ -19,6 +19,9 @@ public partial class NetworkBridge : Node
     public bool InWorld => World.Predictor is not null;
     public static double Now => Time.GetTicksMsec() / 1000d;
 
+    public void ConnectToServer(string host, int port, string name)
+        => ConnectToServer(host, port, name, "development", true);
+
     public void Login(string host, int port, string username, string password)
         => ConnectToServer(host, port, username, password, false);
 
