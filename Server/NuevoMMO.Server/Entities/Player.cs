@@ -13,13 +13,15 @@ public sealed class Player : LivingEntity
         if (character.Value == Guid.Empty) throw new ArgumentException("CharacterId inválido.", nameof(character));
         AccountId = account;
         CharacterId = character;
+        Progression = ProgressionRules.CreateInitial();
     }
 
     public AccountId AccountId { get; }
     public CharacterId CharacterId { get; }
-    public int Level { get; set; } = 1;
-    public long Experience { get; set; }
-    public int AttributePoints { get; set; }
+    public PlayerProgressionState Progression { get; private set; }
+    public int Level => Progression.Level;
+    public long Experience => Progression.Experience;
+    public int AttributePoints => Progression.AvailableAttributePoints;
     public Inventory Inventory { get; } = new();
     public Equipment Equipment { get; } = new();
     public Knowledge Knowledge { get; } = new();
@@ -28,6 +30,16 @@ public sealed class Player : LivingEntity
     public MovementInputBuffer Inputs { get; } = new();
     public HashSet<EntityId> Interest { get; } = [];
     public bool DirtyPosition { get; private set; }
+
+    /// <summary>
+    /// Solo los sistemas autoritativos deben reemplazar el estado de progresión.
+    /// La entidad lo conserva; no calcula XP, costes ni stats derivados.
+    /// </summary>
+    public void SetProgression(PlayerProgressionState progression)
+    {
+        ProgressionRules.Validate(progression);
+        Progression = progression;
+    }
 
     public void ApplyMovement(Vector2Data position, Vector2Data velocity)
     {
