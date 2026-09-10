@@ -46,7 +46,7 @@ public sealed class KnowledgeSystem
         var previousRank = entry.Rank;
         var totalExperience = checked(entry.Experience + experience);
         var rank = RankFor(totalExperience);
-        entry.AddProgress(experience, Math.Max(previousRank, rank), nowMilliseconds);
+        entry.AddProgress(experience, Math.Max(previousRank, rank), nowMilliseconds, countObservation: !discovered);
         return new(entry, discovered, entry.Rank > previousRank, previousRank);
     }
 
