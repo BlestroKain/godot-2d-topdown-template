@@ -2,11 +2,21 @@ using System.Text.Json;
 
 namespace NuevoMMO.Server.Configuration;
 
+public sealed record SqliteDatabaseFiles
+{
+    public string Auth { get; init; } = "Data/auth.db";
+    public string Players { get; init; } = "Data/players.db";
+    public string Game { get; init; } = "Data/game.db";
+    public string Logs { get; init; } = "Data/logs.db";
+}
+
 public sealed record DatabaseConfiguration
 {
-    public bool Enabled { get; init; } = false;
+    public string Provider { get; init; } = "sqlite";
     public bool AutoMigrate { get; init; } = true;
-    public string ConnectionString { get; init; } = "Host=127.0.0.1;Port=5432;Database=nuevommo;Username=nuevommo;Password=change-me";
+    public SqliteDatabaseFiles Sqlite { get; init; } = new();
+    public string PostgreSqlConnectionString { get; init; } =
+        "Host=127.0.0.1;Port=5432;Database=nuevommo;Username=nuevommo;Password=change-me";
 }
 
 public sealed record ServerConfiguration
@@ -57,8 +67,25 @@ public sealed record ServerConfiguration
         if (ReadTimeoutSeconds is < 1 or > 3600) throw new InvalidDataException("ReadTimeoutSeconds fuera de rango.");
         if (WriteTimeoutSeconds is < 1 or > 300) throw new InvalidDataException("WriteTimeoutSeconds fuera de rango.");
         if (AutosaveIntervalTicks is < 1 or > 1000000) throw new InvalidDataException("AutosaveIntervalTicks debe ser positivo.");
-        if (Database.Enabled && string.IsNullOrWhiteSpace(Database.ConnectionString))
-            throw new InvalidDataException("Database.ConnectionString es requerido cuando PostgreSQL está habilitado.");
+
+        if (Database.Provider is not ("sqlite" or "postgresql" or "memory"))
+            throw new InvalidDataException("Database.Provider debe ser sqlite, postgresql o memory.");
+
+        if (Database.Provider == "sqlite")
+        {
+            foreach (var (name, value) in new[]
+            {
+                ("Auth", Database.Sqlite.Auth), ("Players", Database.Sqlite.Players),
+                ("Game", Database.Sqlite.Game), ("Logs", Database.Sqlite.Logs)
+            })
+            {
+                if (string.IsNullOrWhiteSpace(value))
+                    throw new InvalidDataException($"Database.Sqlite.{name} es requerido.");
+            }
+        }
+
+        if (Database.Provider == "postgresql" && string.IsNullOrWhiteSpace(Database.PostgreSqlConnectionString))
+            throw new InvalidDataException("Database.PostgreSqlConnectionString es requerido.");
     }
 
     public static JsonSerializerOptions JsonOptions { get; } = new()
