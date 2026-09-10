@@ -34,14 +34,14 @@ public sealed class KnowledgeEntry
     public long DiscoveredAtMilliseconds { get; }
     public long LastProgressAtMilliseconds { get; private set; }
 
-    internal void AddProgress(long experience, int rank, long nowMilliseconds)
+    internal void AddProgress(long experience, int rank, long nowMilliseconds, bool countObservation = true)
     {
         if (experience < 0) throw new ArgumentOutOfRangeException(nameof(experience));
         if (rank < Rank) throw new ArgumentOutOfRangeException(nameof(rank));
         if (nowMilliseconds < LastProgressAtMilliseconds) throw new ArgumentOutOfRangeException(nameof(nowMilliseconds));
         Experience = checked(Experience + experience);
         Rank = rank;
-        Observations = checked(Observations + 1);
+        if (countObservation) Observations = checked(Observations + 1);
         LastProgressAtMilliseconds = nowMilliseconds;
     }
 
