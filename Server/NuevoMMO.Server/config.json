@@ -11,8 +11,14 @@
   "writeTimeoutSeconds": 3,
   "autosaveIntervalTicks": 40,
   "database": {
-    "enabled": true,
+    "provider": "sqlite",
     "autoMigrate": true,
-    "connectionString": "Host=127.0.0.1;Port=5432;Database=nuevommo;Username=nuevommo;Password=nuevommo_dev"
+    "sqlite": {
+      "auth": "Data/auth.db",
+      "players": "Data/players.db",
+      "game": "Data/game.db",
+      "logs": "Data/logs.db"
+    },
+    "postgreSqlConnectionString": "Host=127.0.0.1;Port=5432;Database=nuevommo;Username=nuevommo;Password=change-me"
   }
 }
