@@ -22,7 +22,6 @@ catch (Exception exception) when (exception is IOException or InvalidDataExcepti
     return 2;
 }
 
-var composition = DevelopmentWorldFactory.Create(configuration.Environment, configuration);
 using var stop = new CancellationTokenSource();
 Console.CancelKeyPress += (_, eventArgs) =>
 {
@@ -30,8 +29,20 @@ Console.CancelKeyPress += (_, eventArgs) =>
     stop.Cancel();
 };
 
+ServerComposition composition;
+try
+{
+    composition = await DevelopmentWorldFactory.CreateAsync(configuration.Environment, configuration, stop.Token);
+}
+catch (Exception exception)
+{
+    Console.Error.WriteLine($"No se pudo inicializar persistencia/mundo: {exception.Message}");
+    return 3;
+}
+
 Console.WriteLine($"NuevoMMO Server · {configuration.Environment}");
 Console.WriteLine($"Config: {configPath}");
+Console.WriteLine(configuration.Database.Enabled ? "Persistencia: PostgreSQL" : "Persistencia: InMemory");
 
 await new ServerHost(
     composition.World,
