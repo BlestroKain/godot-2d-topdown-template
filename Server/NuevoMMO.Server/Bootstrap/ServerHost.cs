@@ -51,6 +51,7 @@ public sealed class ServerHost
     private readonly WorldRuntime world;
     private readonly PersistenceService persistence;
     private readonly PacketDispatcher<ServerPacketContext> dispatcher;
+    private readonly ISessionRepository? sessions;
     private readonly TcpListener listener;
     private readonly ServerConfiguration configuration;
     private readonly ConcurrentDictionary<ConnectionId, PeerConnection> peers = [];
@@ -63,7 +64,7 @@ public sealed class ServerHost
     public double LastTickMilliseconds { get; private set; }
 
     public ServerHost(WorldRuntime world, PersistenceService persistence, PacketDispatcher<ServerPacketContext> dispatcher, int port = 7777)
-        : this(world, persistence, dispatcher, ServerConfiguration.Development(port))
+        : this(world, persistence, dispatcher, ServerConfiguration.Development(port), null)
     {
     }
 
@@ -72,10 +73,21 @@ public sealed class ServerHost
         PersistenceService persistence,
         PacketDispatcher<ServerPacketContext> dispatcher,
         ServerConfiguration configuration)
+        : this(world, persistence, dispatcher, configuration, null)
+    {
+    }
+
+    public ServerHost(
+        WorldRuntime world,
+        PersistenceService persistence,
+        PacketDispatcher<ServerPacketContext> dispatcher,
+        ServerConfiguration configuration,
+        ISessionRepository? sessions)
     {
         this.world = world;
         this.persistence = persistence;
         this.dispatcher = dispatcher;
+        this.sessions = sessions;
         this.configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         configuration.Validate();
 
@@ -179,6 +191,11 @@ public sealed class ServerHost
             peers.TryRemove(id, out _);
             var player = world.Disconnect(id);
             if (player is not null) await persistence.SaveCharacterAsync(player, CancellationToken.None);
+            if (sessions is not null && session is not null && session.Session.Value != Guid.Empty)
+            {
+                try { await sessions.RevokeAsync(session.Session, CancellationToken.None); }
+                catch (Exception exception) { Console.WriteLine($"No se pudo revocar sesión: {exception.Message}"); }
+            }
             peer.Dispose();
             if (writer is not null)
             {
