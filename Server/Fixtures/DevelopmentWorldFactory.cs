@@ -21,6 +21,7 @@ public sealed class OscillatingMobPolicy : IMobMovementPolicy
 public sealed class ServerComposition
 {
     public required WorldRuntime World { get; init; }
+    public required GameSystems Systems { get; init; }
     public required PersistenceService Persistence { get; init; }
     public required PacketDispatcher<ServerPacketContext> Dispatcher { get; init; }
     public required DefinitionRegistry Definitions { get; init; }
@@ -117,12 +118,13 @@ public static class DevelopmentWorldFactory
             true, 1, ["fixture"], new("template.player"));
         var package = ContentPackage.Empty("dev-1") with { Maps = [map], Mobs = [mob] };
         var definitions = new GameDataLoader().Load(package);
+        var systems = new GameSystems(definitions);
         var options = new WorldOptions(
             new(data.GetProperty("instance").GetInt64()), data.GetProperty("speed").GetSingle(),
             data.GetProperty("mobSpeed").GetSingle(), configuration.TickMilliseconds,
             data.GetProperty("interestRadius").GetSingle(), configuration.MaxPlayers);
         var world = new WorldRuntime(map, mob, options, new OscillatingMobPolicy(),
-            new(data.GetProperty("mobX").GetSingle(), data.GetProperty("mobY").GetSingle()));
+            new(data.GetProperty("mobX").GetSingle(), data.GetProperty("mobY").GetSingle()), systems);
         var persistence = new PersistenceService(characters, map);
         var auth = new AuthService(accounts, sessions, new PasswordHasher<string>());
         var characterService = new CharacterService(characters, map);
@@ -131,6 +133,7 @@ public static class DevelopmentWorldFactory
         return new ServerComposition
         {
             World = world,
+            Systems = systems,
             Persistence = persistence,
             Dispatcher = dispatcher,
             Definitions = definitions,
