@@ -8,6 +8,13 @@ public interface IAccountRepository
     Task<AccountRecord> CreateAsync(string username, string passwordHash, CancellationToken cancellationToken = default);
 }
 
+public interface ISessionRepository
+{
+    Task<SessionRecord> CreateAsync(AccountId account, string token, CancellationToken cancellationToken = default);
+    Task<SessionRecord?> GetActiveAsync(SessionId id, string token, CancellationToken cancellationToken = default);
+    Task RevokeAsync(SessionId id, CancellationToken cancellationToken = default);
+}
+
 public interface ICharacterRepository
 {
     Task<IReadOnlyList<CharacterRecord>> ListByAccountAsync(AccountId account, CancellationToken cancellationToken = default);
@@ -35,6 +42,34 @@ public sealed class InMemoryAccountRepository : IAccountRepository
         var account = new AccountRecord { Id = new(Guid.NewGuid()), Username = username, PasswordHash = passwordHash, CreatedAt = DateTimeOffset.UtcNow };
         if (!accounts.TryAdd(username, account)) throw new InvalidOperationException("Usuario duplicado.");
         return Task.FromResult(account);
+    }
+}
+
+public sealed class InMemorySessionRepository : ISessionRepository
+{
+    private readonly Dictionary<SessionId, SessionRecord> sessions = [];
+
+    public Task<SessionRecord> CreateAsync(AccountId account, string token, CancellationToken cancellationToken = default)
+    {
+        var session = new SessionRecord
+        {
+            Id = new(Guid.NewGuid()), AccountId = account, Token = token,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+        sessions.Add(session.Id, session);
+        return Task.FromResult(session);
+    }
+
+    public Task<SessionRecord?> GetActiveAsync(SessionId id, string token, CancellationToken cancellationToken = default)
+        => Task.FromResult(sessions.TryGetValue(id, out var session) && session.IsActive &&
+            CryptographicOperations.FixedTimeEquals(
+                System.Text.Encoding.UTF8.GetBytes(session.Token),
+                System.Text.Encoding.UTF8.GetBytes(token)) ? session : null);
+
+    public Task RevokeAsync(SessionId id, CancellationToken cancellationToken = default)
+    {
+        if (sessions.TryGetValue(id, out var session)) session.RevokedAt = DateTimeOffset.UtcNow;
+        return Task.CompletedTask;
     }
 }
 
