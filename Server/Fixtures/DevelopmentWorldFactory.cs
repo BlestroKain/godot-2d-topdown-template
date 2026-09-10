@@ -25,6 +25,7 @@ public sealed class ServerComposition
     public required PacketDispatcher<ServerPacketContext> Dispatcher { get; init; }
     public required DefinitionRegistry Definitions { get; init; }
     public required ISessionRepository Sessions { get; init; }
+    public string PersistenceDescription { get; init; } = "InMemory";
 }
 
 public static class DevelopmentWorldFactory
@@ -42,29 +43,63 @@ public static class DevelopmentWorldFactory
     {
         ArgumentNullException.ThrowIfNull(configuration);
         configuration.Validate();
-        if (!configuration.Database.Enabled) return CreateInMemory(environment, configuration);
 
+        return configuration.Database.Provider switch
+        {
+            "memory" => CreateInMemory(environment, configuration),
+            "sqlite" => await CreateSqliteAsync(environment, configuration, cancellationToken),
+            "postgresql" => await CreatePostgresAsync(environment, configuration, cancellationToken),
+            _ => throw new InvalidOperationException("Proveedor de persistencia no soportado.")
+        };
+    }
+
+    private static async Task<ServerComposition> CreateSqliteAsync(
+        string environment,
+        ServerConfiguration configuration,
+        CancellationToken cancellationToken)
+    {
+        var paths = SqliteDatabasePaths.FromConfiguration(configuration.Database.Sqlite);
         if (configuration.Database.AutoMigrate)
-            await PostgresMigrator.ApplyAsync(configuration.Database.ConnectionString, cancellationToken);
+            await SqliteMigrator.ApplyAsync(paths, cancellationToken);
 
         return CreateInternal(
             environment,
             configuration,
-            new PostgresAccountRepository(configuration.Database.ConnectionString),
-            new PostgresSessionRepository(configuration.Database.ConnectionString),
-            new PostgresCharacterRepository(configuration.Database.ConnectionString));
+            new SqliteAccountRepository(paths.Auth),
+            new SqliteSessionRepository(paths.Auth),
+            new SqliteCharacterRepository(paths.Players),
+            $"SQLite · auth={paths.Auth} · players={paths.Players} · game={paths.Game} · logs={paths.Logs}");
+    }
+
+    private static async Task<ServerComposition> CreatePostgresAsync(
+        string environment,
+        ServerConfiguration configuration,
+        CancellationToken cancellationToken)
+    {
+        var connectionString = configuration.Database.PostgreSqlConnectionString;
+        if (configuration.Database.AutoMigrate)
+            await PostgresMigrator.ApplyAsync(connectionString, cancellationToken);
+
+        return CreateInternal(
+            environment,
+            configuration,
+            new PostgresAccountRepository(connectionString),
+            new PostgresSessionRepository(connectionString),
+            new PostgresCharacterRepository(connectionString),
+            "PostgreSQL");
     }
 
     private static ServerComposition CreateInMemory(string environment, ServerConfiguration configuration)
         => CreateInternal(environment, configuration,
-            new InMemoryAccountRepository(), new InMemorySessionRepository(), new InMemoryCharacterRepository());
+            new InMemoryAccountRepository(), new InMemorySessionRepository(), new InMemoryCharacterRepository(), "InMemory");
 
     private static ServerComposition CreateInternal(
         string environment,
         ServerConfiguration configuration,
         IAccountRepository accounts,
         ISessionRepository sessions,
-        ICharacterRepository characters)
+        ICharacterRepository characters,
+        string persistenceDescription)
     {
         if (environment is not ("Development" or "Test")) throw new InvalidOperationException("Fixtures solo en Development/Test.");
         if (!string.Equals(environment, configuration.Environment, StringComparison.Ordinal))
@@ -99,7 +134,8 @@ public static class DevelopmentWorldFactory
             Persistence = persistence,
             Dispatcher = dispatcher,
             Definitions = definitions,
-            Sessions = sessions
+            Sessions = sessions,
+            PersistenceDescription = persistenceDescription
         };
     }
 }
