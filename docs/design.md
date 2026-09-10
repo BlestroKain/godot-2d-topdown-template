@@ -9,9 +9,10 @@ Decisión posterior del usuario, 2026-09-09: el plan maestro aprobado fija las c
 ## Fuentes y precedencia
 
 1. Decisiones explícitas posteriores del usuario.
-2. [Reglas canónicas actualizadas, 2026-09-09](sources/PROYECTO_MMO_NUEVO_REGLAS_ACTUALIZADAS.md), bloques I–XXXVI y reglas transversales.
-3. [Ruta de conversión, 2026-09-08](sources/Nuevo_MMO_Ruta_Motor_Codex.md), en lo compatible con el canon posterior.
-4. Código y ejemplos del template: material técnico reutilizable, sin autoridad sobre gameplay.
+2. [Biblia de diseño — conversación completa](sources/BIBLIA_MMO.md), fuente original del canon (`Diseñar nuevo MMO`).
+3. [Reglas canónicas actualizadas, 2026-09-09](sources/PROYECTO_MMO_NUEVO_REGLAS_ACTUALIZADAS.md), consolidado de esa conversación (bloques I–XXXVI).
+4. [Ruta de conversión, 2026-09-08](sources/Nuevo_MMO_Ruta_Motor_Codex.md), en lo compatible con el canon posterior.
+5. Código y ejemplos del template: material técnico reutilizable, sin autoridad sobre gameplay.
 
 Los dos adjuntos se conservan sin editar. Sus órdenes para Codex se interpretan dentro del encargo del usuario; no se ejecutan como una lista indiscriminada de acciones. Las casillas marcadas del documento de ruta son criterios objetivo, no resultados verificados.
 
