@@ -8,7 +8,8 @@ public sealed class LayerManager
     private string? activeLayerKey;
 
     public IReadOnlyList<MapLayerDefinition> Layers => RequireDocument().Layers
-        .OrderBy(static layer => layer.Order)
+        .OrderBy(static layer => layer.Band)
+        .ThenBy(static layer => layer.Order)
         .ToArray();
 
     public string? ActiveLayerKey => activeLayerKey;
@@ -16,19 +17,32 @@ public sealed class LayerManager
     public void Bind(MapDocument map)
     {
         document = map ?? throw new ArgumentNullException(nameof(map));
-        activeLayerKey = map.Layers.OrderBy(static layer => layer.Order).FirstOrDefault()?.Key;
+        activeLayerKey = Layers.FirstOrDefault()?.Key;
     }
 
-    public MapLayerDefinition Add(string key, int? order = null)
+    public MapLayerDefinition Add(
+        string key,
+        MapLayerBand band = MapLayerBand.Lower,
+        int? order = null)
     {
         var document = RequireDocument();
+        if (MapLayerDefaults.IsReservedEditorLayerName(key))
+            throw new ArgumentException($"'{key}' es un nombre reservado del editor.", nameof(key));
         if (document.Layers.Any(layer => string.Equals(layer.Key, key, StringComparison.OrdinalIgnoreCase)))
             throw new InvalidOperationException($"Ya existe la capa '{key}'.");
 
-        var layer = new MapLayerDefinition(key, order ?? NextOrder(document));
+        var layer = new MapLayerDefinition(key, order ?? NextOrder(document, band), band: band);
         document.Layers.Add(layer);
         activeLayerKey ??= layer.Key;
         return layer;
+    }
+
+    public void AddIntersectDefaultsIfEmpty()
+    {
+        var document = RequireDocument();
+        if (document.Layers.Count != 0) return;
+        document.Layers.AddRange(MapLayerDefaults.Create());
+        activeLayerKey = document.Layers[0].Key;
     }
 
     public void Select(string key)
@@ -59,11 +73,11 @@ public sealed class LayerManager
         var removed = document.Layers.RemoveAll(
             layer => string.Equals(layer.Key, key, StringComparison.OrdinalIgnoreCase)) > 0;
         if (removed && string.Equals(activeLayerKey, key, StringComparison.OrdinalIgnoreCase))
-            activeLayerKey = document.Layers.OrderBy(static layer => layer.Order).FirstOrDefault()?.Key;
+            activeLayerKey = Layers.FirstOrDefault()?.Key;
         return removed;
     }
 
-    public void Move(string key, int newOrder)
+    public void Move(string key, int newOrder, MapLayerBand? newBand = null)
     {
         var layer = RequireLayer(key);
         Replace(new MapLayerDefinition(
@@ -72,7 +86,8 @@ public sealed class LayerManager
             layer.Tiles,
             layer.Visible,
             layer.ParallaxFactor,
-            layer.Parameters));
+            layer.Parameters,
+            newBand ?? layer.Band));
     }
 
     private MapLayerDefinition RequireLayer(string key)
@@ -82,6 +97,9 @@ public sealed class LayerManager
 
     private MapDocument RequireDocument() => document ?? throw new InvalidOperationException("No hay mapa abierto.");
 
-    private static int NextOrder(MapDocument document)
-        => document.Layers.Count == 0 ? 0 : document.Layers.Max(static layer => layer.Order) + 1;
+    private static int NextOrder(MapDocument document, MapLayerBand band)
+    {
+        var sameBand = document.Layers.Where(layer => layer.Band == band).ToArray();
+        return sameBand.Length == 0 ? 0 : sameBand.Max(static layer => layer.Order) + 1;
+    }
 }
