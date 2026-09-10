@@ -14,6 +14,7 @@ public sealed class Player : LivingEntity
         AccountId = account;
         CharacterId = character;
         Progression = ProgressionRules.CreateInitial();
+        ApplyInitialProgressionInvariant();
     }
 
     public AccountId AccountId { get; }
@@ -33,7 +34,7 @@ public sealed class Player : LivingEntity
 
     /// <summary>
     /// Solo los sistemas autoritativos deben reemplazar el estado de progresión.
-    /// La entidad lo conserva; no calcula XP, costes ni stats derivados.
+    /// La entidad lo conserva; no calcula XP ni costes de distribución.
     /// </summary>
     public void SetProgression(PlayerProgressionState progression)
     {
@@ -51,4 +52,16 @@ public sealed class Player : LivingEntity
 
     public override EntityState ToState() => new PlayerState(Id, CharacterId, MapInstanceId, Position, Velocity,
         Direction, VisualKey, DisplayName);
+
+    private void ApplyInitialProgressionInvariant()
+    {
+        var natural = Progression.NaturalAttributes;
+        Stats.Primary.Strength = natural.Strength;
+        Stats.Primary.Intelligence = natural.Intelligence;
+        Stats.Primary.Agility = natural.Agility;
+        Stats.Primary.Spirit = natural.Spirit;
+        Stats.Primary.Vitality = natural.Vitality;
+        var derived = CanonicalStatCalculator.Calculate(Progression.Level, Stats.Primary);
+        SetMaximumVitals(derived.MaxHealth, derived.MaxMana, refill: true);
+    }
 }
