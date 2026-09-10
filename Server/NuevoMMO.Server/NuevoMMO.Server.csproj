@@ -7,6 +7,7 @@
     <PackageReference Include="Npgsql" Version="8.0.8" />
     <Compile Include="../Fixtures/**/*.cs" Link="Fixtures/%(RecursiveDir)%(Filename)%(Extension)" />
     <None Include="../Fixtures/*.json" Link="Fixtures/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="config.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <EmbeddedResource Include="Database/Migrations/*.sql" />
   </ItemGroup>
 </Project>
