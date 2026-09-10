@@ -12,10 +12,16 @@ internal static class Program
         var configuration = new EditorConfiguration
         {
             Mode = EditorMode.Offline,
-            ContentPath = "gamedata"
+            ContentPath = Path.Combine("Data", GameDatabase.DefaultFileName),
+            ClientAssetRoot = "Client",
+            TilesetAssetFolder = "tilesets"
         };
 
         var application = new EditorApplication(configuration);
+        var defaultDatabase = Path.GetFullPath(configuration.ContentPath);
+        if (File.Exists(defaultDatabase))
+            application.Content.Load(defaultDatabase);
+
         Application.Run(new MainForm(application));
     }
 }

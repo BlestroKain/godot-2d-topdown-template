@@ -206,7 +206,7 @@ Check(new ProjectValidator(editor.Definitions).Validate().Count == 0, "Editor va
 
 Reject(() => DevelopmentWorldFactory.Create("Production"), "Fixtures rechazadas en Production");
 
-var composition = DevelopmentWorldFactory.Create("Test");
+var composition = DevelopmentWorldFactory.Create("Development");
 Check(composition.World.EntityCount >= 1, "Fixture carga mob inicial");
 var host = new ServerHost(composition.World, composition.Persistence, composition.Dispatcher, 0);
 using var stop = new CancellationTokenSource();

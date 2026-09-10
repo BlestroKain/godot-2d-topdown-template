@@ -10,7 +10,12 @@ dist/
 data_*/
 client/addons/Todo_Manager/todo.cfg
 .vscode/
+.vs/
 .DS_Store
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
 # Generated .NET and verification output; project/solution files stay tracked
 **/bin/
 **/obj/

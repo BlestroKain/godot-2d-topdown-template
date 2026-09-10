@@ -52,7 +52,7 @@ public sealed class MapEditor
         definitions.Create(definition);
         dirty.Mark();
         var document = Open(definition);
-        Layers.AddIntersectDefaultsIfEmpty();
+        EnsureDefaultLayers();
         return document;
     }
 
@@ -60,8 +60,20 @@ public sealed class MapEditor
     {
         var map = RequireDocument().ToDefinition();
         definitions.Upsert(map);
-        dirty.Clear();
         return map;
+    }
+
+    /// <summary>
+    /// Inserta las capas Intersect por defecto solo cuando el documento no tiene ninguna.
+    /// Marca Dirty porque muta el mapa; no se llama al abrir contenido existente.
+    /// </summary>
+    public bool EnsureDefaultLayers()
+    {
+        if (Document is null) throw new InvalidOperationException("No hay mapa abierto.");
+        if (Document.Layers.Count > 0) return false;
+        Layers.AddIntersectDefaultsIfEmpty();
+        dirty.Mark();
+        return true;
     }
 
     public void Close()

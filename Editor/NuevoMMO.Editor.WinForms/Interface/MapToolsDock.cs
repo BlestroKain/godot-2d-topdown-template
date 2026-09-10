@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using NuevoMMO.Core;
 using System.Windows.Forms;
 using WeifenLuo.WinFormsUI.Docking;
@@ -20,26 +21,12 @@ public enum MapEditorTool : byte
     Event
 }
 
-public sealed class MapToolsDock : DockContent
+[DesignerCategory("Form")]
+public sealed partial class MapToolsDock : DockContent
 {
-    private readonly ListBox tools = new()
-    {
-        Dock = DockStyle.Top,
-        Height = 250
-    };
-
-    private readonly ListBox layers = new()
-    {
-        Dock = DockStyle.Fill,
-        DisplayMember = nameof(LayerEntry.Label)
-    };
-
     public MapToolsDock()
     {
-        Text = "Mapa / Capas";
-        TabText = Text;
-        HideOnClose = true;
-
+        InitializeComponent();
         tools.Items.AddRange(Enum.GetNames<MapEditorTool>());
         tools.SelectedIndex = 0;
         tools.SelectedIndexChanged += (_, _) =>
@@ -52,16 +39,6 @@ public sealed class MapToolsDock : DockContent
             if (layers.SelectedItem is LayerEntry entry)
                 LayerSelected?.Invoke(entry.Key);
         };
-
-        var split = new SplitContainer
-        {
-            Dock = DockStyle.Fill,
-            Orientation = Orientation.Horizontal,
-            SplitterDistance = 260
-        };
-        split.Panel1.Controls.Add(tools);
-        split.Panel2.Controls.Add(layers);
-        Controls.Add(split);
     }
 
     public event Action<MapEditorTool>? ToolSelected;

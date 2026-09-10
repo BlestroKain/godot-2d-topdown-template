@@ -1,23 +1,15 @@
+using System.ComponentModel;
 using System.Windows.Forms;
 using WeifenLuo.WinFormsUI.Docking;
 
 namespace NuevoMMO.Editor;
 
-public sealed class PropertiesDock : DockContent
+[DesignerCategory("Form")]
+public sealed partial class PropertiesDock : DockContent
 {
-    private readonly PropertyGrid propertyGrid = new()
-    {
-        Dock = DockStyle.Fill,
-        HelpVisible = true,
-        ToolbarVisible = true
-    };
-
     public PropertiesDock()
     {
-        Text = "Propiedades";
-        TabText = Text;
-        HideOnClose = true;
-        Controls.Add(propertyGrid);
+        InitializeComponent();
     }
 
     public object? SelectedObject

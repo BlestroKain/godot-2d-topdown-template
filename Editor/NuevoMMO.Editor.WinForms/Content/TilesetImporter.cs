@@ -1,3 +1,4 @@
+using System.Drawing;
 using NuevoMMO.Core;
 
 namespace NuevoMMO.Editor;
@@ -19,26 +20,41 @@ public sealed class TilesetImporter
             throw new ArgumentException("TileSize debe ser positivo.", nameof(tileSize));
 
         var folder = images.ResolveTilesetFolder();
-        var imported = new List<TilesetDefinition>();
+        var candidates = Directory.EnumerateFiles(folder, "*.png", SearchOption.TopDirectoryOnly)
+            .Where(static path => !path.EndsWith(".png~", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(static path => path, StringComparer.OrdinalIgnoreCase)
+            .Select(path =>
+            {
+                var fileName = Path.GetFileNameWithoutExtension(path);
+                return (path, fileName, key: new ContentKey("tileset." + NormalizeKey(fileName)));
+            })
+            .Where(candidate => !registry.TryGet<TilesetDefinition>(candidate.key, out _))
+            .ToArray();
 
-        foreach (var path in Directory.EnumerateFiles(folder, "*.png", SearchOption.TopDirectoryOnly)
-                     .Where(static path => !path.EndsWith(".png~", StringComparison.OrdinalIgnoreCase))
-                     .OrderBy(static path => path, StringComparer.OrdinalIgnoreCase))
+        var invalid = new List<string>();
+        foreach (var candidate in candidates)
         {
-            var fileName = Path.GetFileNameWithoutExtension(path);
-            var keyText = "tileset." + NormalizeKey(fileName);
-            var key = new ContentKey(keyText);
-            if (registry.TryGet<TilesetDefinition>(key, out _)) continue;
+            using var atlas = new Bitmap(candidate.path);
+            if (!TilesetDefinition.IsAtlasSizeCompatible(atlas.Width, atlas.Height, tileSize))
+                invalid.Add($"{Path.GetFileName(candidate.path)} ({atlas.Width}x{atlas.Height})");
+        }
 
+        if (invalid.Count > 0)
+            throw new InvalidOperationException(
+                $"Hay atlas cuyo tamaño no es múltiplo de {tileSize.X}x{tileSize.Y}: {string.Join(", ", invalid)}.");
+
+        var imported = new List<TilesetDefinition>();
+        foreach (var candidate in candidates)
+        {
             var definition = new TilesetDefinition(
                 DefinitionId.New(),
-                key,
-                fileName,
-                $"Tileset importado desde Client/tilesets/{Path.GetFileName(path)}.",
+                candidate.key,
+                candidate.fileName,
+                $"Tileset importado desde Client/tilesets/{Path.GetFileName(candidate.path)}.",
                 enabled: true,
                 version: 1,
                 tags: ["tileset", "imported"],
-                textureKey: new ContentKey(NormalizeKey(fileName)),
+                textureKey: new ContentKey(NormalizeKey(candidate.fileName)),
                 tileSize: tileSize);
 
             registry.Register(definition);

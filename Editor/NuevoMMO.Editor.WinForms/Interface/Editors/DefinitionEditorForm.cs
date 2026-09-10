@@ -5,6 +5,7 @@ using WeifenLuo.WinFormsUI.Docking;
 
 namespace NuevoMMO.Editor;
 
+[System.ComponentModel.DesignerCategory("Form")]
 public partial class DefinitionEditorForm : DockContent
 {
     private EditorApplication? application;
@@ -207,7 +208,7 @@ public partial class DefinitionEditorForm : DockContent
             node["description"] = descriptionTextBox.Text;
             node["enabled"] = enabledCheckBox.Checked;
             node["version"] = (int)versionNumeric.Value;
-            node["tags"] = new JsonArray(ParseTags().Select(JsonValue.Create).ToArray<JsonNode?>());
+            node["tags"] = new JsonArray(ParseTags().Select(static tag => (JsonNode?)JsonValue.Create(tag)).ToArray());
 
             var replacement = DeserializeNode(node);
             if (replacement.Id != selectedDefinition.Id)

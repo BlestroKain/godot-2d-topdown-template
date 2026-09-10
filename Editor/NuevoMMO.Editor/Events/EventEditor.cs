@@ -41,7 +41,6 @@ public sealed class EventEditor
     {
         var definition = RequireDocument().ToDefinition();
         definitions.Save(definition);
-        dirty.Clear();
         return definition;
     }
 

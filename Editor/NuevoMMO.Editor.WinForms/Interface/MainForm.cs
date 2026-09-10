@@ -8,6 +8,7 @@ namespace NuevoMMO.Editor;
 /// Ventana principal del NuevoMMO Editor. Sigue el flujo de Intersect: un único ejecutable,
 /// mapa como documento central y herramientas/editores acoplables alrededor.
 /// </summary>
+[System.ComponentModel.DesignerCategory("Form")]
 public sealed partial class MainForm : Form
 {
     private readonly EditorApplication application;
@@ -64,71 +65,66 @@ public sealed partial class MainForm : Form
             Text = "NuevoMMO Editor *";
         };
 
-        BuildMenu();
+        WireDesignerEvents();
 
         Load += (_, _) => InitializeDockLayout();
         FormClosing += OnFormClosing;
     }
 
-    private void BuildMenu()
+    private void WireDesignerEvents()
     {
-        mainMenuStrip.Items.Clear();
+        fileNewMenuItem.Click += (_, _) => NewProject();
+        fileOpenMenuItem.Click += (_, _) => OpenContent();
+        fileSaveMenuItem.Click += (_, _) => SaveContent(saveAs: false);
+        fileSaveAsMenuItem.Click += (_, _) => SaveContent(saveAs: true);
+        fileExitMenuItem.Click += (_, _) => Close();
 
-        var file = new ToolStripMenuItem("Archivo");
-        file.DropDownItems.Add("Nuevo proyecto", null, (_, _) => NewProject());
-        file.DropDownItems.Add("Abrir contenido…", null, (_, _) => OpenContent());
-        file.DropDownItems.Add(new ToolStripSeparator());
-        file.DropDownItems.Add("Guardar", null, (_, _) => SaveContent(saveAs: false));
-        file.DropDownItems.Add("Guardar como…", null, (_, _) => SaveContent(saveAs: true));
-        file.DropDownItems.Add(new ToolStripSeparator());
-        file.DropDownItems.Add("Salir", null, (_, _) => Close());
+        editUndoMenuItem.Click += (_, _) => Undo();
+        editRedoMenuItem.Click += (_, _) => Redo();
 
-        var edit = new ToolStripMenuItem("Editar");
-        edit.DropDownItems.Add("Deshacer", null, (_, _) => Undo())
-            .ShortcutKeys = Keys.Control | Keys.Z;
-        edit.DropDownItems.Add("Rehacer", null, (_, _) => Redo())
-            .ShortcutKeys = Keys.Control | Keys.Y;
+        mapNewMenuItem.Click += (_, _) => CreateMap();
+        mapSaveMenuItem.Click += (_, _) => SaveCurrentMap();
+        mapSelectMenuItem.Click += (_, _) => SetMapTool(MapEditorTool.Select);
+        mapPaintMenuItem.Click += (_, _) => SetMapTool(MapEditorTool.PaintTile);
+        mapEraseMenuItem.Click += (_, _) => SetMapTool(MapEditorTool.EraseTile);
+        mapCollisionMenuItem.Click += (_, _) => SetMapTool(MapEditorTool.Collision);
+        mapImportTilesetsMenuItem.Click += (_, _) => ImportTilesets();
 
-        var map = new ToolStripMenuItem("Mapa");
-        map.DropDownItems.Add("Nuevo mapa", null, (_, _) => CreateMap());
-        map.DropDownItems.Add("Guardar mapa", null, (_, _) => SaveCurrentMap());
-        map.DropDownItems.Add(new ToolStripSeparator());
-        map.DropDownItems.Add("Seleccionar", null, (_, _) => SetMapTool(MapEditorTool.Select));
-        map.DropDownItems.Add("Pintar tiles", null, (_, _) => SetMapTool(MapEditorTool.PaintTile));
-        map.DropDownItems.Add("Borrar tiles", null, (_, _) => SetMapTool(MapEditorTool.EraseTile));
-        map.DropDownItems.Add("Colisiones", null, (_, _) => SetMapTool(MapEditorTool.Collision));
-        map.DropDownItems.Add(new ToolStripSeparator());
-        map.DropDownItems.Add("Importar tilesets del cliente", null, (_, _) => ImportTilesets());
+        contentItemsMenuItem.Click += (_, _) => definitionEditors.Open(typeof(ItemDefinition), dockPanel);
+        contentMobsMenuItem.Click += (_, _) => definitionEditors.Open(typeof(MobDefinition), dockPanel);
+        contentNpcsMenuItem.Click += (_, _) => definitionEditors.Open(typeof(NpcDefinition), dockPanel);
+        contentResourcesMenuItem.Click += (_, _) => definitionEditors.Open(typeof(ResourceDefinition), dockPanel);
+        contentTechniquesMenuItem.Click += (_, _) => definitionEditors.Open(typeof(TechniqueDefinition), dockPanel);
+        contentEffectsMenuItem.Click += (_, _) => definitionEditors.Open(typeof(EffectDefinition), dockPanel);
+        contentTraditionsMenuItem.Click += (_, _) => definitionEditors.Open(typeof(TraditionDefinition), dockPanel);
+        contentProfessionsMenuItem.Click += (_, _) => definitionEditors.Open(typeof(ProfessionDefinition), dockPanel);
+        contentRecipesMenuItem.Click += (_, _) => definitionEditors.Open(typeof(RecipeDefinition), dockPanel);
+        contentLootTablesMenuItem.Click += (_, _) => definitionEditors.Open(typeof(LootTableDefinition), dockPanel);
+        contentSpawnTablesMenuItem.Click += (_, _) => definitionEditors.Open(typeof(SpawnTableDefinition), dockPanel);
+        contentQuestsMenuItem.Click += (_, _) => definitionEditors.Open(typeof(QuestDefinition), dockPanel);
+        contentEventsMenuItem.Click += (_, _) => definitionEditors.Open(typeof(EventDefinition), dockPanel);
+        contentDungeonsMenuItem.Click += (_, _) => definitionEditors.Open(typeof(DungeonDefinition), dockPanel);
+        contentItemPropertiesMenuItem.Click += (_, _) => definitionEditors.Open(typeof(ItemPropertyDefinition), dockPanel);
+        contentTilesetsMenuItem.Click += (_, _) => definitionEditors.Open(typeof(TilesetDefinition), dockPanel);
 
-        var content = new ToolStripMenuItem("Contenido");
-        AddContentEntry(content, "Items", typeof(ItemDefinition));
-        AddContentEntry(content, "Mobs", typeof(MobDefinition));
-        AddContentEntry(content, "NPCs", typeof(NpcDefinition));
-        AddContentEntry(content, "Recursos", typeof(ResourceDefinition));
-        AddContentEntry(content, "Técnicas / Spells", typeof(TechniqueDefinition));
-        AddContentEntry(content, "Efectos", typeof(EffectDefinition));
-        AddContentEntry(content, "Tradiciones / Clases", typeof(TraditionDefinition));
-        AddContentEntry(content, "Profesiones", typeof(ProfessionDefinition));
-        AddContentEntry(content, "Recetas", typeof(RecipeDefinition));
-        AddContentEntry(content, "Loot Tables", typeof(LootTableDefinition));
-        AddContentEntry(content, "Spawn Tables", typeof(SpawnTableDefinition));
-        AddContentEntry(content, "Quests", typeof(QuestDefinition));
-        AddContentEntry(content, "Eventos", typeof(EventDefinition));
-        AddContentEntry(content, "Dungeons", typeof(DungeonDefinition));
-        AddContentEntry(content, "Propiedades de item", typeof(ItemPropertyDefinition));
-        AddContentEntry(content, "Tilesets", typeof(TilesetDefinition));
+        viewContentMenuItem.Click += (_, _) => contentExplorer.Show(dockPanel, DockState.DockRight);
+        viewMapToolsMenuItem.Click += (_, _) => mapTools.Show(dockPanel, DockState.DockLeft);
+        viewTilesetsMenuItem.Click += (_, _) => tilesetPalette.Show(dockPanel, DockState.DockLeft);
+        viewPropertiesMenuItem.Click += (_, _) => properties.Show(dockPanel, DockState.DockRight);
+        viewProblemsMenuItem.Click += (_, _) => problems.Show(dockPanel, DockState.DockBottom);
 
-        var view = new ToolStripMenuItem("Ver");
-        view.DropDownItems.Add("Contenido", null, (_, _) => contentExplorer.Show(dockPanel, DockState.DockRight));
-        view.DropDownItems.Add("Mapa / Capas", null, (_, _) => mapTools.Show(dockPanel, DockState.DockLeft));
-        view.DropDownItems.Add("Tilesets", null, (_, _) => tilesetPalette.Show(dockPanel, DockState.DockLeft));
-        view.DropDownItems.Add("Propiedades", null, (_, _) => properties.Show(dockPanel, DockState.DockRight));
-        view.DropDownItems.Add("Problemas", null, (_, _) => problems.Show(dockPanel, DockState.DockBottom));
+        toolsValidateMenuItem.Click += (_, _) => ValidateProject(showMessage: true);
 
-        var tools = new ToolStripMenuItem("Herramientas");
-        tools.DropDownItems.Add("Validar proyecto", null, (_, _) => ValidateProject(showMessage: true));
-
-        mainMenuStrip.Items.AddRange([file, edit, map, content, view, tools]);
+        toolNewButton.Click += (_, _) => NewProject();
+        toolOpenButton.Click += (_, _) => OpenContent();
+        toolSaveButton.Click += (_, _) => SaveContent(saveAs: false);
+        toolUndoButton.Click += (_, _) => Undo();
+        toolRedoButton.Click += (_, _) => Redo();
+        toolNewMapButton.Click += (_, _) => CreateMap();
+        toolPaintButton.Click += (_, _) => SetMapTool(MapEditorTool.PaintTile);
+        toolEraseButton.Click += (_, _) => SetMapTool(MapEditorTool.EraseTile);
+        toolCollisionButton.Click += (_, _) => SetMapTool(MapEditorTool.Collision);
+        toolValidateButton.Click += (_, _) => ValidateProject(showMessage: true);
     }
 
     private void InitializeDockLayout()
@@ -161,7 +157,8 @@ public sealed partial class MainForm : Form
         if (!ConfirmDiscardChanges()) return;
         using var dialog = new OpenFileDialog
         {
-            Filter = "NuevoMMO Content (*.json)|*.json|Todos los archivos (*.*)|*.*",
+            Filter = GameDatabase.FileFilter,
+            FileName = GameDatabase.DefaultFileName,
             CheckFileExists = true
         };
         if (dialog.ShowDialog(this) != DialogResult.OK) return;
@@ -207,8 +204,8 @@ public sealed partial class MainForm : Form
             {
                 using var dialog = new SaveFileDialog
                 {
-                    Filter = "NuevoMMO Content (*.json)|*.json|Todos los archivos (*.*)|*.*",
-                    FileName = "gamedata.json"
+                    Filter = GameDatabase.FileFilter,
+                    FileName = GameDatabase.DefaultFileName
                 };
                 if (dialog.ShowDialog(this) != DialogResult.OK) return;
                 path = dialog.FileName;
@@ -349,9 +346,6 @@ public sealed partial class MainForm : Form
         mapDocument.ActiveTool = tool;
         SetStatus($"Herramienta: {tool}");
     }
-
-    private void AddContentEntry(ToolStripMenuItem parent, string label, Type type)
-        => parent.DropDownItems.Add(label, null, (_, _) => definitionEditors.Open(type, dockPanel));
 
     private bool ConfirmDiscardChanges()
     {

@@ -1,5 +1,6 @@
-namespace NuevoMMO.Editor;
+﻿namespace NuevoMMO.Editor;
 
+[System.ComponentModel.DesignerCategory("Form")]
 public partial class DungeonEditorForm : DefinitionEditorForm
 {
     public DungeonEditorForm()

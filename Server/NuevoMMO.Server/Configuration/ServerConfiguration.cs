@@ -58,7 +58,7 @@ public sealed record ServerConfiguration
     {
         if (Environment is not ("Development" or "Test")) throw new InvalidDataException("Environment debe ser Development o Test en el host actual.");
         if (string.IsNullOrWhiteSpace(Host)) throw new InvalidDataException("Host es requerido.");
-        if (Port is < 1 or > 65535) throw new InvalidDataException("Port debe estar entre 1 y 65535.");
+        if (Port is < 0 or > 65535) throw new InvalidDataException("Port debe estar entre 0 y 65535. 0 selecciona un puerto efímero.");
         if (TickMilliseconds is < 10 or > 1000) throw new InvalidDataException("TickMilliseconds debe estar entre 10 y 1000.");
         if (MaxPlayers is < 1 or > 10000) throw new InvalidDataException("MaxPlayers debe estar entre 1 y 10000.");
         if (MaxConnections is < 1 or > 10000) throw new InvalidDataException("MaxConnections debe estar entre 1 y 10000.");

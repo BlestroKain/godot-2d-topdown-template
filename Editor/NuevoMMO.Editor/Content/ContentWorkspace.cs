@@ -3,8 +3,8 @@ using NuevoMMO.Core;
 namespace NuevoMMO.Editor;
 
 /// <summary>
-/// Workspace de contenido offline. JSON es el primer backend portable; game.db podrá implementar
-/// el mismo flujo posteriormente sin contaminar Core ni la UI Godot.
+/// Workspace de contenido offline. La fuente de verdad es game.db (SQLite).
+/// JSON queda como fixture de tests/importación, no como archivo de edición.
 /// </summary>
 public sealed class ContentWorkspace
 {
@@ -28,7 +28,10 @@ public sealed class ContentWorkspace
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         var fullPath = Path.GetFullPath(path);
-        var package = ContentPackage.FromJson(File.ReadAllText(fullPath));
+        if (!GameDatabase.IsDatabasePath(fullPath))
+            throw new InvalidDataException("El Editor abre GameData en SQLite (game.db), no JSON.");
+
+        var package = GameDatabase.Load(fullPath);
         package.LoadInto(registry);
         PackageVersion = package.PackageVersion;
         CurrentPath = fullPath;
@@ -52,11 +55,11 @@ public sealed class ContentWorkspace
         var target = path is null ? CurrentPath : Path.GetFullPath(path);
         if (string.IsNullOrWhiteSpace(target))
             throw new InvalidOperationException("No se ha especificado una ruta para guardar el contenido.");
+        if (!GameDatabase.IsDatabasePath(target))
+            throw new InvalidDataException("El Editor guarda GameData en SQLite (game.db), no JSON.");
 
         var package = Snapshot();
-        package.ValidateOrThrow();
-        Directory.CreateDirectory(Path.GetDirectoryName(target) ?? Directory.GetCurrentDirectory());
-        File.WriteAllText(target, package.ToJson());
+        GameDatabase.Save(target, package);
         CurrentPath = target;
         dirty.Clear();
         return package;

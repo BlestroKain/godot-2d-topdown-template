@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using NuevoMMO.Core;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -6,66 +7,41 @@ using WeifenLuo.WinFormsUI.Docking;
 
 namespace NuevoMMO.Editor;
 
-public sealed class TilesetPaletteDock : DockContent
+[DesignerCategory("Form")]
+public sealed partial class TilesetPaletteDock : DockContent
 {
-    private readonly EditorApplication application;
-    private readonly TilesetImageProvider images;
-    private readonly TilesetImporter importer;
-    private readonly ComboBox tilesets = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 190 };
-    private readonly ComboBox autotile = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 130 };
-    private readonly NumericUpDown zoom = new() { Minimum = 1, Maximum = 4, Value = 1, Width = 48 };
-    private readonly Label selection = new() { AutoSize = true, Padding = new Padding(6, 7, 0, 0) };
-    private readonly TilesetPaletteSurface surface = new();
-    private readonly Panel scroller = new() { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Color.FromArgb(24, 26, 30) };
+    private EditorApplication? application;
+    private TilesetImageProvider? images;
+    private TilesetImporter? importer;
 
-    public TilesetPaletteDock(EditorApplication application, TilesetImageProvider images)
+    public TilesetPaletteDock()
     {
-        this.application = application ?? throw new ArgumentNullException(nameof(application));
-        this.images = images ?? throw new ArgumentNullException(nameof(images));
-        importer = new TilesetImporter(application.Definitions, images);
-
-        Text = "Tilesets";
-        TabText = Text;
-        HideOnClose = true;
-
+        InitializeComponent();
         autotile.DataSource = Enum.GetValues<MapAutotileMode>();
-
-        var importButton = new Button { Text = "Importar PNG", AutoSize = true };
-        var toolbar = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Top,
-            Height = 34,
-            WrapContents = false,
-            AutoSize = false,
-            Padding = new Padding(3)
-        };
-        toolbar.Controls.Add(tilesets);
-        toolbar.Controls.Add(new Label { Text = "Modo:", AutoSize = true, Padding = new Padding(5, 7, 0, 0) });
-        toolbar.Controls.Add(autotile);
-        toolbar.Controls.Add(new Label { Text = "Zoom:", AutoSize = true, Padding = new Padding(5, 7, 0, 0) });
-        toolbar.Controls.Add(zoom);
-        toolbar.Controls.Add(importButton);
-        toolbar.Controls.Add(selection);
-
-        scroller.Controls.Add(surface);
-        Controls.Add(scroller);
-        Controls.Add(toolbar);
-
         tilesets.SelectedIndexChanged += (_, _) => SelectTileset();
         autotile.SelectedIndexChanged += (_, _) =>
         {
-            if (autotile.SelectedItem is MapAutotileMode mode)
+            if (application is not null && autotile.SelectedItem is MapAutotileMode mode)
                 application.Maps.Palette.SetAutotileMode(mode);
         };
         zoom.ValueChanged += (_, _) => surface.Zoom = (int)zoom.Value;
         surface.TileSelected += OnTileSelected;
         importButton.Click += (_, _) => ImportTilesets();
+    }
 
+    public TilesetPaletteDock(EditorApplication application, TilesetImageProvider images)
+        : this()
+    {
+        this.application = application ?? throw new ArgumentNullException(nameof(application));
+        this.images = images ?? throw new ArgumentNullException(nameof(images));
+        importer = new TilesetImporter(application.Definitions, images);
         RefreshTilesets();
     }
 
     public void RefreshTilesets()
     {
+        if (application is null) return;
+
         var current = tilesets.SelectedItem as TilesetDefinition;
         var values = application.Definitions.GetAll<TilesetDefinition>()
             .OrderBy(static value => value.Name)
@@ -85,6 +61,7 @@ public sealed class TilesetPaletteDock : DockContent
 
     private void ImportTilesets()
     {
+        if (application is null || importer is null) return;
         var tileSize = application.Maps.Document?.TileSize ?? new Vector2IntData(32, 32);
         var imported = importer.ImportClientTilesets(tileSize);
         if (imported.Count > 0) application.Dirty.Mark();
@@ -93,7 +70,7 @@ public sealed class TilesetPaletteDock : DockContent
 
     private void SelectTileset()
     {
-        if (tilesets.SelectedItem is not TilesetDefinition definition)
+        if (images is null || tilesets.SelectedItem is not TilesetDefinition definition)
         {
             surface.SetImage(null, default);
             return;
@@ -112,13 +89,14 @@ public sealed class TilesetPaletteDock : DockContent
 
     private void OnTileSelected(Vector2IntData cell)
     {
-        if (tilesets.SelectedItem is not TilesetDefinition definition) return;
+        if (application is null || tilesets.SelectedItem is not TilesetDefinition definition) return;
         var mode = autotile.SelectedItem is MapAutotileMode value ? value : MapAutotileMode.None;
         application.Maps.Palette.Select(definition.Key, cell, autotileMode: mode);
         selection.Text = $"{cell.X},{cell.Y}";
     }
 }
 
+[DesignerCategory("Code")]
 internal sealed class TilesetPaletteSurface : Control
 {
     private Bitmap? image;

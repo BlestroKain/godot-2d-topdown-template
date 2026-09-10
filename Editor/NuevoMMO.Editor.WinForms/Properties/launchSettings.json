@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json.schemastore.org/launchsettings.json",
+  "profiles": {
+    "NuevoMMO.Editor.WinForms": {
+      "commandName": "Project",
+      "workingDirectory": "../..",
+      "dotnetRunMessages": true
+    }
+  }
+}

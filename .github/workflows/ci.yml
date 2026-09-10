@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reject lowercase core/ split
+        run: |
+          if git ls-files | grep -E '^core/'; then
+            echo 'Git contains core/ (lowercase). All Core sources must live under Core/NuevoMMO.Core.'
+            git ls-files | grep -E '^core/'
+            exit 1
+          fi
+          test -f Core/NuevoMMO.Core/NuevoMMO.Core.csproj
+          test -f Core/NuevoMMO.Core/Maps/MapAutotileResolver.cs
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build solution
+        run: dotnet build NuevoMMO.sln -c Release --nologo
+        env:
+          DOTNET_EnableWindowsTargeting: true
+
+      - name: Run tests
+        run: dotnet run --project Tests/NuevoMMO.Tests/NuevoMMO.Tests.csproj -c Release --no-build --nologo

@@ -9,11 +9,12 @@ namespace NuevoMMO.Editor;
 /// Lienzo WinForms del editor de mapas. Renderiza el mismo modelo de tiles/autotiles que consumirá
 /// el cliente, manteniendo colisiones, regiones, spawns y eventos como overlays independientes.
 /// </summary>
-public sealed class MapViewportControl : Control
+[System.ComponentModel.DesignerCategory("Code")]
+public sealed partial class MapViewportControl : Control
 {
-    private readonly DefinitionRegistry registry;
-    private readonly TilesetImageProvider images;
-    private readonly System.Windows.Forms.Timer animationTimer;
+    private DefinitionRegistry? registry;
+    private TilesetImageProvider? images;
+    private readonly System.Windows.Forms.Timer animationTimer = new() { Interval = 50 };
     private readonly Dictionary<string, Dictionary<Vector2IntData, MapAutotileRenderData>> autotileCache =
         new(StringComparer.OrdinalIgnoreCase);
 
@@ -23,18 +24,11 @@ public sealed class MapViewportControl : Control
     private bool panning;
     private Point lastMouse;
 
-    public MapViewportControl(DefinitionRegistry registry, TilesetImageProvider images)
+    public MapViewportControl()
     {
-        this.registry = registry ?? throw new ArgumentNullException(nameof(registry));
-        this.images = images ?? throw new ArgumentNullException(nameof(images));
-
-        DoubleBuffered = true;
-        BackColor = Color.FromArgb(28, 30, 34);
-        Dock = DockStyle.Fill;
-        TabStop = true;
+        InitializeComponent();
         SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
 
-        animationTimer = new System.Windows.Forms.Timer { Interval = 50 };
         animationTimer.Tick += (_, _) =>
         {
             if (document is not null && HasAnimatedTiles()) Invalidate();
@@ -46,6 +40,25 @@ public sealed class MapViewportControl : Control
         MouseMove += OnViewportMouseMove;
         MouseUp += OnViewportMouseUp;
     }
+
+    public MapViewportControl(DefinitionRegistry registry, TilesetImageProvider images)
+        : this()
+    {
+        Bind(registry, images);
+    }
+
+    public void Bind(DefinitionRegistry definitionRegistry, TilesetImageProvider imageProvider)
+    {
+        registry = definitionRegistry ?? throw new ArgumentNullException(nameof(definitionRegistry));
+        images = imageProvider ?? throw new ArgumentNullException(nameof(imageProvider));
+        Invalidate();
+    }
+
+    private DefinitionRegistry Registry =>
+        registry ?? throw new InvalidOperationException("El viewport no está enlazado.");
+
+    private TilesetImageProvider Images =>
+        images ?? throw new InvalidOperationException("El viewport no está enlazado.");
 
     public MapDocument? Document
     {
@@ -92,21 +105,25 @@ public sealed class MapViewportControl : Control
             string.Equals(value.Key, layerKey, StringComparison.OrdinalIgnoreCase));
         if (layer is null) return;
 
-        // El cache por capa es barato de regenerar y evita estados parciales incorrectos con cliffs.
         autotileCache.Remove(layer.Key);
-        Invalidate(WorldCellScreenRectangle(changedCell));
-    }
 
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing) animationTimer.Dispose();
-        base.Dispose(disposing);
+        var width = Math.Max(1, (int)Math.Ceiling(document.Bounds.Width / document.TileSize.X));
+        var height = Math.Max(1, (int)Math.Ceiling(document.Bounds.Height / document.TileSize.Y));
+        var resolver = new MapAutotileResolver(layer, width, height, document.TileSize);
+        if (resolver.RequiresFullRefresh)
+        {
+            Invalidate();
+            return;
+        }
+
+        foreach (var cell in resolver.AffectedCells(changedCell))
+            Invalidate(WorldCellScreenRectangle(cell));
     }
 
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
-        if (document is null) return;
+        if (document is null || registry is null || images is null) return;
 
         e.Graphics.InterpolationMode = InterpolationMode.NearestNeighbor;
         e.Graphics.PixelOffsetMode = PixelOffsetMode.Half;
@@ -146,21 +163,21 @@ public sealed class MapViewportControl : Control
         MapTilePlacementDefinition tile,
         MapAutotileRenderData? resolved)
     {
-        if (!registry.TryGet<TilesetDefinition>(tile.TilesetKey, out var tileset) || tileset is null)
+        if (!Registry.TryGet<TilesetDefinition>(tile.TilesetKey, out var tileset) || tileset is null)
         {
             DrawMissingTile(graphics, map, tile.Cell);
             return;
         }
 
-        if (!images.TryGet(tile.TilesetKey, out var image) || image is null)
+        if (!Images.TryGet(tile.TilesetKey, out var image) || image is null)
         {
             DrawMissingTile(graphics, map, tile.Cell);
             return;
         }
 
         var tileSize = map.TileSize;
-        var worldX = map.Bounds.Min.X + tile.Cell.X * tileSize.X;
-        var worldY = map.Bounds.Min.Y + tile.Cell.Y * tileSize.Y;
+        var worldX = map.Bounds.Minimum.X + tile.Cell.X * tileSize.X;
+        var worldY = map.Bounds.Minimum.Y + tile.Cell.Y * tileSize.Y;
         var destination = new RectangleF(worldX, worldY, tileSize.X, tileSize.Y);
         var frame = CurrentFrame(tile.Autotile, tileset);
         var frameOffset = MapAutotileRenderData.FrameOffset(
@@ -190,9 +207,8 @@ public sealed class MapViewportControl : Control
         }
         else
         {
-            var sourceX = tile.AtlasCell.X * tileSize.X;
-            var sourceY = tile.AtlasCell.Y * tileSize.Y;
-            var source = new Rectangle(sourceX, sourceY, tileSize.X, tileSize.Y);
+            var origin = tile.AtlasPixelOrigin(tileSize);
+            var source = new Rectangle(origin.X, origin.Y, tileSize.X, tileSize.Y);
             if (InsideImage(image, source))
                 graphics.DrawImage(image, destination, source, GraphicsUnit.Pixel);
         }
@@ -262,7 +278,7 @@ public sealed class MapViewportControl : Control
 
         if (ShowEvents)
         {
-            foreach (var evt in registry.GetAll<EventDefinition>())
+            foreach (var evt in Registry.GetAll<EventDefinition>())
             {
                 if (evt.Placement is not { } placement || placement.MapId != map.Id) continue;
                 DrawMarker(graphics, placement.Position, "E", Color.DeepSkyBlue);
@@ -276,10 +292,10 @@ public sealed class MapViewportControl : Control
         var size = map.TileSize;
         using var pen = new Pen(Color.FromArgb(45, 220, 220, 220), 1f / zoom);
 
-        for (var x = map.Bounds.Min.X; x <= map.Bounds.Max.X; x += size.X)
-            graphics.DrawLine(pen, x, map.Bounds.Min.Y, x, map.Bounds.Max.Y);
-        for (var y = map.Bounds.Min.Y; y <= map.Bounds.Max.Y; y += size.Y)
-            graphics.DrawLine(pen, map.Bounds.Min.X, y, map.Bounds.Max.X, y);
+        for (var x = map.Bounds.Minimum.X; x <= map.Bounds.Maximum.X; x += size.X)
+            graphics.DrawLine(pen, x, map.Bounds.Minimum.Y, x, map.Bounds.Maximum.Y);
+        for (var y = map.Bounds.Minimum.Y; y <= map.Bounds.Maximum.Y; y += size.Y)
+            graphics.DrawLine(pen, map.Bounds.Minimum.X, y, map.Bounds.Maximum.X, y);
     }
 
     private void DrawSpawnPoint(Graphics graphics)
@@ -298,8 +314,8 @@ public sealed class MapViewportControl : Control
         using var pen = new Pen(Color.White, 2f / zoom);
         graphics.DrawRectangle(
             pen,
-            map.Bounds.Min.X,
-            map.Bounds.Min.Y,
+            map.Bounds.Minimum.X,
+            map.Bounds.Minimum.Y,
             map.Bounds.Width,
             map.Bounds.Height);
     }
@@ -359,8 +375,8 @@ public sealed class MapViewportControl : Control
 
     private void DrawMissingTile(Graphics graphics, MapDocument map, Vector2IntData cell)
     {
-        var x = map.Bounds.Min.X + cell.X * map.TileSize.X;
-        var y = map.Bounds.Min.Y + cell.Y * map.TileSize.Y;
+        var x = map.Bounds.Minimum.X + cell.X * map.TileSize.X;
+        var y = map.Bounds.Minimum.Y + cell.Y * map.TileSize.Y;
         using var pen = new Pen(Color.Magenta, 2f / zoom);
         graphics.DrawRectangle(pen, x, y, map.TileSize.X, map.TileSize.Y);
         graphics.DrawLine(pen, x, y, x + map.TileSize.X, y + map.TileSize.Y);
@@ -453,16 +469,16 @@ public sealed class MapViewportControl : Control
     {
         var map = RequireDocument();
         return new Vector2IntData(
-            (int)Math.Floor((world.X - map.Bounds.Min.X) / map.TileSize.X),
-            (int)Math.Floor((world.Y - map.Bounds.Min.Y) / map.TileSize.Y));
+            (int)Math.Floor((world.X - map.Bounds.Minimum.X) / map.TileSize.X),
+            (int)Math.Floor((world.Y - map.Bounds.Minimum.Y) / map.TileSize.Y));
     }
 
     private Rectangle WorldCellScreenRectangle(Vector2IntData cell)
     {
         var map = RequireDocument();
         var world = new Vector2Data(
-            map.Bounds.Min.X + cell.X * map.TileSize.X,
-            map.Bounds.Min.Y + cell.Y * map.TileSize.Y);
+            map.Bounds.Minimum.X + cell.X * map.TileSize.X,
+            map.Bounds.Minimum.Y + cell.Y * map.TileSize.Y);
         var topLeft = WorldToScreen(world);
         return Rectangle.Ceiling(new RectangleF(
             topLeft.X - 2,

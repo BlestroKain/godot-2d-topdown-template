@@ -4,5 +4,9 @@
     <ProjectReference Include="../../Network/NuevoMMO.Network/NuevoMMO.Network.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.11" />
+  </ItemGroup>
+
   <!-- Lógica portable y testeable. La aplicación visual vive en NuevoMMO.Editor.WinForms. -->
 </Project>

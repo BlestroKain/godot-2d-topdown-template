@@ -1,18 +1,15 @@
+using System.ComponentModel;
 using System.Windows.Forms;
 using WeifenLuo.WinFormsUI.Docking;
 
 namespace NuevoMMO.Editor;
 
-public sealed class ProblemsDock : DockContent
+[DesignerCategory("Form")]
+public sealed partial class ProblemsDock : DockContent
 {
-    private readonly ListBox list = new() { Dock = DockStyle.Fill, HorizontalScrollbar = true };
-
     public ProblemsDock()
     {
-        Text = "Problemas";
-        TabText = Text;
-        HideOnClose = true;
-        Controls.Add(list);
+        InitializeComponent();
     }
 
     public void SetProblems(IEnumerable<string> problems)
