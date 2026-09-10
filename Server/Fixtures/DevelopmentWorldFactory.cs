@@ -24,6 +24,7 @@ public sealed class ServerComposition
     public required PersistenceService Persistence { get; init; }
     public required PacketDispatcher<ServerPacketContext> Dispatcher { get; init; }
     public required DefinitionRegistry Definitions { get; init; }
+    public required ISessionRepository Sessions { get; init; }
 }
 
 public static class DevelopmentWorldFactory
@@ -92,6 +93,13 @@ public static class DevelopmentWorldFactory
         var characterService = new CharacterService(characters, map);
         var dispatcher = new PacketDispatcher<ServerPacketContext>(
             ServerHandlerRegistry.Create(world, auth, characterService, persistence), PacketDirection.ClientToServer);
-        return new ServerComposition { World = world, Persistence = persistence, Dispatcher = dispatcher, Definitions = definitions };
+        return new ServerComposition
+        {
+            World = world,
+            Persistence = persistence,
+            Dispatcher = dispatcher,
+            Definitions = definitions,
+            Sessions = sessions
+        };
     }
 }
