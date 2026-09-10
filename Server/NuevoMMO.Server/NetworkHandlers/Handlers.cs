@@ -25,6 +25,23 @@ public sealed class ConnectHandler : IPacketHandler<ServerPacketContext, Connect
     }
 }
 
+public sealed class RegisterHandler(AuthService auth) : IPacketHandler<ServerPacketContext, RegisterRequest>
+{
+    public async ValueTask HandleAsync(ServerPacketContext context, RegisterRequest packet, CancellationToken cancellationToken)
+    {
+        if (context.Session.State != PlayerSessionState.ProtocolAccepted) throw new InvalidOperationException("Registro fuera de orden.");
+        try
+        {
+            var account = await auth.RegisterAsync(packet.Username, packet.Password, cancellationToken);
+            context.Send(new RegisterResult(true, "", account.Id));
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            context.Send(new RegisterResult(false, exception.Message, default));
+        }
+    }
+}
+
 public sealed class LoginHandler(AuthService auth) : IPacketHandler<ServerPacketContext, LoginRequest>
 {
     public async ValueTask HandleAsync(ServerPacketContext context, LoginRequest packet, CancellationToken cancellationToken)
@@ -123,6 +140,7 @@ public static class ServerHandlerRegistry
     {
         var registry = new HandlerRegistry<ServerPacketContext>();
         registry.Register(new ConnectHandler());
+        registry.Register(new RegisterHandler(auth));
         registry.Register(new LoginHandler(auth));
         registry.Register(new CharacterListHandler(characters));
         registry.Register(new CharacterCreateHandler(characters));
