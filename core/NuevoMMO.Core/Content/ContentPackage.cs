@@ -91,6 +91,11 @@ public sealed record ContentPackage(
                 Require(propertyIds, propertyId, item.Key, "ItemPropertyDefinition", errors);
             if (item.Use?.TechniqueId is { } techniqueId)
                 Require(techniqueIds, techniqueId, item.Key, "TechniqueDefinition", errors);
+            foreach (var effectId in item.PassiveEffectIds)
+                Require(effectIds, effectId, item.Key, "EffectDefinition", errors);
+            if (item.Consumable is { } consumable)
+                foreach (var effectId in consumable.EffectIds)
+                    Require(effectIds, effectId, item.Key, "EffectDefinition", errors);
         }
 
         foreach (var lootTable in LootTables)
