@@ -13,66 +13,62 @@ public sealed record MapDefinition : GameDefinition
         ContentKey visualKey,
         BoundsData bounds,
         Vector2Data spawn,
-        Vector2IntData tileSize)
-        : base(
-            id,
-            key,
-            name,
-            description,
-            enabled,
-            version,
-            tags)
+        Vector2IntData tileSize,
+        MapContentDefinition? content = null)
+        : base(id, key, name, description, enabled, version, tags)
     {
-        if (!bounds.IsValid)
-            throw new ArgumentException(
-                "Los límites del mapa son inválidos.",
-                nameof(bounds));
-
-        if (!spawn.IsFinite)
-            throw new ArgumentException(
-                "El punto de aparición contiene valores no finitos.",
-                nameof(spawn));
-
+        if (visualKey.IsEmpty) throw new ArgumentException("VisualKey vacío.", nameof(visualKey));
+        if (!bounds.IsValid) throw new ArgumentException("Los límites del mapa son inválidos.", nameof(bounds));
+        if (!spawn.IsFinite) throw new ArgumentException("El punto de aparición contiene valores no finitos.", nameof(spawn));
         if (bounds.Clamp(spawn) != spawn)
-            throw new ArgumentOutOfRangeException(
-                nameof(spawn),
-                "El punto de aparición debe estar dentro de los límites del mapa.");
-
+            throw new ArgumentOutOfRangeException(nameof(spawn), "El punto de aparición debe estar dentro de los límites del mapa.");
         if (tileSize.X <= 0 || tileSize.Y <= 0)
-            throw new ArgumentException(
-                "TileSize debe contener dimensiones positivas.",
-                nameof(tileSize));
+            throw new ArgumentException("TileSize debe contener dimensiones positivas.", nameof(tileSize));
 
         VisualKey = visualKey;
         Bounds = bounds;
         Spawn = spawn;
         TileSize = tileSize;
+        Content = content ?? new MapContentDefinition();
+
+        foreach (var placement in Content.Placements)
+            EnsureInside(placement.Position, nameof(content), "placement");
+        foreach (var light in Content.Lights)
+            EnsureInside(light.Position, nameof(content), "light");
+        foreach (var zone in Content.SpawnZones)
+            EnsureInside(zone.Area.Center, nameof(content), "spawn zone");
+        foreach (var region in Content.Regions)
+            EnsureInside(region.Area.Center, nameof(content), "region");
+        foreach (var portal in Content.Portals)
+            EnsureInside(portal.TriggerArea.Center, nameof(content), "portal");
     }
 
-    /// <summary>
-    /// Identificador del mapa derivado de su DefinitionId.
-    /// </summary>
     public MapId MapId => new(Id.Value);
 
     /// <summary>
-    /// Clave que permite al cliente resolver la representación visual del mapa.
-    /// El servidor no necesita conocer texturas, escenas ni recursos de Godot.
+    /// Clave de representación/previsualización resuelta por el cliente/editor.
+    /// El servidor no carga escenas ni recursos Godot.
     /// </summary>
     public ContentKey VisualKey { get; }
 
-    /// <summary>
-    /// Límites lógicos del espacio jugable.
-    /// </summary>
     public BoundsData Bounds { get; }
-
-    /// <summary>
-    /// Punto de aparición predeterminado en coordenadas continuas de mundo.
-    /// </summary>
     public Vector2Data Spawn { get; }
 
     /// <summary>
-    /// Tamaño lógico de tile utilizado por mapas, herramientas y contenido.
-    /// No implica movimiento tile-by-tile.
+    /// Tamaño lógico del tile utilizado por pintura y tooling. No implica movimiento tile-by-tile
+    /// ni convierte la rejilla en autoridad de colisión.
     /// </summary>
     public Vector2IntData TileSize { get; }
+
+    /// <summary>
+    /// Documento editable del mapa: capas visuales, geometría de colisión continua,
+    /// placements, zonas de spawn, portales, regiones, luces y ambiente.
+    /// </summary>
+    public MapContentDefinition Content { get; }
+
+    private void EnsureInside(Vector2Data position, string parameterName, string kind)
+    {
+        if (Bounds.Clamp(position) != position)
+            throw new ArgumentOutOfRangeException(parameterName, $"El {kind} está fuera de los límites del mapa.");
+    }
 }
