@@ -155,7 +155,8 @@ public static class GameDatabase
             DataSource = path,
             Mode = create ? SqliteOpenMode.ReadWriteCreate : SqliteOpenMode.ReadOnly,
             Cache = SqliteCacheMode.Shared,
-            ForeignKeys = true
+            ForeignKeys = true,
+            Pooling = false
         }.ToString());
         connection.Open();
         return connection;

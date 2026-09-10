@@ -19,8 +19,10 @@ partial class DefinitionEditorForm
     private ListBox definitionsListBox = null!;
     private TabControl editorTabs = null!;
     private TabPage generalTabPage = null!;
+    protected TabPage specificTabPage = null!;
     private TabPage jsonTabPage = null!;
     private TableLayoutPanel generalTable = null!;
+    protected TableLayoutPanel specificTable = null!;
     private TextBox idTextBox = null!;
     private TextBox keyTextBox = null!;
     private TextBox nameTextBox = null!;
@@ -51,8 +53,10 @@ partial class DefinitionEditorForm
         definitionsListBox = new ListBox();
         editorTabs = new TabControl();
         generalTabPage = new TabPage("General");
-        jsonTabPage = new TabPage("Datos avanzados (JSON)");
+        specificTabPage = new TabPage("Datos");
+        jsonTabPage = new TabPage("Avanzado (JSON)");
         generalTable = new TableLayoutPanel();
+        specificTable = new TableLayoutPanel();
         idTextBox = new TextBox { ReadOnly = true };
         keyTextBox = new TextBox();
         nameTextBox = new TextBox();
@@ -88,8 +92,10 @@ partial class DefinitionEditorForm
         editorSplitContainer.SuspendLayout();
         editorTabs.SuspendLayout();
         generalTabPage.SuspendLayout();
+        specificTabPage.SuspendLayout();
         jsonTabPage.SuspendLayout();
         generalTable.SuspendLayout();
+        specificTable.SuspendLayout();
         ((ISupportInitialize)versionNumeric).BeginInit();
 
         editorToolStrip.GripStyle = ToolStripGripStyle.Hidden;
@@ -112,6 +118,7 @@ partial class DefinitionEditorForm
 
         editorTabs.Dock = DockStyle.Fill;
         editorTabs.Controls.Add(generalTabPage);
+        editorTabs.Controls.Add(specificTabPage);
         editorTabs.Controls.Add(jsonTabPage);
 
         generalTabPage.Controls.Add(generalTable);
@@ -138,6 +145,15 @@ partial class DefinitionEditorForm
         AddGeneralRow(5, "Versión", versionNumeric);
         AddGeneralRow(6, "Etiquetas", tagsTextBox);
 
+        specificTabPage.Controls.Add(specificTable);
+        specificTabPage.Padding = new Padding(8);
+        specificTable.Dock = DockStyle.Fill;
+        specificTable.AutoScroll = true;
+        specificTable.ColumnCount = 2;
+        specificTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
+        specificTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        specificTable.RowCount = 0;
+
         jsonTabPage.Controls.Add(jsonTextBox);
         jsonTabPage.Padding = new Padding(8);
 
@@ -153,6 +169,9 @@ partial class DefinitionEditorForm
         ((ISupportInitialize)versionNumeric).EndInit();
         generalTable.ResumeLayout(false);
         generalTable.PerformLayout();
+        specificTable.ResumeLayout(false);
+        specificTable.PerformLayout();
+        specificTabPage.ResumeLayout(false);
         jsonTabPage.ResumeLayout(false);
         jsonTabPage.PerformLayout();
         generalTabPage.ResumeLayout(false);
@@ -181,5 +200,30 @@ partial class DefinitionEditorForm
         control.Margin = new Padding(3, 4, 3, 4);
         generalTable.Controls.Add(caption, 0, row);
         generalTable.Controls.Add(control, 1, row);
+    }
+
+    protected void AddSpecificRow(int row, string label, Control control, int height = 34)
+    {
+        while (specificTable.RowCount <= row)
+        {
+            specificTable.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
+            specificTable.RowCount++;
+        }
+
+        if (row < specificTable.RowStyles.Count)
+            specificTable.RowStyles[row] = new RowStyle(SizeType.Absolute, height);
+
+        var caption = new Label
+        {
+            AutoSize = true,
+            Dock = DockStyle.Fill,
+            Padding = new Padding(0, 7, 0, 0),
+            Text = label,
+            TextAlign = ContentAlignment.TopLeft
+        };
+        control.Dock = DockStyle.Fill;
+        control.Margin = new Padding(3, 4, 3, 4);
+        specificTable.Controls.Add(caption, 0, row);
+        specificTable.Controls.Add(control, 1, row);
     }
 }

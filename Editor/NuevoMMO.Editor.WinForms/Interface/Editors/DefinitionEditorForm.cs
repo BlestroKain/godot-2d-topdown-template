@@ -22,21 +22,23 @@ public partial class DefinitionEditorForm : DockContent
     protected DefinitionEditorForm(EditorApplication application, DefinitionEditorDescriptor descriptor)
         : this()
     {
-        Configure(application, descriptor);
+        this.application = application ?? throw new ArgumentNullException(nameof(application));
+        this.descriptor = descriptor ?? throw new ArgumentNullException(nameof(descriptor));
+    }
+
+    protected void FinishSetup()
+    {
+        if (application is null || descriptor is null) return;
+        Text = descriptor.Title;
+        TabText = descriptor.Title;
+        RefreshDefinitions();
     }
 
     public event Action<GameDefinition?>? ContentChanged;
 
     public Type? DefinitionType => descriptor?.DefinitionType;
 
-    protected void Configure(EditorApplication editorApplication, DefinitionEditorDescriptor editorDescriptor)
-    {
-        application = editorApplication ?? throw new ArgumentNullException(nameof(editorApplication));
-        descriptor = editorDescriptor ?? throw new ArgumentNullException(nameof(editorDescriptor));
-        Text = editorDescriptor.Title;
-        TabText = editorDescriptor.Title;
-        RefreshDefinitions();
-    }
+    protected EditorApplication Editor => application ?? throw new InvalidOperationException("El editor no está configurado.");
 
     public void SelectDefinition(DefinitionId id) => RefreshDefinitions(id);
 
@@ -109,6 +111,7 @@ public partial class DefinitionEditorForm : DockContent
         duplicateButton.Enabled = enabled;
         deleteButton.Enabled = enabled;
         saveButton.Enabled = enabled;
+        SetSpecificEnabled(enabled);
 
         if (definition is null)
         {
@@ -120,6 +123,7 @@ public partial class DefinitionEditorForm : DockContent
             versionNumeric.Value = 1;
             tagsTextBox.Clear();
             jsonTextBox.Clear();
+            ClearSpecific();
             editorStatusLabel.Text = "No hay definiciones. Use Nuevo para crear una.";
             return;
         }
@@ -131,6 +135,7 @@ public partial class DefinitionEditorForm : DockContent
         enabledCheckBox.Checked = definition.Enabled;
         versionNumeric.Value = Math.Clamp(definition.Version, (int)versionNumeric.Minimum, (int)versionNumeric.Maximum);
         tagsTextBox.Text = string.Join(", ", definition.Tags);
+        BindSpecific(definition);
         jsonTextBox.Text = JsonSerializer.Serialize(definition, definition.GetType(), ContentPackage.JsonOptions);
         editorStatusLabel.Text = $"{definition.GetType().Name} — {definition.Key}";
     }
@@ -200,17 +205,20 @@ public partial class DefinitionEditorForm : DockContent
         if (application is null || descriptor is null || selectedDefinition is null) return;
         try
         {
-            var node = JsonNode.Parse(jsonTextBox.Text)?.AsObject()
-                ?? throw new JsonException("El documento JSON está vacío.");
-            node["id"] = JsonSerializer.SerializeToNode(selectedDefinition.Id, ContentPackage.JsonOptions);
-            node["key"] = JsonSerializer.SerializeToNode(new ContentKey(keyTextBox.Text), ContentPackage.JsonOptions);
-            node["name"] = nameTextBox.Text;
-            node["description"] = descriptionTextBox.Text;
-            node["enabled"] = enabledCheckBox.Checked;
-            node["version"] = (int)versionNumeric.Value;
-            node["tags"] = new JsonArray(ParseTags().Select(static tag => (JsonNode?)JsonValue.Create(tag)).ToArray());
+            var identity = (
+                selectedDefinition.Id,
+                new ContentKey(keyTextBox.Text),
+                nameTextBox.Text,
+                descriptionTextBox.Text,
+                enabledCheckBox.Checked,
+                (int)versionNumeric.Value,
+                ParseTags());
 
-            var replacement = DeserializeNode(node);
+            var replacement = TryBuildFromFields(
+                    identity.Id, identity.Item2, identity.Item3, identity.Item4,
+                    identity.Item5, identity.Item6, identity.Item7, selectedDefinition)
+                ?? BuildFromJson(selectedDefinition);
+
             if (replacement.Id != selectedDefinition.Id)
                 throw new InvalidOperationException("El ID de una definición existente no puede cambiarse.");
 
@@ -223,9 +231,124 @@ public partial class DefinitionEditorForm : DockContent
         }
         catch (Exception exception)
         {
-            editorTabs.SelectedTab = jsonTabPage;
             ShowError("No se pudo guardar", exception);
         }
+    }
+
+    protected virtual void BindSpecific(GameDefinition definition)
+    {
+    }
+
+    protected virtual void ClearSpecific()
+    {
+    }
+
+    protected virtual void SetSpecificEnabled(bool enabled)
+    {
+        specificTable.Enabled = enabled;
+    }
+
+    protected virtual GameDefinition? TryBuildFromFields(
+        DefinitionId id,
+        ContentKey key,
+        string name,
+        string description,
+        bool enabled,
+        int version,
+        string[] tags,
+        GameDefinition current)
+        => null;
+
+    private GameDefinition BuildFromJson(GameDefinition current)
+    {
+        var node = JsonNode.Parse(jsonTextBox.Text)?.AsObject()
+            ?? throw new JsonException("El documento JSON está vacío.");
+        node["id"] = JsonSerializer.SerializeToNode(current.Id, ContentPackage.JsonOptions);
+        node["key"] = JsonSerializer.SerializeToNode(new ContentKey(keyTextBox.Text), ContentPackage.JsonOptions);
+        node["name"] = nameTextBox.Text;
+        node["description"] = descriptionTextBox.Text;
+        node["enabled"] = enabledCheckBox.Checked;
+        node["version"] = (int)versionNumeric.Value;
+        node["tags"] = new JsonArray(ParseTags().Select(static tag => (JsonNode?)JsonValue.Create(tag)).ToArray());
+        return DeserializeNode(node);
+    }
+
+    protected void FillEnum<T>(ComboBox combo) where T : struct, Enum
+    {
+        combo.DropDownStyle = ComboBoxStyle.DropDownList;
+        combo.DataSource = Enum.GetValues<T>();
+    }
+
+    protected static void SelectEnum<T>(ComboBox combo, T value) where T : struct, Enum
+        => combo.SelectedItem = value;
+
+    protected static T ReadEnum<T>(ComboBox combo, T fallback) where T : struct, Enum
+        => combo.SelectedItem is T value ? value : fallback;
+
+    protected void BindDefinitionCombo<T>(ComboBox combo, DefinitionId? selected, bool optional = true)
+        where T : GameDefinition
+    {
+        combo.DropDownStyle = ComboBoxStyle.DropDownList;
+        var options = new List<DefinitionPick>(optional ? [new DefinitionPick("(ninguno)", null)] : []);
+        options.AddRange(Editor.Definitions.GetAll<T>()
+            .OrderBy(static definition => definition.Name)
+            .Select(static definition => new DefinitionPick($"{definition.Name}  [{definition.Key}]", definition.Id)));
+        combo.DisplayMember = nameof(DefinitionPick.Label);
+        combo.ValueMember = nameof(DefinitionPick.Id);
+        combo.DataSource = options;
+        if (options.Count == 0) return;
+        var index = options.FindIndex(option => option.Id == selected);
+        combo.SelectedIndex = index >= 0 ? index : 0;
+    }
+
+    protected static DefinitionId? ReadDefinitionId(ComboBox combo)
+        => combo.SelectedItem is DefinitionPick pick ? pick.Id : null;
+
+    protected static DefinitionId RequireDefinitionId(ComboBox combo, string field)
+        => ReadDefinitionId(combo) ?? throw new InvalidOperationException($"{field} es obligatorio.");
+
+    protected static ContentKey ReadContentKey(TextBox box, bool required = true)
+    {
+        var value = box.Text.Trim();
+        if (value.Length == 0)
+        {
+            if (required) throw new InvalidOperationException($"{box.Name} requiere una ContentKey.");
+            return default;
+        }
+
+        return new ContentKey(value);
+    }
+
+    protected static ContentKey? ReadOptionalContentKey(TextBox box)
+    {
+        var value = box.Text.Trim();
+        return value.Length == 0 ? null : new ContentKey(value);
+    }
+
+    protected static void SetNumeric(NumericUpDown numeric, decimal value)
+        => numeric.Value = Math.Clamp(value, numeric.Minimum, numeric.Maximum);
+
+    protected DefinitionId ResolveDefinition<T>(string text, string field) where T : GameDefinition
+    {
+        text = text.Trim();
+        if (text.Length == 0) throw new InvalidOperationException($"{field} está vacío.");
+        if (DefinitionId.TryParse(text, out var id) && Editor.Definitions.TryGet<T>(id, out _))
+            return id;
+        if (Editor.Definitions.TryGet<T>(new ContentKey(text), out var definition) && definition is not null)
+            return definition.Id;
+        throw new InvalidOperationException($"No existe {typeof(T).Name} '{text}' para {field}.");
+    }
+
+    protected DefinitionId[] ResolveDefinitionList<T>(TextBox box) where T : GameDefinition
+        => box.Text
+            .Split([',', '\r', '\n', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(value => ResolveDefinition<T>(value, box.Name))
+            .Distinct()
+            .ToArray();
+
+    protected sealed record DefinitionPick(string Label, DefinitionId? Id)
+    {
+        public override string ToString() => Label;
     }
 
     private JsonObject SerializeNode(GameDefinition definition)

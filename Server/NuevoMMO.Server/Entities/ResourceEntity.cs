@@ -20,6 +20,7 @@ public sealed class ResourceEntity : Entity
         availableVisualKey = visualKey;
         MaxHealth = 1;
         Health = 1;
+        Properties = [];
     }
 
     public ResourceEntity(

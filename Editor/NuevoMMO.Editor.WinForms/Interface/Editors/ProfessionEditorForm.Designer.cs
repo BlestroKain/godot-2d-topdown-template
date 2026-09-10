@@ -1,4 +1,4 @@
-﻿#nullable enable
+#nullable enable
 using System.ComponentModel;
 using System.Drawing;
 using System.Windows.Forms;
@@ -8,6 +8,8 @@ namespace NuevoMMO.Editor;
 partial class ProfessionEditorForm
 {
     private IContainer? components;
+    private TextBox visualKeyTextBox = null!;
+    private TextBox dimensionsTextBox = null!;
 
     protected override void Dispose(bool disposing)
     {
@@ -18,12 +20,14 @@ partial class ProfessionEditorForm
     private void InitializeComponent()
     {
         components = new Container();
+        visualKeyTextBox = new TextBox();
+        dimensionsTextBox = new TextBox();
         SuspendLayout();
-        AutoScaleDimensions = new SizeF(7F, 15F);
-        AutoScaleMode = AutoScaleMode.Font;
-        ClientSize = new Size(960, 640);
         Name = "ProfessionEditorForm";
         Text = "Profesiones";
+        specificTabPage.Text = "Profesión";
+        AddSpecificRow(0, "VisualKey", visualKeyTextBox);
+        AddSpecificRow(1, "Dimensiones", dimensionsTextBox);
         ResumeLayout(false);
     }
 }

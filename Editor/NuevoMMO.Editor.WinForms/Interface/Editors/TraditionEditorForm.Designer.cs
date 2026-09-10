@@ -1,4 +1,4 @@
-﻿#nullable enable
+#nullable enable
 using System.ComponentModel;
 using System.Drawing;
 using System.Windows.Forms;
@@ -8,6 +8,7 @@ namespace NuevoMMO.Editor;
 partial class TraditionEditorForm
 {
     private IContainer? components;
+    private TextBox visualKeyTextBox = null!;
 
     protected override void Dispose(bool disposing)
     {
@@ -18,12 +19,12 @@ partial class TraditionEditorForm
     private void InitializeComponent()
     {
         components = new Container();
+        visualKeyTextBox = new TextBox();
         SuspendLayout();
-        AutoScaleDimensions = new SizeF(7F, 15F);
-        AutoScaleMode = AutoScaleMode.Font;
-        ClientSize = new Size(960, 640);
         Name = "TraditionEditorForm";
         Text = "Tradiciones / Clases";
+        specificTabPage.Text = "Tradición";
+        AddSpecificRow(0, "VisualKey", visualKeyTextBox);
         ResumeLayout(false);
     }
 }

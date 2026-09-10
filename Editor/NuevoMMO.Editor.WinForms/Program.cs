@@ -19,8 +19,19 @@ internal static class Program
 
         var application = new EditorApplication(configuration);
         var defaultDatabase = Path.GetFullPath(configuration.ContentPath);
-        if (File.Exists(defaultDatabase))
-            application.Content.Load(defaultDatabase);
+        try
+        {
+            if (File.Exists(defaultDatabase))
+                application.Content.Load(defaultDatabase);
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(
+                $"No se pudo abrir {defaultDatabase}:{Environment.NewLine}{exception.Message}",
+                "NuevoMMO Editor",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+        }
 
         Application.Run(new MainForm(application));
     }
