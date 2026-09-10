@@ -1,3 +1,4 @@
+using NuevoMMO.Core;
 using System.Windows.Forms;
 using WeifenLuo.WinFormsUI.Docking;
 
@@ -29,7 +30,8 @@ public sealed class MapToolsDock : DockContent
 
     private readonly ListBox layers = new()
     {
-        Dock = DockStyle.Fill
+        Dock = DockStyle.Fill,
+        DisplayMember = nameof(LayerEntry.Label)
     };
 
     public MapToolsDock()
@@ -45,6 +47,11 @@ public sealed class MapToolsDock : DockContent
             if (tools.SelectedIndex >= 0)
                 ToolSelected?.Invoke((MapEditorTool)tools.SelectedIndex);
         };
+        layers.SelectedIndexChanged += (_, _) =>
+        {
+            if (layers.SelectedItem is LayerEntry entry)
+                LayerSelected?.Invoke(entry.Key);
+        };
 
         var split = new SplitContainer
         {
@@ -58,13 +65,29 @@ public sealed class MapToolsDock : DockContent
     }
 
     public event Action<MapEditorTool>? ToolSelected;
+    public event Action<string>? LayerSelected;
 
-    public void SetLayers(IEnumerable<string> names)
+    public void SetLayers(IEnumerable<MapLayerDefinition> values, string? selectedKey = null)
     {
+        var entries = values
+            .OrderBy(static layer => layer.Band)
+            .ThenBy(static layer => layer.Order)
+            .Select(static layer => new LayerEntry(layer.Key, $"[{layer.Band}] {layer.Key}"))
+            .ToArray();
+
         layers.BeginUpdate();
-        layers.Items.Clear();
-        foreach (var name in names) layers.Items.Add(name);
-        if (layers.Items.Count > 0 && layers.SelectedIndex < 0) layers.SelectedIndex = 0;
+        layers.DataSource = null;
+        layers.DataSource = entries;
+        layers.DisplayMember = nameof(LayerEntry.Label);
+        if (entries.Length > 0)
+        {
+            var index = string.IsNullOrWhiteSpace(selectedKey)
+                ? 0
+                : Array.FindIndex(entries, entry => string.Equals(entry.Key, selectedKey, StringComparison.OrdinalIgnoreCase));
+            layers.SelectedIndex = index >= 0 ? index : 0;
+        }
         layers.EndUpdate();
     }
+
+    private sealed record LayerEntry(string Key, string Label);
 }
