@@ -9,7 +9,7 @@ public sealed record MapDefinition : GameDefinition
         string? description,
         bool enabled,
         int version,
-        IEnumerable<string>? tags,
+        string[]? tags,
         ContentKey visualKey,
         BoundsData bounds,
         Vector2Data spawn,

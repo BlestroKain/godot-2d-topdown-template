@@ -1,5 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>NuevoMMO.Server</AssemblyName>
+    <RootNamespace>NuevoMMO.Server</RootNamespace>
+    <UseAppHost>true</UseAppHost>
+    <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
+    <DebugType>portable</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../Core/NuevoMMO.Core/NuevoMMO.Core.csproj" />
     <ProjectReference Include="../../Network/NuevoMMO.Network/NuevoMMO.Network.csproj" />

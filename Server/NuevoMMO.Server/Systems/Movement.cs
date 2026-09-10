@@ -46,8 +46,9 @@ public sealed class MovementSystem(float speed, int tickMilliseconds)
 
     public static bool IsBlocked(MapDefinition map, Vector2Data position)
     {
-        var cell = new Vector2IntData((int)MathF.Floor(position.X / map.TileSize.X), (int)MathF.Floor(position.Y / map.TileSize.Y));
-        return map.BlockedCells.Contains(cell);
+        // MapDefinition no es el sistema autoritativo de colisión. Bounds ya recorta el desplazamiento.
+        _ = map;
+        return !position.IsFinite;
     }
 }
 

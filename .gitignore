@@ -5,6 +5,8 @@
 *.import
 export.cfg
 export_presets.cfg
+!Client/export_presets.cfg
+dist/
 data_*/
 client/addons/Todo_Manager/todo.cfg
 .vscode/

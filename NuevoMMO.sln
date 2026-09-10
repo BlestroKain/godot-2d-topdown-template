@@ -36,6 +36,7 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+		StartupProject = NuevoMMO.Server
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{A11C0A11-0001-4000-8000-000000000001}.Debug|Any CPU.ActiveCfg = Debug|Any CPU

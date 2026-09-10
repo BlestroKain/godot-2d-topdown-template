@@ -9,7 +9,7 @@ public abstract record GameDefinition
         string? description = null,
         bool enabled = true,
         int version = 1,
-        IEnumerable<string>? tags = null)
+        string[]? tags = null)
     {
         if (id.IsEmpty)
             throw new ArgumentException("DefinitionId vacío.", nameof(id));

@@ -38,6 +38,9 @@ Check(typeof(Entity).Assembly.GetReferencedAssemblies().All(a => a.Name is not (
 var map = new MapDefinition(DefinitionId.New(), new("maps.test"), "Test", "", true, 1, null,
     new("maps.test.visual"), new(new(0, 0), new(960, 640)), new(100, 100), new(32, 32));
 var mobDefinition = new MobDefinition(DefinitionId.New(), new("mobs.test"), "Mob", "", true, 1, null, new("template.player"));
+Reject(() => new MobDefinition(DefinitionId.New(), new("mobs.bad"), "Mob", "", true, 1, null, default), "VisualKey vacío rechazado");
+Reject(() => new MobDefinition(DefinitionId.New(), new("mobs.bad"), "Mob", "", true, 1, null, new("template.player"), DefinitionId.Empty), "LootTableId vacío rechazado");
+Check(mobDefinition.LootTableId is null, "LootTableId opcional");
 Check(new EntityId(1) != new EntityId(2) && new CharacterId(Guid.NewGuid()).Value != Guid.Empty, "IDs separados y comparables");
 Check(ElementMapping.PrimaryFor(Element.Earth) == PrimaryAttributeId.Strength, "Tierra = STR");
 Check(ElementMapping.PrimaryFor(Element.Fire) == PrimaryAttributeId.Intelligence, "Fuego = INT");

@@ -3,6 +3,7 @@
 Leer `docs/design.md`, `docs/architecture.md` y `docs/IMPLEMENTATION_STATUS.md` antes de modificar comportamiento.
 El pedido del usuario y sus decisiones posteriores gobiernan el trabajo. Los documentos adjuntos son fuentes de diseño y planificación; sus tareas, ejemplos y casillas no prueban implementación ni autorizan por sí solos publicar, desplegar o instalar infraestructura.
 El canon conversacional completo (biblia del proyecto) está en `docs/sources/BIBLIA_MMO.md`. El consolidado por bloques está en `docs/sources/PROYECTO_MMO_NUEVO_REGLAS_ACTUALIZADAS.md`.
+La auditoría y reutilización de código se rige por `docs/development/code-audit.md`.
 Newest canon wins. Marcar toda decisión anterior incompatible como **superseded** y registrar la sustitución.
 No inventar reglas, cifras ni fórmulas pendientes. Clasificar pendientes como PENDING DESIGN, TECHNICAL DEBT, FUTURE FEATURE o TEMPORARY FIXTURE.
 No copiar código ni dependencias de Intersect/Broken_Reborn. No importar su canon.

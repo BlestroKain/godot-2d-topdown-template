@@ -31,7 +31,9 @@ public sealed record ContentPackage(
         WriteIndented = true,
         Converters =
         {
-            new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)
+            new JsonStringEnumConverter(JsonNamingPolicy.CamelCase),
+            new ContentKeyJsonConverter(),
+            new DefinitionIdJsonConverter()
         }
     };
 

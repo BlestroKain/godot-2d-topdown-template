@@ -8,10 +8,16 @@ Arquitectura: `Core` → `Network` → `Server` / `Client` / `Editor`.
 
 Abrir `Client/project.godot` en Godot .NET.
 
-Servidor Development: `dotnet run --project Server/NuevoMMO.Server -- --development`
+Servidor Development: abrir `NuevoMMO.sln`, establecer **NuevoMMO.Server** como proyecto de inicio y Compilar / Depurar. El ejecutable queda en `Server/NuevoMMO.Server/bin/Debug/net8.0/NuevoMMO.Server.exe`.
 
-Desde PowerShell: `./tools/run-client.ps1 -GodotExe <ruta-a-Godot>`.
-Para repetir importación y arranque headless: `./tools/verify-client.ps1 -GodotExe <ruta-a-Godot>`.
+Desde la consola: `dotnet run --project Server/NuevoMMO.Server`.
+
+Cliente exportado (Windows): `./tools/export-client.ps1`. El exe queda en `dist/client/NuevoMMO.Client.exe`. Puedes lanzar dos copias para probar conexiones.
+
+Desde el editor: `Client/project.godot` → Proyecto → Exportar → Windows Desktop.
+
+Desde PowerShell, editor: `./tools/run-client.ps1 -GodotExe <ruta-a-Godot>`.
+Para importación headless: `./tools/verify-client.ps1 -GodotExe <ruta-a-Godot>`.
 
 - [Diseño vigente](docs/design.md)
 - [Arquitectura](docs/architecture/overview.md)
