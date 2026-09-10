@@ -56,7 +56,7 @@ public sealed record ConditionDefinition
         Comparison = comparison;
         References = DefinitionModelGuards.CopyDefinitionHooks(references, nameof(references));
         Numbers = DefinitionModelGuards.CopyFinite(numbers, nameof(numbers));
-        Text = DefinitionModelGuards.CopyText(text, nameof(text));
+        Text = DefinitionCollectionGuards.CopyText(text, nameof(text));
         Negate = negate;
     }
 
@@ -180,8 +180,8 @@ public sealed record EventCommandDefinition
         Kind = kind;
         References = DefinitionModelGuards.CopyDefinitionHooks(references, nameof(references));
         Numbers = DefinitionModelGuards.CopyFinite(numbers, nameof(numbers));
-        Text = DefinitionModelGuards.CopyText(text, nameof(text));
-        Branches = DefinitionModelGuards.CopyGuidMap(branches, nameof(branches));
+        Text = DefinitionCollectionGuards.CopyText(text, nameof(text));
+        Branches = DefinitionCollectionGuards.CopyGuidMap(branches, nameof(branches));
         Condition = condition;
     }
 
@@ -190,10 +190,6 @@ public sealed record EventCommandDefinition
     public Dictionary<string, DefinitionId> References { get; }
     public Dictionary<string, float> Numbers { get; }
     public Dictionary<string, string> Text { get; }
-
-    /// <summary>
-    /// Mapea nombres de rama (true/false, opción, success/failure, etc.) al ID de otra lista de comandos.
-    /// </summary>
     public Dictionary<string, Guid> Branches { get; }
     public ConditionGroupDefinition? Condition { get; }
 }
@@ -220,7 +216,7 @@ public sealed record EventPageVisualDefinition
         DirectionFixed = directionFixed;
         WalkingAnimation = walkingAnimation;
         Passable = passable;
-        Overrides = DefinitionModelGuards.CopyContentKeys(overrides, nameof(overrides));
+        Overrides = DefinitionCollectionGuards.CopyContentKeys(overrides, nameof(overrides));
     }
 
     public ContentKey? VisualKey { get; }
