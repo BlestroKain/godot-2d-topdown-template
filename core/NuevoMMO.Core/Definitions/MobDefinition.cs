@@ -30,7 +30,7 @@ public sealed record MobDefinition : GameDefinition
         VisualKey = visualKey;
         LootTableId = lootTableId;
         LootMode = lootMode;
-        Behavior = behavior ?? new CreatureBehaviorDefinition(aggressive: true);
+        Behavior = behavior ?? new CreatureBehaviorDefinition();
         Combat = combat ?? new CreatureCombatDefinition();
         EventHooks = DefinitionModelGuards.CopyDefinitionHooks(eventHooks, nameof(eventHooks));
         Metadata = metadata is null
