@@ -13,7 +13,7 @@ public sealed class GameConnection : IDisposable
     public event Action<string>? Closed;
     public MapLoadPacket? Map { get; private set; }
 
-    public async Task ConnectAsync(string host, int port, string name)
+    public async Task ConnectAsync(string host, int port, string username, string password, bool registerAccount = false)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
         timeout.CancelAfter(TimeSpan.FromSeconds(8));
@@ -23,7 +23,17 @@ public sealed class GameConnection : IDisposable
         if (await TcpPacketFraming.ReadAsync(stream, timeout.Token) is not ConnectionAccepted accepted)
             throw new IOException("Handshake inválido.");
         Message?.Invoke(accepted);
-        await TcpPacketFraming.WriteAsync(stream, new LoginRequest(name, "development"), timeout.Token);
+
+        if (registerAccount)
+        {
+            await TcpPacketFraming.WriteAsync(stream, new RegisterRequest(username, password), timeout.Token);
+            if (await TcpPacketFraming.ReadAsync(stream, timeout.Token) is not RegisterResult registration)
+                throw new IOException("Respuesta de registro inválida.");
+            Message?.Invoke(registration);
+            if (!registration.Succeeded) throw new IOException(registration.Error);
+        }
+
+        await TcpPacketFraming.WriteAsync(stream, new LoginRequest(username, password), timeout.Token);
         if (await TcpPacketFraming.ReadAsync(stream, timeout.Token) is not LoginResult login)
             throw new IOException("Login inválido.");
         if (!login.Succeeded) throw new IOException(login.Error);
@@ -35,7 +45,7 @@ public sealed class GameConnection : IDisposable
         CharacterSummary character;
         if (list.Characters.Length == 0)
         {
-            await TcpPacketFraming.WriteAsync(stream, new CreateCharacterRequest(login.Session, login.SessionToken, name), timeout.Token);
+            await TcpPacketFraming.WriteAsync(stream, new CreateCharacterRequest(login.Session, login.SessionToken, username), timeout.Token);
             if (await TcpPacketFraming.ReadAsync(stream, timeout.Token) is not CharacterCreated created)
                 throw new IOException("Creación de personaje inválida.");
             Message?.Invoke(created);
