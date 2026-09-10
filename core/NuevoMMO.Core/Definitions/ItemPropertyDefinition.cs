@@ -1,7 +1,8 @@
 namespace NuevoMMO.Core;
 
 /// <summary>
-/// Describe una propiedad variable que puede materializarse en una instancia de ítem o recurso.
+/// Describe una propiedad que puede existir en objetos o recursos.
+/// El rango global funciona como referencia; cada ItemDefinition/ResourceDefinition puede sobrescribirlo.
 /// </summary>
 public sealed record ItemPropertyDefinition : GameDefinition
 {
@@ -14,27 +15,47 @@ public sealed record ItemPropertyDefinition : GameDefinition
         int version,
         string[]? tags,
         float minimum,
-        float maximum)
+        float maximum,
+        ModifierType modifierType = ModifierType.Flat,
+        StatId? statId = null,
+        bool appliesToItems = true,
+        bool appliesToResources = false,
+        string? unit = null,
+        int displayPrecision = 0,
+        Dictionary<string, string>? metadata = null)
         : base(id, key, name, description, enabled, version, tags)
     {
-        if (!float.IsFinite(minimum))
-            throw new ArgumentOutOfRangeException(nameof(minimum), minimum, "Minimum debe ser finito.");
-        if (!float.IsFinite(maximum))
-            throw new ArgumentOutOfRangeException(nameof(maximum), maximum, "Maximum debe ser finito.");
-        if (minimum > maximum)
-            throw new ArgumentException("Minimum no puede ser mayor que Maximum.");
+        DefaultRange = new NumericRange(minimum, maximum);
+        if (!appliesToItems && !appliesToResources)
+            throw new ArgumentException("La propiedad debe aplicar al menos a objetos o recursos.");
+        if (displayPrecision is < 0 or > 8)
+            throw new ArgumentOutOfRangeException(nameof(displayPrecision));
 
-        Minimum = minimum;
-        Maximum = maximum;
+        ModifierType = modifierType;
+        StatId = statId;
+        AppliesToItems = appliesToItems;
+        AppliesToResources = appliesToResources;
+        Unit = unit?.Trim() ?? string.Empty;
+        DisplayPrecision = displayPrecision;
+        Metadata = metadata is null
+            ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, string>(metadata, StringComparer.OrdinalIgnoreCase);
     }
 
-    /// <summary>
-    /// Valor mínimo permitido al materializar la propiedad.
-    /// </summary>
-    public float Minimum { get; }
+    public float Minimum => DefaultRange.Minimum;
+    public float Maximum => DefaultRange.Maximum;
+    public NumericRange DefaultRange { get; }
+    public ModifierType ModifierType { get; }
 
     /// <summary>
-    /// Valor máximo permitido al materializar la propiedad.
+    /// Stat canónico afectado cuando la propiedad representa directamente un stat.
+    /// Puede ser null para propiedades de oficio/material como Pureza o Conductividad Malden.
     /// </summary>
-    public float Maximum { get; }
+    public StatId? StatId { get; }
+
+    public bool AppliesToItems { get; }
+    public bool AppliesToResources { get; }
+    public string Unit { get; }
+    public int DisplayPrecision { get; }
+    public Dictionary<string, string> Metadata { get; }
 }
