@@ -48,6 +48,7 @@ await new ServerHost(
     composition.World,
     composition.Persistence,
     composition.Dispatcher,
-    configuration).RunAsync(stop.Token);
+    configuration,
+    composition.Sessions).RunAsync(stop.Token);
 
 return 0;
