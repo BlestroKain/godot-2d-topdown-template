@@ -42,7 +42,7 @@ catch (Exception exception)
 
 Console.WriteLine($"NuevoMMO Server · {configuration.Environment}");
 Console.WriteLine($"Config: {configPath}");
-Console.WriteLine(configuration.Database.Enabled ? "Persistencia: PostgreSQL" : "Persistencia: InMemory");
+Console.WriteLine($"Persistencia: {composition.PersistenceDescription}");
 
 await new ServerHost(
     composition.World,
