@@ -26,6 +26,16 @@ Flujo: analizar → extraer lógica útil → quitar dependencias innecesarias �
 
 NuevoMMO no se deforma para encajar código viejo. No heredar lore, clases, nombres o game design de Broken/Intersect.
 
+## Política vigente para Definitions de contenido
+
+Las Definitions son la fuente maestra editable del objeto y pueden ser ricas, siguiendo el valor práctico del modelo Intersect/Broken_Reborn. Deben contener toda la configuración necesaria para que Entity/System/Service no tenga que reconstruir datos de diseño dispersos.
+
+Esto NO autoriza lógica runtime, acceso a DB, sockets, timers activos ni estado mutable de una instancia dentro de la Definition. La separación sigue siendo: la Definition configura; Entity/State conserva estado vivo; System decide y ejecuta.
+
+Preferir bloques de configuración y diccionarios tipados cuando reduzcan rigidez: stats/modificadores, rangos de propiedades, requisitos, servicios, hooks, parámetros y referencias. Mantener IDs/ContentKeys para enlazar contenido y validar referencias en ContentPackage antes del runtime.
+
+La adaptación actual toma de Intersect ideas como configuración completa de items, comportamiento/combate de NPCs, drops, cooldowns, stacking, permisos, vitales, scaling y recursos agotables, pero expresadas con los tipos/canon de NuevoMMO.
+
 ## Flujo por clase
 
 1. Ruta exacta.
@@ -39,11 +49,13 @@ NuevoMMO no se deforma para encajar código viejo. No heredar lore, clases, nomb
 9. Si hay cambios: código final completo, impacto, tests/compilación.
 10. Siguiente clase.
 
-No refactors masivos. No sobreingeniería. No duplicar tipos. Validar temprano. El Server es autoritativo.
+No refactors masivos. No duplicar tipos. Validar temprano. El Server es autoritativo.
 
 ## Ya revisadas
 
-DefinitionId, ContentKey, GameDefinition, DefinitionRegistry, ContentPackage, MapDefinition, BoundsData, Vector2Data, Vector2IntData, MapId, MobDefinition, NpcDefinition, ItemDefinition, ItemPropertyDefinition, ResourceDefinition, LootTableDefinition.
+DefinitionId, ContentKey, GameDefinition, DefinitionRegistry, ContentPackage, MapDefinition, BoundsData, Vector2Data, Vector2IntData, MapId.
+
+Segunda pasada de Definitions ricas completada para: MobDefinition, NpcDefinition, ItemDefinition, ItemPropertyDefinition, ResourceDefinition y LootTableDefinition, junto con ObjectDefinitionModels y validación cruzada de referencias del ContentPackage.
 
 ## Siguiente
 
