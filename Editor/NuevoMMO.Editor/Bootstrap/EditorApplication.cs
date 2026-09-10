@@ -3,7 +3,7 @@ using NuevoMMO.Core;
 namespace NuevoMMO.Editor;
 
 /// <summary>
-/// Raíz de aplicación del Editor. No contiene UI Godot: expone los workspaces y servicios
+/// Raíz de aplicación del Editor. No contiene UI Godot: expone workspaces y servicios
 /// que una interfaz visual puede enlazar tanto en modo offline como conectado.
 /// </summary>
 public sealed class EditorApplication
@@ -13,6 +13,7 @@ public sealed class EditorApplication
     public DirtyState Dirty { get; } = new();
     public EditorHistory History { get; } = new();
     public ProjectValidator Validator { get; }
+    public ContentWorkspace Content { get; }
     public MapEditor Maps { get; }
     public EventEditor Events { get; }
 
@@ -20,6 +21,7 @@ public sealed class EditorApplication
     {
         Configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         Validator = new(Definitions);
+        Content = new ContentWorkspace(Definitions, Validator, Dirty);
         Maps = new MapEditor(Definitions, History, Dirty);
         Events = new EventEditor(Definitions, History, Dirty);
     }
