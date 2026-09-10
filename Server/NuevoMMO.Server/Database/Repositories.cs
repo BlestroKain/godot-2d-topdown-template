@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using NuevoMMO.Core;
 
 namespace NuevoMMO.Server.Database;
@@ -61,10 +62,12 @@ public sealed class InMemorySessionRepository : ISessionRepository
     }
 
     public Task<SessionRecord?> GetActiveAsync(SessionId id, string token, CancellationToken cancellationToken = default)
-        => Task.FromResult(sessions.TryGetValue(id, out var session) && session.IsActive &&
-            CryptographicOperations.FixedTimeEquals(
-                System.Text.Encoding.UTF8.GetBytes(session.Token),
-                System.Text.Encoding.UTF8.GetBytes(token)) ? session : null);
+    {
+        if (!sessions.TryGetValue(id, out var session) || !session.IsActive) return Task.FromResult<SessionRecord?>(null);
+        var left = System.Text.Encoding.UTF8.GetBytes(session.Token);
+        var right = System.Text.Encoding.UTF8.GetBytes(token);
+        return Task.FromResult<SessionRecord?>(left.Length == right.Length && CryptographicOperations.FixedTimeEquals(left, right) ? session : null);
+    }
 
     public Task RevokeAsync(SessionId id, CancellationToken cancellationToken = default)
     {
