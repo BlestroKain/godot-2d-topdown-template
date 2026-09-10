@@ -6,9 +6,9 @@ public partial class MmoGame : Node2D
 {
     public NetworkBridge Network { get; private set; } = null!;
     private WorldPresentation world = null!;
-    private LineEdit host = null!, playerName = null!;
+    private LineEdit host = null!, username = null!, password = null!;
     private Label status = null!, details = null!;
-    private Button connect = null!, disconnect = null!;
+    private Button login = null!, register = null!, disconnect = null!;
     private double accumulator;
     private bool focused = true;
     public Vector2? TestInput { get; set; }
@@ -26,18 +26,36 @@ public partial class MmoGame : Node2D
         var hud = new CanvasLayer(); AddChild(hud);
         var panel = new PanelContainer { Position = new(10, 10), CustomMinimumSize = new(620, 0) }; hud.AddChild(panel);
         var box = new VBoxContainer(); panel.AddChild(box);
-        var row = new HBoxContainer(); box.AddChild(row);
-        host = new() { Text = "127.0.0.1", CustomMinimumSize = new(120, 32) }; row.AddChild(host);
-        playerName = new() { Text = "Explorador", MaxLength = 24, CustomMinimumSize = new(130, 32) }; row.AddChild(playerName);
-        connect = new() { Text = "Conectar" }; row.AddChild(connect);
-        disconnect = new() { Text = "Salir" }; row.AddChild(disconnect);
-        var preferences = new Button { Text = "Ajustes" }; row.AddChild(preferences);
+
+        var serverRow = new HBoxContainer(); box.AddChild(serverRow);
+        serverRow.AddChild(new Label { Text = "Servidor" });
+        host = new() { Text = "127.0.0.1", CustomMinimumSize = new(150, 32) }; serverRow.AddChild(host);
+
+        var accountRow = new HBoxContainer(); box.AddChild(accountRow);
+        username = new() { PlaceholderText = "Usuario", MaxLength = 24, CustomMinimumSize = new(150, 32) }; accountRow.AddChild(username);
+        password = new() { PlaceholderText = "Contraseña", Secret = true, MaxLength = 128, CustomMinimumSize = new(150, 32) }; accountRow.AddChild(password);
+        login = new() { Text = "Ingresar" }; accountRow.AddChild(login);
+        register = new() { Text = "Registrar" }; accountRow.AddChild(register);
+        disconnect = new() { Text = "Salir" }; accountRow.AddChild(disconnect);
+        var preferences = new Button { Text = "Ajustes" }; accountRow.AddChild(preferences);
+
         preferences.Pressed += () => GetNode("/root/Globals").Call("open_settings_menu");
-        connect.Pressed += () => { GetViewport().GuiReleaseFocus(); Network.ConnectToServer(host.Text, 7777, playerName.Text); };
+        login.Pressed += () =>
+        {
+            GetViewport().GuiReleaseFocus();
+            Network.Login(host.Text, 7777, username.Text, password.Text);
+        };
+        register.Pressed += () =>
+        {
+            GetViewport().GuiReleaseFocus();
+            Network.Register(host.Text, 7777, username.Text, password.Text);
+        };
         disconnect.Pressed += Network.DisconnectFromServer;
+
         status = new() { Text = "Nuevo MMO · servidor local" }; box.AddChild(status);
-        details = new() { Text = "Inicia el servidor. Movimiento: WASD / flechas / mando." }; box.AddChild(details);
+        details = new() { Text = "Crea una cuenta o ingresa. Movimiento: WASD / flechas / mando." }; box.AddChild(details);
         details.AddThemeFontSizeOverride("font_size", 12);
+
         var controls = new HBoxContainer { Position = new(10, 308) }; hud.AddChild(controls);
         foreach (var pair in new[] { ("←", "mmo_left"), ("↑", "mmo_up"), ("↓", "mmo_down"), ("→", "mmo_right") })
         {
@@ -74,8 +92,15 @@ public partial class MmoGame : Node2D
         }
         else { accumulator = 0; world.Present(Network.World, Vector2.Zero, 0); }
         status.Text = Network.Status;
-        connect.Disabled = Network.Status.StartsWith("Conectando", StringComparison.Ordinal) || Network.World.Session.Map is not null;
+        var busy = Network.Status.StartsWith("Conectando", StringComparison.Ordinal)
+            || Network.Status.StartsWith("Registrando", StringComparison.Ordinal)
+            || Network.Status.StartsWith("Autenticado", StringComparison.Ordinal)
+            || Network.World.Session.Map is not null;
+        login.Disabled = busy;
+        register.Disabled = busy;
         disconnect.Disabled = Network.Status == "Desconectado";
+        username.Editable = !busy;
+        password.Editable = !busy;
     }
 
     public override void _Notification(int what)
