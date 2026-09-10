@@ -53,9 +53,8 @@ public sealed class GameSystems
     public TechniqueSystem Techniques { get; }
 
     /// <summary>
-    /// Avanza sistemas pasivos que no requieren un packet de entrada: buffs/debuffs, channels,
-    /// proyectiles y respawn de recursos. No ejecuta AI de mobs todavía para mantener separada
-    /// la política de movimiento existente hasta conectar navegación/targeting completos.
+    /// Avanza efectos y casts/channels. Movimiento, proyectiles y respawn de recursos continúan
+    /// siendo recorridos por WorldRuntime para conservar un único orden de actualización del mapa.
     /// </summary>
     public void Advance(MapInstance map, long nowMilliseconds, int deltaMilliseconds)
     {
@@ -77,18 +76,6 @@ public sealed class GameSystems
         }
 
         Techniques.Advance(nowMilliseconds);
-
-        foreach (var resource in snapshot.OfType<ResourceEntity>())
-            resource.TryRespawn(nowMilliseconds);
-
-        var expiredProjectiles = new List<EntityId>();
-        foreach (var projectile in snapshot.OfType<Projectile>())
-        {
-            Projectiles.Step(projectile, map.Definition, deltaMilliseconds);
-            map.Refresh(projectile);
-            if (projectile.IsExpired) expiredProjectiles.Add(projectile.Id);
-        }
-        foreach (var id in expiredProjectiles) map.Remove(id, out _);
     }
 
     public void OnEntityRemoved(Entity entity)
