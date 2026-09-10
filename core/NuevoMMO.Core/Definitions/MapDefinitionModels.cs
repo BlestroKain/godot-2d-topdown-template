@@ -7,6 +7,33 @@ public enum MapShapeKind : byte
     Polygon
 }
 
+/// <summary>
+/// Banda de render del tilemap. Mantiene el orden clásico de Intersect:
+/// Lower debajo de entidades, Middle y Upper sobre las entidades.
+/// </summary>
+public enum MapLayerBand : byte
+{
+    Lower,
+    Middle,
+    Upper
+}
+
+/// <summary>
+/// Modos de autotile compatibles con las convenciones históricas de Intersect.
+/// Los valores numéricos se conservan deliberadamente para facilitar importación.
+/// </summary>
+public enum MapAutotileMode : byte
+{
+    None = 0,
+    Normal = 1,
+    Fake = 2,
+    Animated = 3,
+    Cliff = 4,
+    Waterfall = 5,
+    Xp = 6,
+    AnimatedXp = 7
+}
+
 public sealed record MapShapeDefinition
 {
     public MapShapeDefinition(
@@ -56,7 +83,8 @@ public sealed record MapTilePlacementDefinition
         int alternative = 0,
         int rotationQuarterTurns = 0,
         bool flipHorizontal = false,
-        bool flipVertical = false)
+        bool flipVertical = false,
+        MapAutotileMode autotile = MapAutotileMode.None)
     {
         if (tilesetKey.IsEmpty) throw new ArgumentException("TilesetKey vacío.", nameof(tilesetKey));
         if (alternative < 0) throw new ArgumentOutOfRangeException(nameof(alternative));
@@ -69,6 +97,7 @@ public sealed record MapTilePlacementDefinition
         RotationQuarterTurns = rotationQuarterTurns;
         FlipHorizontal = flipHorizontal;
         FlipVertical = flipVertical;
+        Autotile = autotile;
     }
 
     public Vector2IntData Cell { get; }
@@ -78,6 +107,7 @@ public sealed record MapTilePlacementDefinition
     public int RotationQuarterTurns { get; }
     public bool FlipHorizontal { get; }
     public bool FlipVertical { get; }
+    public MapAutotileMode Autotile { get; }
 }
 
 public sealed record MapLayerDefinition
@@ -88,7 +118,8 @@ public sealed record MapLayerDefinition
         MapTilePlacementDefinition[]? tiles = null,
         bool visible = true,
         float parallaxFactor = 1,
-        Dictionary<string, float>? parameters = null)
+        Dictionary<string, float>? parameters = null,
+        MapLayerBand band = MapLayerBand.Lower)
     {
         if (string.IsNullOrWhiteSpace(key)) throw new ArgumentException("Layer key requerida.", nameof(key));
         if (!float.IsFinite(parallaxFactor) || parallaxFactor < 0) throw new ArgumentOutOfRangeException(nameof(parallaxFactor));
@@ -102,6 +133,7 @@ public sealed record MapLayerDefinition
         Visible = visible;
         ParallaxFactor = parallaxFactor;
         Parameters = DefinitionModelGuards.CopyFinite(parameters, nameof(parameters));
+        Band = band;
     }
 
     public string Key { get; }
@@ -110,6 +142,7 @@ public sealed record MapLayerDefinition
     public bool Visible { get; }
     public float ParallaxFactor { get; }
     public Dictionary<string, float> Parameters { get; }
+    public MapLayerBand Band { get; }
 }
 
 public sealed record MapCollisionDefinition
@@ -380,7 +413,7 @@ public sealed record MapContentDefinition
         MapEnvironmentDefinition? environment = null,
         Dictionary<string, string>? metadata = null)
     {
-        Layers = layers?.OrderBy(static layer => layer.Order).ToArray() ?? [];
+        Layers = layers?.OrderBy(static layer => layer.Band).ThenBy(static layer => layer.Order).ToArray() ?? [];
         Collisions = collisions?.ToArray() ?? [];
         Placements = placements?.ToArray() ?? [];
         SpawnZones = spawnZones?.ToArray() ?? [];
