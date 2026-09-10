@@ -1,0 +1,13 @@
+{
+  "environment": "Development",
+  "host": "127.0.0.1",
+  "port": 7777,
+  "tickMilliseconds": 50,
+  "maxPlayers": 32,
+  "maxConnections": 32,
+  "maxMessagesPerWindow": 100,
+  "handshakeTimeoutSeconds": 5,
+  "readTimeoutSeconds": 10,
+  "writeTimeoutSeconds": 3,
+  "autosaveIntervalTicks": 40
+}
