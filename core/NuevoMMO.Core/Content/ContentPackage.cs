@@ -30,6 +30,11 @@ public sealed record ContentPackage(
     /// </summary>
     public EventDefinition[] Events { get; init; } = [];
 
+    /// <summary>
+    /// Catálogo de tilesets. Se mantiene fuera del constructor posicional para no romper paquetes v1 previos.
+    /// </summary>
+    public TilesetDefinition[] Tilesets { get; init; } = [];
+
     public static JsonSerializerOptions JsonOptions { get; } = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -61,6 +66,7 @@ public sealed record ContentPackage(
         foreach (var definition in Quests ?? []) yield return definition;
         foreach (var definition in ItemProperties ?? []) yield return definition;
         foreach (var definition in Events ?? []) yield return definition;
+        foreach (var definition in Tilesets ?? []) yield return definition;
     }
 
     public IReadOnlyList<string> Validate()
@@ -98,6 +104,7 @@ public sealed record ContentPackage(
         var recipeIds = (Recipes ?? []).Select(static value => value.Id).ToHashSet();
         var spawnTableIds = (SpawnTables ?? []).Select(static value => value.Id).ToHashSet();
         var eventIds = (Events ?? []).Select(static value => value.Id).ToHashSet();
+        var tilesetsByKey = (Tilesets ?? []).ToDictionary(static value => value.Key);
         var spawnableIds = mobIds.Concat(npcIds).Concat(resourceIds).ToHashSet();
 
         foreach (var item in Items ?? [])
@@ -235,6 +242,51 @@ public sealed record ContentPackage(
             }
         }
 
+        foreach (var map in Maps ?? [])
+        {
+            foreach (var layer in map.Content.Layers)
+            {
+                if (MapLayerDefaults.IsReservedEditorLayerName(layer.Key))
+                    errors.Add($"{map.Key} usa nombre de capa reservado: '{layer.Key}'.");
+
+                foreach (var tile in layer.Tiles)
+                {
+                    if (!tilesetsByKey.TryGetValue(tile.TilesetKey, out var tileset))
+                    {
+                        errors.Add($"{map.Key}/{layer.Key} referencia TilesetDefinition inexistente: {tile.TilesetKey}.");
+                        continue;
+                    }
+                    if (tileset.TileSize != map.TileSize)
+                        errors.Add($"{map.Key}/{layer.Key} usa tileset {tileset.Key} de {tileset.TileSize}, distinto al TileSize del mapa {map.TileSize}.");
+                }
+            }
+
+            foreach (var placement in map.Content.Placements)
+            {
+                var expected = placement.Kind switch
+                {
+                    SpawnEntityKind.Mob => mobIds,
+                    SpawnEntityKind.Npc => npcIds,
+                    SpawnEntityKind.Resource => resourceIds,
+                    _ => allIds
+                };
+                Require(expected, placement.DefinitionId, map.Key, $"placement {placement.Kind}", errors);
+            }
+
+            foreach (var zone in map.Content.SpawnZones)
+                Require(spawnTableIds, zone.SpawnTableId, map.Key, "SpawnTableDefinition", errors);
+
+            foreach (var portal in map.Content.Portals)
+            {
+                Require(mapIds, portal.DestinationMapId, map.Key, "MapDefinition destino", errors);
+                if (portal.EventId is { } portalEvent) Require(eventIds, portalEvent, map.Key, "EventDefinition", errors);
+                ValidateConditionGroup(map.Key, portal.Requirements, allIds, errors);
+            }
+
+            foreach (var region in map.Content.Regions)
+                ValidateEventHooks(map.Key, region.EventHooks, eventIds, errors);
+        }
+
         foreach (var dungeon in Dungeons ?? [])
         {
             foreach (var mapId in dungeon.MapIds) Require(mapIds, mapId, dungeon.Key, "MapDefinition", errors);
@@ -361,7 +413,11 @@ public sealed record ContentPackage(
         {
             var package = JsonSerializer.Deserialize<ContentPackage>(json, JsonOptions)
                 ?? throw new InvalidDataException("ContentPackage vacío.");
-            return package with { Events = package.Events ?? [] };
+            return package with
+            {
+                Events = package.Events ?? [],
+                Tilesets = package.Tilesets ?? []
+            };
         }
         catch (JsonException exception)
         {
@@ -378,7 +434,8 @@ public sealed record ContentPackage(
             Npcs: [], Resources: [], Traditions: [], Professions: [], Recipes: [], LootTables: [], SpawnTables: [],
             Dungeons: [], Quests: [], ItemProperties: [])
         {
-            Events = []
+            Events = [],
+            Tilesets = []
         };
     }
 
