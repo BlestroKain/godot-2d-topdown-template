@@ -4,6 +4,7 @@ namespace NuevoMMO.Core;
 /// Adaptador compacto para contenido que escala con un atributo primario concreto.
 /// Scaling=1 equivale a usar el 100% de la característica en la etapa estilo Dofus.
 /// DamageType y ScalingAttribute siguen siendo conceptos independientes.
+/// Power incluye Potencia y modificadores equivalentes, como dominio de arma cuando corresponda.
 /// </summary>
 public sealed record AttributeDamageFormula(
     Element DamageType,
@@ -25,7 +26,7 @@ public sealed record AttributeDamageResult(
 
 /// <summary>
 /// Compatibilidad y tuning canónico de daño. La implementación completa vive en DamagePipeline;
-/// esta clase conserva la API usada por fixtures y contenido temprano.
+/// esta clase conserva una API compacta para contenido que usa un atributo primario concreto.
 /// </summary>
 public static class CanonicalDamageRules
 {
@@ -34,7 +35,7 @@ public static class CanonicalDamageRules
     public static float CalculateRaw(AttributeDamageFormula formula, PrimaryStats attributes)
     {
         var breakdown = ResolvePipeline(formula, attributes, 0f, usePveResistanceCap: false);
-        return breakdown.AfterCritical;
+        return breakdown.AfterFlatDamage;
     }
 
     public static float ApplyPveResistance(float rawDamage, float resistancePercent)
@@ -58,7 +59,7 @@ public static class CanonicalDamageRules
         return new AttributeDamageResult(
             formula.DamageType,
             formula.ScalingAttribute,
-            breakdown.AfterCritical,
+            breakdown.AfterFlatDamage,
             breakdown.EffectiveResistancePercent,
             breakdown.FinalDamage,
             breakdown.Critical,
@@ -70,8 +71,6 @@ public static class CanonicalDamageRules
         PrimaryStats attackerAttributes,
         float targetResistance,
         bool usePveResistanceCap = true,
-        float hardDefense = 0f,
-        float softDefense = 0f,
         float flatReduction = 0f,
         float finalMultiplier = 1f)
     {
@@ -88,23 +87,23 @@ public static class CanonicalDamageRules
         if (!float.IsFinite(formula.Power)) throw new ArgumentOutOfRangeException(nameof(formula.Power));
         if (!float.IsFinite(formula.FlatDamage)) throw new ArgumentOutOfRangeException(nameof(formula.FlatDamage));
         if (!float.IsFinite(targetResistance)) throw new ArgumentOutOfRangeException(nameof(targetResistance));
+        if (!float.IsFinite(flatReduction) || flatReduction < 0) throw new ArgumentOutOfRangeException(nameof(flatReduction));
+        if (!float.IsFinite(finalMultiplier) || finalMultiplier < 0) throw new ArgumentOutOfRangeException(nameof(finalMultiplier));
 
         var attribute = attackerAttributes.Get(formula.ScalingAttribute);
         if (attribute < 0) throw new ArgumentException("El atributo de escalado no puede ser negativo.", nameof(attackerAttributes));
 
         return DamagePipeline.Resolve(new DamageCalculationInput(
-            formula.DamageType,
-            formula.BaseDamage,
-            attribute,
-            formula.Scaling,
-            formula.Power,
-            formula.FlatDamage,
-            formula.CriticalMultiplier,
-            hardDefense,
-            softDefense,
-            flatReduction,
-            targetResistance,
-            usePveResistanceCap,
-            finalMultiplier));
+            Element: formula.DamageType,
+            BaseDamage: formula.BaseDamage,
+            Characteristic: attribute,
+            CharacteristicScale: formula.Scaling,
+            Power: formula.Power,
+            FlatDamage: formula.FlatDamage,
+            FlatReduction: flatReduction,
+            ResistancePercent: targetResistance,
+            UsePositivePveResistanceCap: usePveResistanceCap,
+            CriticalMultiplier: formula.CriticalMultiplier,
+            FinalMultiplier: finalMultiplier));
     }
 }
