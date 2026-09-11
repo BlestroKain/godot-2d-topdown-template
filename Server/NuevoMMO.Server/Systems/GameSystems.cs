@@ -10,15 +10,22 @@ namespace NuevoMMO.Server.Systems;
 /// </summary>
 public sealed class GameSystems
 {
+    private readonly float mobMovementSpeed;
+
     public GameSystems(
         DefinitionRegistry definitions,
         ILootRandomSource? lootRandom = null,
         ITechniqueResourceAccess? techniqueResources = null,
         Func<Player, ConditionGroupDefinition, bool>? requirementsEvaluator = null,
         Func<Entity, Vector2Data, bool>? lineOfSight = null,
-        LevelProgressionDefinition? levelProgression = null)
+        LevelProgressionDefinition? levelProgression = null,
+        float mobMovementSpeed = 0)
     {
         Definitions = definitions ?? throw new ArgumentNullException(nameof(definitions));
+        if (!float.IsFinite(mobMovementSpeed) || mobMovementSpeed < 0)
+            throw new ArgumentOutOfRangeException(nameof(mobMovementSpeed));
+        this.mobMovementSpeed = mobMovementSpeed;
+
         Conditions = new ConditionSystem();
         Combat = new CombatSystem();
         Effects = new EffectSystem(definitions);
@@ -60,7 +67,7 @@ public sealed class GameSystems
     public EventRuntime Events { get; }
 
     /// <summary>
-    /// Avanza efectos y casts/channels. Movimiento, proyectiles y respawn de recursos continúan
+    /// Avanza IA, efectos y casts/channels. Proyectiles y respawn de recursos continúan
     /// siendo recorridos por WorldRuntime para conservar un único orden de actualización del mapa.
     /// </summary>
     public void Advance(MapInstance map, long nowMilliseconds, int deltaMilliseconds)
@@ -68,6 +75,8 @@ public sealed class GameSystems
         ArgumentNullException.ThrowIfNull(map);
         if (nowMilliseconds < 0) throw new ArgumentOutOfRangeException(nameof(nowMilliseconds));
         if (deltaMilliseconds < 0) throw new ArgumentOutOfRangeException(nameof(deltaMilliseconds));
+
+        AdvanceMobAi(map, nowMilliseconds, deltaMilliseconds);
 
         var snapshot = map.Entities.All.ToArray();
         foreach (var living in snapshot.OfType<LivingEntity>())
@@ -83,6 +92,36 @@ public sealed class GameSystems
         }
 
         Techniques.Advance(nowMilliseconds);
+    }
+
+    private void AdvanceMobAi(MapInstance map, long nowMilliseconds, int deltaMilliseconds)
+    {
+        var candidates = map.Entities.All.OfType<LivingEntity>().Where(static living => living.IsAlive).ToArray();
+        foreach (var mob in candidates.OfType<Mob>())
+        {
+            var decision = Ai.Evaluate(mob, candidates, nowMilliseconds);
+            switch (decision.Action)
+            {
+                case MobAiAction.Chase:
+                case MobAiAction.Flee:
+                case MobAiAction.ReturnToOrigin:
+                    if (mobMovementSpeed > 0)
+                        MobMovementSystem.ApplyDirection(mob, map.Definition, decision.DesiredDirection, mobMovementSpeed, deltaMilliseconds);
+                    break;
+                case MobAiAction.BasicAttack:
+                    if (decision.Target is { } targetId &&
+                        map.Entities.TryGet(targetId, out var entity) &&
+                        entity is LivingEntity target && target.IsAlive)
+                    {
+                        Combat.ExecuteMobBasicAttack(mob, target, nowMilliseconds);
+                    }
+                    break;
+                case MobAiAction.Idle:
+                case MobAiAction.Wander:
+                default:
+                    break;
+            }
+        }
     }
 
     public void OnEntityRemoved(Entity entity)
