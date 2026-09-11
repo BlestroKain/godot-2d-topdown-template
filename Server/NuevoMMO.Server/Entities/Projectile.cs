@@ -4,7 +4,7 @@ namespace NuevoMMO.Server.Entities;
 
 /// <summary>
 /// Estado runtime de un proyectil. La técnica/acción decide qué ocurre al impactar; esta entidad
-/// solo conserva procedencia, trayectoria, vida útil, distancia y objetivos ya impactados.
+/// conserva procedencia, trayectoria, vida útil, distancia, payload y objetivos ya impactados.
 /// </summary>
 public sealed class Projectile : Entity
 {
@@ -29,7 +29,8 @@ public sealed class Projectile : Entity
         int maxImpacts,
         ContentKey visualKey,
         string displayName,
-        bool canImpactSource = false)
+        bool canImpactSource = false,
+        TechniqueActionDefinition[]? impactActions = null)
         : base(id, mapInstance, position, visualKey, displayName)
     {
         if (source.Value <= 0) throw new ArgumentException("Source inválido.", nameof(source));
@@ -43,6 +44,10 @@ public sealed class Projectile : Entity
         if (lifetimeMilliseconds < 0) throw new ArgumentOutOfRangeException(nameof(lifetimeMilliseconds));
         if (maxImpacts < 1) throw new ArgumentOutOfRangeException(nameof(maxImpacts));
 
+        var payload = impactActions?.ToArray() ?? [];
+        if (payload.Any(static action => action is null))
+            throw new ArgumentException("ImpactActions no puede contener acciones nulas.", nameof(impactActions));
+
         DefinitionId = definition;
         SourceId = source;
         TechniqueId = technique;
@@ -53,6 +58,7 @@ public sealed class Projectile : Entity
         RemainingLifetimeMilliseconds = lifetimeMilliseconds;
         MaxImpacts = maxImpacts;
         CanImpactSource = canImpactSource;
+        ImpactActions = payload;
         MoveTo(position, direction.Normalized() * speed);
     }
 
@@ -67,6 +73,7 @@ public sealed class Projectile : Entity
     public int RemainingLifetimeMilliseconds { get; private set; }
     public int MaxImpacts { get; } = 1;
     public bool CanImpactSource { get; }
+    public TechniqueActionDefinition[] ImpactActions { get; } = [];
     public int ImpactCount => impacted.Count;
     public IReadOnlyCollection<EntityId> ImpactedEntities => impacted;
     public bool Expired { get; private set; }
