@@ -26,18 +26,7 @@ public sealed class MovementInputBuffer
         if (!pending.TryDequeue(out input)) return false;
         LastProcessed = input.Sequence; return true;
     }
-
-    /// <summary>
-    /// Reinicia la secuencia autoritativa cuando el cliente empieza una nueva sesión de mapa.
-    /// El MapLoad crea un predictor nuevo que vuelve a numerar desde 1, por lo que conservar
-    /// LastAccepted haría que el primer input posterior a un portal fuese rechazado.
-    /// </summary>
-    public void Reset()
-    {
-        pending.Clear();
-        LastAccepted = 0;
-        LastProcessed = 0;
-    }
+    public void Reset() { pending.Clear(); LastAccepted = 0; LastProcessed = 0; }
 }
 
 public sealed class MovementSystem(float speed, int tickMilliseconds)
@@ -51,14 +40,17 @@ public sealed class MovementSystem(float speed, int tickMilliseconds)
         if (!player.Inputs.TryTake(out var input)) { player.ApplyMovement(before, default); return; }
         var length = MathF.Sqrt(input.X * input.X + input.Y * input.Y); var scale = length > 1 ? 1 / length : 1;
         var seconds = TickMilliseconds / 1000f;
-        var desired = map.Bounds.Clamp(new(before.X + input.X * scale * Speed * seconds, before.Y + input.Y * scale * Speed * seconds));
-        var after = IsBlocked(map, desired) ? before : desired;
+        var delta = new Vector2Data(input.X * scale * Speed * seconds, input.Y * scale * Speed * seconds);
+        var motion = MotionSolver2D.Resolve(before, delta, map.Bounds, player.CollisionProfile.MovementCollider,
+            position => IsBlocked(map, position));
+        var after = motion.Final;
         player.ApplyMovement(after, new((after.X - before.X) / seconds, (after.Y - before.Y) / seconds));
     }
 
     public static bool IsBlocked(MapDefinition map, Vector2Data position)
     {
-        // MapDefinition no es el sistema autoritativo de colisión. Bounds ya recorta el desplazamiento.
+        // Hook de colisión estática. La geometría de mapa data-driven se conectará aquí;
+        // Bounds ya se resuelven volumétricamente en MotionSolver2D.
         _ = map;
         return !position.IsFinite;
     }
@@ -66,16 +58,10 @@ public sealed class MovementSystem(float speed, int tickMilliseconds)
 
 public interface IMobMovementPolicy { Vector2Data NextVelocity(Mob mob, long tick, float seconds); }
 
-/// <summary>
-/// Respeta <see cref="CreatureMovementMode.Stationary"/> de la Definition.
-/// Otros modos delegan en la política de movimiento existente (fixture).
-/// </summary>
 public sealed class StationaryAwareMobPolicy(IMobMovementPolicy moving) : IMobMovementPolicy
 {
     public Vector2Data NextVelocity(Mob mob, long tick, float seconds)
-        => mob.Behavior.Movement == CreatureMovementMode.Stationary
-            ? default
-            : moving.NextVelocity(mob, tick, seconds);
+        => mob.Behavior.Movement == CreatureMovementMode.Stationary ? default : moving.NextVelocity(mob, tick, seconds);
 }
 
 public sealed class MobMovementSystem(float speed, int tickMilliseconds, IMobMovementPolicy policy)
@@ -90,25 +76,20 @@ public sealed class MobMovementSystem(float speed, int tickMilliseconds, IMobMov
     public void StepDirection(Mob mob, MapDefinition map, Vector2Data direction)
         => ApplyDirection(mob, map, direction, speed, tickMilliseconds);
 
-    /// <summary>
-    /// Ejecuta una intención de movimiento ya resuelta por IA usando el mismo pipeline autoritativo
-    /// de límites/colisión que el movimiento de wander.
-    /// </summary>
     public static void ApplyDirection(Mob mob, MapDefinition map, Vector2Data direction, float movementSpeed, int deltaMilliseconds)
     {
-        ArgumentNullException.ThrowIfNull(mob);
-        ArgumentNullException.ThrowIfNull(map);
+        ArgumentNullException.ThrowIfNull(mob); ArgumentNullException.ThrowIfNull(map);
         if (!direction.IsFinite) throw new ArgumentException("Dirección de mob no finita.", nameof(direction));
         if (!float.IsFinite(movementSpeed) || movementSpeed < 0) throw new ArgumentOutOfRangeException(nameof(movementSpeed));
         if (deltaMilliseconds <= 0) throw new ArgumentOutOfRangeException(nameof(deltaMilliseconds));
 
         var seconds = deltaMilliseconds / 1000f;
-        var length = MathF.Sqrt(direction.LengthSquared);
-        var scale = length > 1 ? 1 / length : 1;
+        var length = MathF.Sqrt(direction.LengthSquared); var scale = length > 1 ? 1 / length : 1;
         var before = mob.Position;
-        var desired = map.Bounds.Clamp(new(before.X + direction.X * scale * movementSpeed * seconds,
-            before.Y + direction.Y * scale * movementSpeed * seconds));
-        var after = MovementSystem.IsBlocked(map, desired) ? before : desired;
+        var delta = new Vector2Data(direction.X * scale * movementSpeed * seconds, direction.Y * scale * movementSpeed * seconds);
+        var motion = MotionSolver2D.Resolve(before, delta, map.Bounds, mob.CollisionProfile.MovementCollider,
+            position => MovementSystem.IsBlocked(map, position));
+        var after = motion.Final;
         mob.MoveTo(after, new((after.X - before.X) / seconds, (after.Y - before.Y) / seconds));
     }
 }
