@@ -18,6 +18,7 @@ public sealed class CharacterRecord
     public DefinitionId MapDefinition { get; set; }
     public Vector2Data Position { get; set; }
     public DefinitionId TraditionId { get; set; } = DefinitionId.Empty;
+    public CharacterAppearance Appearance { get; set; } = CanonicalCharacterAppearance.Default;
     public int Level { get; set; } = 1;
     public long Experience { get; set; }
     public int AvailableAttributePoints { get; set; }
