@@ -72,6 +72,10 @@ public static class PacketCodec
                 if (!Enum.IsDefined(value.Attribute) || value.Increments is < 1 or > 100)
                     throw new InvalidDataException("Solicitud de atributo inválida.");
                 writer.Write((byte)value.Attribute); writer.Write(value.Increments); break;
+            case DevelopmentAttackRequest value:
+                if (value.Target.Value <= 0 || !Enum.IsDefined(value.Attack))
+                    throw new InvalidDataException("Ataque de desarrollo inválido.");
+                writer.Write(value.Target.Value); writer.Write((byte)value.Attack); break;
             case PingPacket value: writer.Write(value.Nonce); writer.Write(value.ClientSendTimestamp); break;
             case DisconnectRequest value: writer.Write(value.Reason, 256); break;
             case ConnectionAccepted value: writer.Write(value.Connection.Value); writer.Write(value.ServerTimestamp); writer.Write(value.ProtocolVersion); break;
@@ -93,6 +97,7 @@ public static class PacketCodec
                 WriteCount(writer, value.Despawns.Length, MaxEntities); foreach (var entity in value.Despawns) writer.Write(entity.Value);
                 break;
             case PlayerStatsPacket value: WritePlayerStats(writer, value.Stats); break;
+            case CombatDebugPacket value: WriteCombatDebug(writer, value); break;
             case ServerTimePacket value: writer.Write(value.ServerTimestamp); writer.Write(value.ServerTick); break;
             case PongPacket value: writer.Write(value.Nonce); writer.Write(value.ClientSendTimestamp); writer.Write(value.ServerReceiveTimestamp); writer.Write(value.ServerSendTimestamp); break;
             case ErrorPacket value: writer.Write(value.Code, 64); writer.Write(value.Message, 512); writer.Write(value.Fatal); break;
@@ -111,6 +116,7 @@ public static class PacketCodec
         PacketId.MapReadyRequest => new MapReadyRequest(new(reader.ReadInt64())),
         PacketId.MoveRequest => new MoveRequest(new(reader.ReadInt64(), reader.ReadInt64(), reader.ReadSingle(), reader.ReadSingle())),
         PacketId.AllocateAttributeRequest => ReadAllocateAttributeRequest(reader),
+        PacketId.DevelopmentAttackRequest => ReadDevelopmentAttackRequest(reader),
         PacketId.Ping => new PingPacket(reader.ReadInt64(), reader.ReadInt64()),
         PacketId.DisconnectRequest => new DisconnectRequest(reader.ReadString(256)),
         PacketId.ConnectionAccepted => new ConnectionAccepted(new(reader.ReadGuid()), reader.ReadInt64(), reader.ReadUInt16()),
@@ -125,6 +131,7 @@ public static class PacketCodec
         PacketId.EntityMoved => new EntityMovedPacket(new(reader.ReadInt64()), reader.ReadVector2(), reader.ReadVector2(), reader.ReadInt64()),
         PacketId.EntityState => ReadEntityStatePacket(reader),
         PacketId.PlayerStats => new PlayerStatsPacket(ReadPlayerStats(reader)),
+        PacketId.CombatDebug => ReadCombatDebug(reader),
         PacketId.ServerTime => new ServerTimePacket(reader.ReadInt64(), reader.ReadInt64()),
         PacketId.Pong => new PongPacket(reader.ReadInt64(), reader.ReadInt64(), reader.ReadInt64(), reader.ReadInt64()),
         PacketId.Error => new ErrorPacket(reader.ReadString(64), reader.ReadString(512), reader.ReadBool()),
@@ -138,6 +145,15 @@ public static class PacketCodec
         if (!Enum.IsDefined(attribute) || increments is < 1 or > 100)
             throw new InvalidDataException("Solicitud de atributo inválida.");
         return new(attribute, increments);
+    }
+
+    private static DevelopmentAttackRequest ReadDevelopmentAttackRequest(PacketReader reader)
+    {
+        var target = new EntityId(reader.ReadInt64());
+        var attack = (DevelopmentAttackKind)reader.ReadByte();
+        if (target.Value <= 0 || !Enum.IsDefined(attack))
+            throw new InvalidDataException("Ataque de desarrollo inválido.");
+        return new(target, attack);
     }
 
     private static EntityStatePacket ReadEntityStatePacket(PacketReader reader)
@@ -199,6 +215,54 @@ public static class PacketCodec
             value.MaxHealth < 1 || value.Health < 0 || value.Health > value.MaxHealth || value.MaxMana < 0 || value.Mana < 0 || value.Mana > value.MaxMana ||
             !float.IsFinite(value.Defense) || !float.IsFinite(value.ManaRegenPerSecond) || !float.IsFinite(value.OutOfCombatManaRegenPerSecond))
             throw new InvalidDataException("Stats de jugador inválidos.");
+        return value;
+    }
+
+    private static void WriteCombatDebug(PacketWriter writer, CombatDebugPacket value)
+    {
+        if (value.Target.Value <= 0 || !Enum.IsDefined(value.Attack) || !Enum.IsDefined(value.DamageType) || !Enum.IsDefined(value.ScalingAttribute))
+            throw new InvalidDataException("Telemetría de combate inválida.");
+        writer.Write(value.Target.Value);
+        writer.Write((byte)value.Attack);
+        writer.Write((byte)value.DamageType);
+        writer.Write((byte)value.ScalingAttribute);
+        writer.Write(value.RawDamage);
+        writer.Write(value.ResistancePercent);
+        writer.Write(value.AppliedDamage);
+        writer.Write(value.Critical);
+        writer.Write(value.TargetHealth);
+        writer.Write(value.TargetMaxHealth);
+        writer.Write(value.Dps5Seconds);
+        writer.Write(value.Dps10Seconds);
+        writer.Write(value.TotalDamage);
+        writer.Write(value.Hits);
+        writer.Write(value.CriticalHits);
+    }
+
+    private static CombatDebugPacket ReadCombatDebug(PacketReader reader)
+    {
+        var value = new CombatDebugPacket(
+            new EntityId(reader.ReadInt64()),
+            (DevelopmentAttackKind)reader.ReadByte(),
+            (Element)reader.ReadByte(),
+            (PrimaryAttributeId)reader.ReadByte(),
+            reader.ReadSingle(),
+            reader.ReadSingle(),
+            reader.ReadInt32(),
+            reader.ReadBool(),
+            reader.ReadInt32(),
+            reader.ReadInt32(),
+            reader.ReadSingle(),
+            reader.ReadSingle(),
+            reader.ReadInt64(),
+            reader.ReadInt32(),
+            reader.ReadInt32());
+        if (value.Target.Value <= 0 || !Enum.IsDefined(value.Attack) || !Enum.IsDefined(value.DamageType) || !Enum.IsDefined(value.ScalingAttribute) ||
+            !float.IsFinite(value.RawDamage) || value.RawDamage < 0 || !float.IsFinite(value.ResistancePercent) ||
+            value.AppliedDamage < 0 || value.TargetMaxHealth < 1 || value.TargetHealth < 0 || value.TargetHealth > value.TargetMaxHealth ||
+            !float.IsFinite(value.Dps5Seconds) || value.Dps5Seconds < 0 || !float.IsFinite(value.Dps10Seconds) || value.Dps10Seconds < 0 ||
+            value.TotalDamage < 0 || value.Hits < 0 || value.CriticalHits < 0 || value.CriticalHits > value.Hits)
+            throw new InvalidDataException("Telemetría de combate inválida.");
         return value;
     }
 
