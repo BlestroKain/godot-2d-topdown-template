@@ -133,13 +133,14 @@ public sealed partial class MapToolsDock : DockContent
 
     private void ConfigureDefinitionPanel(MapEditorTool tool)
     {
-        definitionPanel.Visible = tool is MapEditorTool.Mob or MapEditorTool.Npc or MapEditorTool.Resource or MapEditorTool.SpawnZone;
+        definitionPanel.Visible = tool is MapEditorTool.Mob or MapEditorTool.Npc or MapEditorTool.Resource or MapEditorTool.SpawnZone or MapEditorTool.Portal;
         definitionLabel.Text = tool switch
         {
             MapEditorTool.Mob => "MobDefinition",
             MapEditorTool.Npc => "NpcDefinition",
             MapEditorTool.Resource => "ResourceDefinition",
             MapEditorTool.SpawnZone => "SpawnTableDefinition",
+            MapEditorTool.Portal => "Mapa destino",
             _ => "Definición"
         };
     }
