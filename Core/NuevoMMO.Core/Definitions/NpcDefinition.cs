@@ -22,7 +22,8 @@ public sealed record NpcDefinition : GameDefinition
         LootMode lootMode = LootMode.Shared,
         Dictionary<string, DefinitionId>? services = null,
         Dictionary<string, DefinitionId>? eventHooks = null,
-        Dictionary<string, string>? metadata = null)
+        Dictionary<string, string>? metadata = null,
+        EntityCollisionProfileDefinition? collision = null)
         : base(id, key, name, description, enabled, version, tags)
     {
         if (visualKey.IsEmpty) throw new ArgumentException("VisualKey vacío.", nameof(visualKey));
@@ -40,6 +41,7 @@ public sealed record NpcDefinition : GameDefinition
         Metadata = metadata is null
             ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             : new Dictionary<string, string>(metadata, StringComparer.OrdinalIgnoreCase);
+        Collision = collision;
     }
 
     public ContentKey VisualKey { get; }
@@ -48,13 +50,8 @@ public sealed record NpcDefinition : GameDefinition
     public CreatureCombatDefinition? Combat { get; }
     public DefinitionId? LootTableId { get; }
     public LootMode LootMode { get; }
-
-    /// <summary>
-    /// Servicios editables del NPC. Ejemplos futuros: dialogue, shop, bank, quest, profession-master.
-    /// El diccionario evita convertir NpcDefinition en una lista rígida de campos para cada sistema nuevo.
-    /// </summary>
     public Dictionary<string, DefinitionId> Services { get; }
-
     public Dictionary<string, DefinitionId> EventHooks { get; }
     public Dictionary<string, string> Metadata { get; }
+    public EntityCollisionProfileDefinition? Collision { get; }
 }
