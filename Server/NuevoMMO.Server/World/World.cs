@@ -547,10 +547,12 @@ public sealed class WorldRuntime
         if (!map.Entities.TryGet(sourceId, out var sourceEntity) || sourceEntity is not LivingEntity source) return;
         foreach (var entity in map.Entities.All.OfType<LivingEntity>())
         {
-            if (!systems.Projectiles.TryRegisterImpact(projectile, entity, 16f)) continue;
-            systems.Combat.ApplyDamage(source, entity, 8, Element.Neutral);
+            if (!entity.IsAlive || !systems.Projectiles.TryRegisterImpact(projectile, entity, 16f)) continue;
+            if (projectile.ImpactActions.Length > 0)
+                systems.Techniques.ExecuteEffectActions(source, entity, projectile.ImpactActions, nowMilliseconds);
             if (!entity.IsAlive && source is Player player)
                 systems.Events.NotifyEntityDefeated(player, entity, nowMilliseconds);
+            if (projectile.IsExpired) break;
         }
     }
 
@@ -563,14 +565,10 @@ public sealed class WorldRuntime
         foreach (var living in map.Entities.All.OfType<LivingEntity>())
         {
             if (!living.IsAlive || living.Id == area.SourceId || !area.Contains(living.Position)) continue;
-            if (area.Action.Kind == TechniqueActionKind.Damage)
-            {
-                var stats = source?.Stats ?? new StatBlock();
-                var raw = CombatSystem.CalculateScaledAmount(area.Action.Amount, area.Action.Scaling, stats);
-                systems.Combat.ApplyDamage(source, living, raw, area.Action.Element);
-                if (!living.IsAlive && source is Player player)
-                    systems.Events.NotifyEntityDefeated(player, living, nowMilliseconds);
-            }
+            if (area.Action.PayloadActions.Length > 0)
+                systems.Techniques.ExecuteEffectActions(source, living, area.Action.PayloadActions, nowMilliseconds);
+            if (!living.IsAlive && source is Player player)
+                systems.Events.NotifyEntityDefeated(player, living, nowMilliseconds);
         }
     }
 
