@@ -39,6 +39,7 @@ public sealed class GameSystems
             techniqueResources,
             requirementsEvaluator ?? ((player, group) => Conditions.Evaluate(player, group)),
             lineOfSight);
+        Events = new EventRuntime(definitions, Conditions);
     }
 
     public DefinitionRegistry Definitions { get; }
@@ -56,6 +57,7 @@ public sealed class GameSystems
     public InteractionSystem Interactions { get; }
     public AiSystem Ai { get; }
     public TechniqueSystem Techniques { get; }
+    public EventRuntime Events { get; }
 
     /// <summary>
     /// Avanza efectos y casts/channels. Movimiento, proyectiles y respawn de recursos continúan

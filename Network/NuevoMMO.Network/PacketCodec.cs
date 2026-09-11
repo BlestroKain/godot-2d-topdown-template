@@ -76,6 +76,16 @@ public static class PacketCodec
                 if (value.Target.Value <= 0 || !Enum.IsDefined(value.Attack))
                     throw new InvalidDataException("Ataque de desarrollo inválido.");
                 writer.Write(value.Target.Value); writer.Write((byte)value.Attack); break;
+            case BasicAttackRequest value:
+                if (value.Target.Value <= 0) throw new InvalidDataException("BasicAttack inválido.");
+                writer.Write(value.Target.Value); break;
+            case UseTechniqueRequest value:
+                if (value.TechniqueId.IsEmpty) throw new InvalidDataException("UseTechnique inválido.");
+                writer.Write(value.TechniqueId.Value); writer.Write(value.Target.Value); writer.Write(value.Point); break;
+            case InteractRequest value:
+                writer.Write(value.Target.Value); break;
+            case SetTargetRequest value:
+                writer.Write(value.Target.Value); break;
             case PingPacket value: writer.Write(value.Nonce); writer.Write(value.ClientSendTimestamp); break;
             case DisconnectRequest value: writer.Write(value.Reason, 256); break;
             case ConnectionAccepted value: writer.Write(value.Connection.Value); writer.Write(value.ServerTimestamp); writer.Write(value.ProtocolVersion); break;
@@ -83,7 +93,7 @@ public static class PacketCodec
                 writer.Write(value.Succeeded); writer.Write(value.Error, 256); writer.Write(value.Account.Value);
                 writer.Write(value.Session.Value); writer.Write(value.SessionToken, 256); break;
             case RegisterResult value: writer.Write(value.Succeeded); writer.Write(value.Error, 256); writer.Write(value.Account.Value); break;
-            case CharacterListResult value: WriteCount(writer, value.Characters.Length, 32); foreach (var character in value.Characters) WriteCharacter(writer, character); break;
+            case CharacterListResult value: WriteCount(writer, value.Characters.Length, 64); foreach (var character in value.Characters) WriteCharacter(writer, character); break;
             case CharacterCreated value: WriteCharacter(writer, value.Character); break;
             case CharacterSelected value: writer.Write(value.Character.Value); break;
             case MapLoadPacket value: WriteMap(writer, value.Map); writer.Write(value.Self.Value); writer.Write(value.Character.Value); break;
@@ -117,12 +127,16 @@ public static class PacketCodec
         PacketId.MoveRequest => new MoveRequest(new(reader.ReadInt64(), reader.ReadInt64(), reader.ReadSingle(), reader.ReadSingle())),
         PacketId.AllocateAttributeRequest => ReadAllocateAttributeRequest(reader),
         PacketId.DevelopmentAttackRequest => ReadDevelopmentAttackRequest(reader),
+        PacketId.BasicAttackRequest => new BasicAttackRequest(new(reader.ReadInt64())),
+        PacketId.UseTechniqueRequest => new UseTechniqueRequest(new(reader.ReadGuid()), new(reader.ReadInt64()), reader.ReadVector2()),
+        PacketId.InteractRequest => new InteractRequest(new(reader.ReadInt64())),
+        PacketId.SetTargetRequest => new SetTargetRequest(new(reader.ReadInt64())),
         PacketId.Ping => new PingPacket(reader.ReadInt64(), reader.ReadInt64()),
         PacketId.DisconnectRequest => new DisconnectRequest(reader.ReadString(256)),
         PacketId.ConnectionAccepted => new ConnectionAccepted(new(reader.ReadGuid()), reader.ReadInt64(), reader.ReadUInt16()),
         PacketId.LoginResult => new LoginResult(reader.ReadBool(), reader.ReadString(256), new(reader.ReadGuid()), new(reader.ReadGuid()), reader.ReadString(256)),
         PacketId.RegisterResult => new RegisterResult(reader.ReadBool(), reader.ReadString(256), new(reader.ReadGuid())),
-        PacketId.CharacterListResult => new CharacterListResult(ReadArray(reader, 32, () => ReadCharacter(reader))),
+        PacketId.CharacterListResult => new CharacterListResult(ReadArray(reader, 64, () => ReadCharacter(reader))),
         PacketId.CharacterCreated => new CharacterCreated(ReadCharacter(reader)),
         PacketId.CharacterSelected => new CharacterSelected(new(reader.ReadGuid())),
         PacketId.MapLoad => new MapLoadPacket(ReadMap(reader), new(reader.ReadInt64()), new(reader.ReadGuid())),

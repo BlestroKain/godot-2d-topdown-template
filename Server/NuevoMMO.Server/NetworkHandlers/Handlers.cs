@@ -1,6 +1,7 @@
 using NuevoMMO.Core;
 using NuevoMMO.Network;
 using NuevoMMO.Server.Database;
+using NuevoMMO.Server.Entities;
 using NuevoMMO.Server.Security;
 using NuevoMMO.Server.Services;
 using NuevoMMO.Server.Systems;
@@ -306,6 +307,103 @@ public sealed class DevelopmentAttackHandler(
     }
 }
 
+public sealed class BasicAttackHandler(WorldRuntime world, AuthorizationService authorization)
+    : IPacketHandler<ServerPacketContext, BasicAttackRequest>
+{
+    public ValueTask HandleAsync(ServerPacketContext context, BasicAttackRequest packet, CancellationToken cancellationToken)
+    {
+        ServerAuthorizationGuard.Demand(context, ServerAction.UseTechnique, authorization);
+        var result = world.BasicAttack(context.Session, packet.Target);
+        if (!result.Success)
+            context.Send(new ErrorPacket("basic_attack", result.Message, false));
+        else
+            TechniqueFeedback.Send(context, world, packet.Target, result);
+        return ValueTask.CompletedTask;
+    }
+}
+
+public sealed class UseTechniqueHandler(WorldRuntime world, AuthorizationService authorization)
+    : IPacketHandler<ServerPacketContext, UseTechniqueRequest>
+{
+    public ValueTask HandleAsync(ServerPacketContext context, UseTechniqueRequest packet, CancellationToken cancellationToken)
+    {
+        ServerAuthorizationGuard.Demand(context, ServerAction.UseTechnique, authorization);
+        var result = world.UseTechnique(context.Session, packet.TechniqueId, packet.Target, packet.Point);
+        if (!result.Success)
+            context.Send(new ErrorPacket("use_technique", result.Message, false));
+        else
+            TechniqueFeedback.Send(context, world, packet.Target, result);
+        return ValueTask.CompletedTask;
+    }
+}
+
+public sealed class InteractHandler(WorldRuntime world, AuthorizationService authorization)
+    : IPacketHandler<ServerPacketContext, InteractRequest>
+{
+    public ValueTask HandleAsync(ServerPacketContext context, InteractRequest packet, CancellationToken cancellationToken)
+    {
+        ServerAuthorizationGuard.Demand(context, ServerAction.Interact, authorization);
+        var result = world.Interact(context.Session, packet.Target);
+        if (!result.Success)
+            context.Send(new ErrorPacket("interact", result.Message, false));
+        else if (!string.IsNullOrWhiteSpace(result.Message))
+            context.Send(new ErrorPacket("interact_ok", result.Message, false));
+        return ValueTask.CompletedTask;
+    }
+}
+
+public sealed class SetTargetHandler(WorldRuntime world, AuthorizationService authorization)
+    : IPacketHandler<ServerPacketContext, SetTargetRequest>
+{
+    public ValueTask HandleAsync(ServerPacketContext context, SetTargetRequest packet, CancellationToken cancellationToken)
+    {
+        ServerAuthorizationGuard.Demand(context, ServerAction.UseTechnique, authorization);
+        try { world.SetTarget(context.Session, packet.Target); }
+        catch (Exception exception) when (exception is InvalidOperationException or KeyNotFoundException)
+        {
+            context.Send(new ErrorPacket("target", exception.Message, false));
+        }
+        return ValueTask.CompletedTask;
+    }
+}
+
+file static class TechniqueFeedback
+{
+    public static void Send(
+        ServerPacketContext context,
+        WorldRuntime world,
+        EntityId targetId,
+        TechniqueUseResult result)
+    {
+        var damage = result.Actions.Select(static action => action.Damage).FirstOrDefault(static value => value is not null);
+        if (damage is null) return;
+        var health = 0;
+        var maxHealth = 0;
+        if (world.MapInstance.Entities.TryGet(targetId, out var entity) && entity is LivingEntity living)
+        {
+            health = living.Health;
+            maxHealth = living.MaxHealth;
+        }
+
+        context.Send(new CombatDebugPacket(
+            targetId,
+            DevelopmentAttackKind.Basic,
+            damage.Element,
+            PrimaryAttributeId.Strength,
+            damage.RawDamage,
+            damage.ResistancePercent,
+            damage.AppliedDamage,
+            damage.Critical,
+            health,
+            maxHealth,
+            0,
+            0,
+            damage.AppliedDamage,
+            1,
+            damage.Critical ? 1 : 0));
+    }
+}
+
 public sealed class PingHandler : IPacketHandler<ServerPacketContext, PingPacket>
 {
     public ValueTask HandleAsync(ServerPacketContext context, PingPacket packet, CancellationToken cancellationToken)
@@ -355,6 +453,10 @@ public static class ServerHandlerRegistry
         registry.Register(new MoveRequestHandler(world, authorization));
         registry.Register(new AllocateAttributeHandler(progression, persistence, authorization));
         registry.Register(new DevelopmentAttackHandler(world, combat, progression, persistence, authorization));
+        registry.Register(new BasicAttackHandler(world, authorization));
+        registry.Register(new UseTechniqueHandler(world, authorization));
+        registry.Register(new InteractHandler(world, authorization));
+        registry.Register(new SetTargetHandler(world, authorization));
         registry.Register(new PingHandler());
         registry.Register(new DisconnectHandler());
         return registry;

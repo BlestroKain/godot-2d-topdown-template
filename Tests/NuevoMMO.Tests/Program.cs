@@ -11,6 +11,7 @@ using NuevoMMO.Server.Database;
 using NuevoMMO.Server.Entities;
 using NuevoMMO.Server.Systems;
 using NuevoMMO.Server.World;
+using NuevoMMO.Server.Security;
 
 int count = 0;
 void Check(bool value, string name)
@@ -204,7 +205,8 @@ editor.Definitions.Register(map);
 Check(new MapDefinitionEditor(editor.Definitions).List().Count == 1, "Editor lista MapDefinition");
 Check(new ProjectValidator(editor.Definitions).Validate().Count == 0, "Editor valida proyecto vacío de errores");
 
-Reject(() => DevelopmentWorldFactory.Create("Production"), "Fixtures rechazadas en Production");
+Reject(() => DevelopmentWorldFactory.Create("Production"), "Production sin game.db rechazado");
+Reject(() => DevelopmentWorldFactory.Create("Staging"), "Environment desconocido rechazado");
 
 var composition = DevelopmentWorldFactory.Create("Development");
 Check(composition.World.EntityCount >= 1, "Fixture carga mob inicial");
@@ -222,6 +224,83 @@ var nearby = CombatTargeting.NearestMob(
     ],
     new Vector2Data(0, 0));
 Check(nearby is { DisplayName: "Cerca" }, "CombatTargeting elige el mob más cercano");
+
+var basic = new BasicAttackRequest(new EntityId(9));
+Check(PacketCodec.Decode(PacketCodec.Encode(basic)) is BasicAttackRequest decodedBasic && decodedBasic == basic,
+    "Network: BasicAttack roundtrip");
+var use = new UseTechniqueRequest(CanonicalCombatContent.BasicAttackId, new EntityId(9), new Vector2Data(1, 2));
+Check(PacketCodec.Decode(PacketCodec.Encode(use)) is UseTechniqueRequest decodedUse && decodedUse == use,
+    "Network: UseTechnique roundtrip");
+var interact = new InteractRequest(new EntityId(4));
+Check(PacketCodec.Decode(PacketCodec.Encode(interact)) is InteractRequest decodedInteract && decodedInteract == interact,
+    "Network: Interact roundtrip");
+
+var eventRuntime = new EventRuntime(new DefinitionRegistry());
+var pageListId = Guid.NewGuid();
+var page = new EventPageDefinition(
+    Guid.NewGuid(),
+    EventTrigger.Action,
+    commandLists: new Dictionary<Guid, EventCommandDefinition[]>
+    {
+        [pageListId] =
+        [
+            new EventCommandDefinition(Guid.NewGuid(), EventCommandKind.Dialogue, text: new Dictionary<string, string> { ["text"] = "Hola" })
+        ]
+    },
+    rootCommandListId: pageListId);
+var evt = new EventDefinition(
+    DefinitionId.New(), new ContentKey("events.hello"), "Hola", string.Empty, true, 1, null,
+    EventScope.Common, pages: [page]);
+var eventRegistry = new DefinitionRegistry();
+eventRegistry.Register(evt);
+eventRuntime = new EventRuntime(eventRegistry);
+var eventPlayer = new Player(new EntityId(80), new AccountId(Guid.NewGuid()), new CharacterId(Guid.NewGuid()),
+    new MapInstanceId(1), new Vector2Data(10, 10), new ContentKey("template.player"), "Eventista");
+var spoken = eventRuntime.TryTrigger(eventPlayer, evt, EventTrigger.Action, 0);
+Check(spoken.Success && spoken.Log.Contains("Hola"), "EventRuntime ejecuta diálogo de la página activa");
+
+var combatHarness = DevelopmentWorldFactory.Create("Test");
+var combatSession = combatHarness.World.AddConnection(new ConnectionId(Guid.NewGuid()));
+combatHarness.World.AcceptProtocol(combatSession);
+combatHarness.World.Authenticate(combatSession, new AccountId(Guid.NewGuid()), new SessionId(Guid.NewGuid()), "token");
+combatHarness.World.Join(combatSession, new CharacterSpawn(
+    combatSession.Account, new CharacterId(Guid.NewGuid()), "Atacante", combatHarness.World.Map.Id, combatHarness.World.Map.Spawn));
+combatHarness.World.Activate(combatSession, combatHarness.World.Instance);
+var dummy = combatHarness.World.MapInstance.Entities.All.OfType<Mob>().First(mob => mob.DefinitionId == TrainingDummyFixture.DefinitionId);
+dummy.MoveTo(combatSession.Player!.Position, default);
+var attack = combatHarness.World.BasicAttack(combatSession, dummy.Id);
+Check(attack.Success && attack.Actions.Any(static action => action.Damage is { AppliedDamage: > 0 }),
+    "BasicAttack usa TechniqueSystem contra el dummy");
+var interactNone = combatHarness.World.Interact(combatSession, default);
+Check(!interactNone.Success, "Interact sin objetivo cercano falla de forma controlada");
+combatHarness.World.Disconnect(combatSession.Connection);
+
+var mapEventListId = Guid.NewGuid();
+var mapPage = new EventPageDefinition(
+    Guid.NewGuid(),
+    EventTrigger.MapEnter,
+    commandLists: new Dictionary<Guid, EventCommandDefinition[]>
+    {
+        [mapEventListId] =
+        [
+            new EventCommandDefinition(Guid.NewGuid(), EventCommandKind.ShowNotification,
+                text: new Dictionary<string, string> { ["text"] = "Entraste" })
+        ]
+    },
+    rootCommandListId: mapEventListId);
+var mapEvent = new EventDefinition(
+    DefinitionId.New(), new ContentKey("events.map_enter"), "Entrada", string.Empty, true, 1, null,
+    EventScope.Map,
+    new EventPlacementDefinition(map.Id, new Vector2Data(100, 100)),
+    pages: [mapPage]);
+var pulseRegistry = new DefinitionRegistry();
+pulseRegistry.Register(mapEvent);
+var pulseRuntime = new EventRuntime(pulseRegistry);
+var pulsePlayer = new Player(new EntityId(81), new AccountId(Guid.NewGuid()), new CharacterId(Guid.NewGuid()),
+    new MapInstanceId(1), new Vector2Data(100, 100), new ContentKey("template.player"), "Viajero");
+var pulsed = pulseRuntime.Pulse(pulsePlayer, map, 0);
+Check(pulsed.Any(static result => result.Success && result.Log.Contains("Entraste")), "EventRuntime dispara MapEnter una vez");
+Check(pulseRuntime.Pulse(pulsePlayer, map, 50).Count == 0, "EventRuntime no repite MapEnter");
 var host = new ServerHost(composition.World, composition.Persistence, composition.Dispatcher, 0);
 using var stop = new CancellationTokenSource();
 var hostTask = host.RunAsync(stop.Token);

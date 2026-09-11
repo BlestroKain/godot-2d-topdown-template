@@ -55,6 +55,8 @@ public sealed class ServerHost
     private readonly TcpListener listener;
     private readonly ServerConfiguration configuration;
     private readonly ConcurrentDictionary<ConnectionId, PeerConnection> peers = [];
+    private readonly ConcurrentDictionary<ConnectionId, long> lastClientActivity = [];
+    private readonly ConcurrentDictionary<ConnectionId, long> lastKeepAliveSent = [];
     private readonly ConcurrentDictionary<ConnectionId, Task> connections = [];
     private readonly SemaphoreSlim slots;
     private readonly ServerMetrics metrics = new();
@@ -140,6 +142,7 @@ public sealed class ServerHost
                 if (peers.TryGetValue(pair.Key, out var peer)) peer.Send(pair.Value);
             LastTickMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
             metrics.ObserveTick(LastTickMilliseconds, world.PlayerCount, world.EntityCount, 1);
+            PumpKeepAlive();
             if (++autosave % configuration.AutosaveIntervalTicks == 0)
                 await persistence.SaveDirtyAsync(world.DirtyPlayers(), stopping);
         }
@@ -155,26 +158,30 @@ public sealed class ServerHost
             session = world.AddConnection(id);
             using var handshakeTimeout = CancellationTokenSource.CreateLinkedTokenSource(peer.Token);
             handshakeTimeout.CancelAfter(TimeSpan.FromSeconds(configuration.HandshakeTimeoutSeconds));
-            var first = await TcpPacketFraming.ReadAsync(peer.Stream, handshakeTimeout.Token);
+            var first = await TcpPacketFraming.ReadAsync(peer.Stream, handshakeTimeout.Token)
+                ?? throw new EndOfStreamException();
             if (first is not ConnectRequest) throw new InvalidDataException("Se requiere ConnectRequest.");
             var context = new ServerPacketContext { Connection = id, Session = session, Send = peer.Send };
             await dispatcher.DispatchAsync(context, first, handshakeTimeout.Token);
             peers[id] = peer;
+            var connectedAt = Environment.TickCount64;
+            lastClientActivity[id] = connectedAt;
+            lastKeepAliveSent[id] = connectedAt;
             writer = peer.WriteLoopAsync();
             var rate = new RateLimiter(configuration.MaxMessagesPerWindow);
             while (!peer.Token.IsCancellationRequested)
             {
-                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(peer.Token);
-                timeout.CancelAfter(TimeSpan.FromSeconds(configuration.ReadTimeoutSeconds));
-                var packet = await TcpPacketFraming.ReadAsync(peer.Stream, timeout.Token);
+                var packet = await TcpPacketFraming.ReadAsync(peer.Stream, peer.Token);
+                if (packet is null) break;
+                lastClientActivity[id] = Environment.TickCount64;
                 metrics.PacketIn();
                 if (!rate.TryAdmit()) throw new InvalidDataException("Límite de mensajes excedido.");
-                await dispatcher.DispatchAsync(new ServerPacketContext { Connection = id, Session = session, Send = peer.Send }, packet, timeout.Token);
+                await dispatcher.DispatchAsync(new ServerPacketContext { Connection = id, Session = session, Send = peer.Send }, packet, peer.Token);
             }
         }
         catch (Exception exception) when (exception is IOException or InvalidDataException or SocketException or OperationCanceledException or ArgumentException or InvalidOperationException or KeyNotFoundException)
         {
-            if (!stopping.IsCancellationRequested && exception is not (EndOfStreamException or OperationCanceledException))
+            if (!stopping.IsCancellationRequested && !IsCleanDisconnect(exception))
                 Console.WriteLine($"Conexión cerrada: {exception.Message}");
             if (writer is null && !peer.Token.IsCancellationRequested)
             {
@@ -189,6 +196,8 @@ public sealed class ServerHost
         finally
         {
             peers.TryRemove(id, out _);
+            lastClientActivity.TryRemove(id, out _);
+            lastKeepAliveSent.TryRemove(id, out _);
             var player = world.Disconnect(id);
             if (player is not null) await persistence.SaveCharacterAsync(player, CancellationToken.None);
             if (sessions is not null && session is not null && session.Session.Value != Guid.Empty)
@@ -205,4 +214,33 @@ public sealed class ServerHost
             slots.Release();
         }
     }
+
+    private void PumpKeepAlive()
+    {
+        var now = Environment.TickCount64;
+        var keepAliveMs = configuration.KeepAliveIntervalSeconds * 1000L;
+        var idleMs = configuration.IdleTimeoutSeconds * 1000L;
+        foreach (var pair in peers)
+        {
+            var last = lastClientActivity.GetValueOrDefault(pair.Key, now);
+            if (now - last >= idleMs)
+            {
+                pair.Value.Dispose();
+                continue;
+            }
+
+            var lastSent = lastKeepAliveSent.GetValueOrDefault(pair.Key, 0);
+            if (now - lastSent < keepAliveMs) continue;
+            pair.Value.Send(new ServerTimePacket(NetworkClock.Timestamp, world.Tick));
+            lastKeepAliveSent[pair.Key] = now;
+        }
+    }
+
+    private static bool IsCleanDisconnect(Exception exception)
+        => exception is EndOfStreamException or OperationCanceledException
+            || exception is SocketException { SocketErrorCode: SocketError.ConnectionReset or SocketError.ConnectionAborted or SocketError.Shutdown }
+            || exception.InnerException is SocketException
+            {
+                SocketErrorCode: SocketError.ConnectionReset or SocketError.ConnectionAborted or SocketError.Shutdown
+            };
 }

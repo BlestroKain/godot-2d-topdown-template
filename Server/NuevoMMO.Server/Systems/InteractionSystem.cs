@@ -27,6 +27,12 @@ public readonly record struct InteractionResult(
         => new(false, failure, message, []);
 }
 
+public readonly record struct InteractionOutcome(bool Success, string Message)
+{
+    public static InteractionOutcome Ok(string message) => new(true, message ?? string.Empty);
+    public static InteractionOutcome Fail(string message) => new(false, message ?? string.Empty);
+}
+
 public readonly record struct HarvestInteractionResult(
     bool Success,
     InteractionFailure InteractionFailure,

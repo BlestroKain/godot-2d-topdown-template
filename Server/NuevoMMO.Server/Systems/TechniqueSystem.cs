@@ -69,6 +69,18 @@ public interface ITechniqueResourceAccess
 }
 
 /// <summary>
+/// Acceso mínimo al mapa para proyectiles, zonas y desplazamientos de técnicas.
+/// WorldRuntime lo implementa; TechniqueSystem no referencia World.
+/// </summary>
+public interface ITechniqueWorldAccess
+{
+    IEnumerable<LivingEntity> LivingOn(MapInstanceId map);
+    EntityId AllocateId();
+    void Spawn(Entity entity);
+    Vector2Data Clamp(Vector2Data position);
+}
+
+/// <summary>
 /// Ejecución autoritativa básica de técnicas: aprendizaje, cooldown, coste, target/rango,
 /// cast, channel y acciones inmediatas de combate/efecto. Las acciones espaciales o de eventos
 /// se devuelven como Deferred para que su sistema dueño las procese.
@@ -95,6 +107,7 @@ public sealed class TechniqueSystem
     private readonly Func<Player, ConditionGroupDefinition, bool>? requirementsEvaluator;
     private readonly Func<Entity, Vector2Data, bool>? lineOfSight;
     private readonly Dictionary<EntityId, ActiveCast> casts = [];
+    private ITechniqueWorldAccess? world;
 
     public TechniqueSystem(
         DefinitionRegistry definitions,
@@ -111,6 +124,9 @@ public sealed class TechniqueSystem
         this.requirementsEvaluator = requirementsEvaluator;
         this.lineOfSight = lineOfSight;
     }
+
+    public void BindWorld(ITechniqueWorldAccess access)
+        => world = access ?? throw new ArgumentNullException(nameof(access));
 
     public bool IsCasting(Player player)
     {
@@ -355,8 +371,25 @@ public sealed class TechniqueSystem
         long nowMilliseconds)
     {
         var result = new List<TechniqueActionExecution>();
+        var targets = CollectTargets(active);
         foreach (var action in active.Definition.Actions.Where(action => action.Moment == moment))
-            result.AddRange(ExecuteAction(active.Caster, active.Target, action, nowMilliseconds, 0));
+        {
+            if (action.Kind is TechniqueActionKind.SpawnProjectile or TechniqueActionKind.SpawnZone)
+            {
+                result.AddRange(ExecuteAction(active.Caster, active.Target, action, nowMilliseconds, 0, active.Point));
+                continue;
+            }
+
+            if (targets.Count == 0)
+            {
+                result.AddRange(ExecuteAction(active.Caster, active.Target, action, nowMilliseconds, 0, active.Point));
+                continue;
+            }
+
+            foreach (var target in targets)
+                result.AddRange(ExecuteAction(active.Caster, target, action, nowMilliseconds, 0, active.Point));
+        }
+
         return result;
     }
 
@@ -365,7 +398,8 @@ public sealed class TechniqueSystem
         LivingEntity? target,
         TechniqueActionDefinition action,
         long nowMilliseconds,
-        int depth)
+        int depth,
+        Vector2Data? point = null)
     {
         if (depth > 8) throw new InvalidOperationException("Cadena de acciones de efecto demasiado profunda.");
         var result = new List<TechniqueActionExecution>();
@@ -423,6 +457,30 @@ public sealed class TechniqueSystem
                 var removed = effects.Remove(target, effectId, requireDispellable: false, nowMilliseconds);
                 result.Add(new(action, removed ? TechniqueActionExecutionStatus.Executed : TechniqueActionExecutionStatus.Skipped,
                     target.Id, Message: removed ? string.Empty : "El objetivo no tenía el efecto."));
+                break;
+            }
+            case TechniqueActionKind.Push:
+            case TechniqueActionKind.Pull:
+            case TechniqueActionKind.Dash:
+            case TechniqueActionKind.Teleport:
+            {
+                var moved = ApplyDisplacement(source, target, action, point);
+                result.Add(new(action, moved is null ? TechniqueActionExecutionStatus.Skipped : TechniqueActionExecutionStatus.Executed,
+                    moved, Message: moved is null ? "No hay destino para el desplazamiento." : string.Empty));
+                break;
+            }
+            case TechniqueActionKind.SpawnProjectile:
+            {
+                var spawned = SpawnProjectile(source, target, action, point);
+                result.Add(new(action, spawned is null ? TechniqueActionExecutionStatus.Deferred : TechniqueActionExecutionStatus.Executed,
+                    spawned, Message: spawned is null ? "No hay mundo para el proyectil." : string.Empty));
+                break;
+            }
+            case TechniqueActionKind.SpawnZone:
+            {
+                var spawned = SpawnZone(source, action, point, target);
+                result.Add(new(action, spawned is null ? TechniqueActionExecutionStatus.Deferred : TechniqueActionExecutionStatus.Executed,
+                    spawned, Message: spawned is null ? "No hay mundo para la zona." : string.Empty));
                 break;
             }
             default:
@@ -493,6 +551,137 @@ public sealed class TechniqueSystem
         }
         if (definition.ResourceCosts.Count > 0)
             resources!.Pay(caster, definition.ResourceCosts);
+    }
+
+    private IReadOnlyList<LivingEntity> CollectTargets(ActiveCast active)
+    {
+        var targeting = active.Definition.Targeting;
+        if (targeting.Mode is TechniqueTargetMode.Self)
+            return [active.Caster];
+        if (targeting.Mode is TechniqueTargetMode.Entity)
+            return active.Target is null ? [] : [active.Target];
+        if (world is null)
+            return active.Target is null ? [] : [active.Target];
+
+        var origin = active.Point ?? active.Target?.Position ?? active.Caster.Position;
+        var facing = (origin - active.Caster.Position);
+        if (facing.IsZero) facing = Vector2Data.Right;
+        facing = facing.Normalized();
+        var radius = targeting.Radius > 0 ? targeting.Radius : targeting.Range;
+        var candidates = new List<(LivingEntity Entity, float Distance)>();
+        foreach (var living in world.LivingOn(active.Caster.MapInstanceId))
+        {
+            if (!living.IsAlive) continue;
+            if ((targeting.Relations & Relation(active.Caster, living)) == 0) continue;
+            var distance = active.Caster.Position.DistanceTo(living.Position);
+            if (targeting.Range > 0 && distance > targeting.Range + radius) continue;
+            if (radius > 0 && origin.DistanceTo(living.Position) > radius) continue;
+            if (targeting.Mode == TechniqueTargetMode.Cone && targeting.AngleDegrees > 0)
+            {
+                var toTarget = living.Position - active.Caster.Position;
+                if (toTarget.IsZero) continue;
+                var cosine = facing.Dot(toTarget.Normalized());
+                var minCosine = MathF.Cos(targeting.AngleDegrees * MathF.PI / 360f);
+                if (cosine < minCosine) continue;
+            }
+
+            if (targeting.Mode == TechniqueTargetMode.Line)
+            {
+                var toTarget = living.Position - active.Caster.Position;
+                if (toTarget.IsZero) continue;
+                var projection = facing.Dot(toTarget);
+                if (projection < 0 || projection > targeting.Range) continue;
+                var lateral = (toTarget - facing * projection).Length;
+                var width = radius > 0 ? radius : 16f;
+                if (lateral > width) continue;
+            }
+
+            candidates.Add((living, distance));
+        }
+
+        return candidates
+            .OrderBy(static pair => pair.Distance)
+            .Take(targeting.MaxTargets)
+            .Select(static pair => pair.Entity)
+            .ToArray();
+    }
+
+    private EntityId? ApplyDisplacement(LivingEntity? source, LivingEntity? target, TechniqueActionDefinition action, Vector2Data? point)
+    {
+        var subject = action.Kind == TechniqueActionKind.Dash || action.Kind == TechniqueActionKind.Teleport
+            ? source
+            : target;
+        if (subject is null) return null;
+        var origin = subject.Position;
+        Vector2Data destination;
+        if (action.Kind == TechniqueActionKind.Teleport && action.Destination is { } explicitDestination)
+            destination = explicitDestination;
+        else
+        {
+            var toward = point ?? target?.Position ?? (source is null ? origin : origin + Vector2Data.Right);
+            var delta = toward - origin;
+            if (action.Kind == TechniqueActionKind.Push && source is not null)
+                delta = origin - source.Position;
+            if (action.Kind == TechniqueActionKind.Pull && source is not null)
+                delta = source.Position - origin;
+            if (delta.IsZero) delta = Vector2Data.Right;
+            var distance = action.Distance > 0 ? action.Distance : action.Amount;
+            destination = origin + delta.Normalized() * distance;
+        }
+
+        subject.MoveTo(world?.Clamp(destination) ?? destination, Vector2Data.Zero);
+        return subject.Id;
+    }
+
+    private EntityId? SpawnProjectile(LivingEntity? source, LivingEntity? target, TechniqueActionDefinition action, Vector2Data? point)
+    {
+        if (world is null || source is null) return null;
+        var toward = point ?? target?.Position ?? source.Position + Vector2Data.Right;
+        var direction = toward - source.Position;
+        if (direction.IsZero) direction = Vector2Data.Right;
+        var speed = action.Parameters.GetValueOrDefault("speed", 220f);
+        var maxDistance = action.Distance > 0 ? action.Distance : action.Parameters.GetValueOrDefault("maxDistance", 320f);
+        var lifetime = action.DurationMilliseconds > 0 ? action.DurationMilliseconds : 2500;
+        var maxImpacts = Math.Max(1, (int)action.Parameters.GetValueOrDefault("maxImpacts", 1));
+        var projectile = new Projectile(
+            world.AllocateId(),
+            action.SpawnDefinitionId,
+            source.Id,
+            null,
+            source.MapInstanceId,
+            source.Position,
+            direction,
+            speed <= 0 ? 220f : speed,
+            maxDistance,
+            lifetime,
+            maxImpacts,
+            source.VisualKey,
+            "Proyectil");
+        world.Spawn(projectile);
+        return projectile.Id;
+    }
+
+    private EntityId? SpawnZone(LivingEntity? source, TechniqueActionDefinition action, Vector2Data? point, LivingEntity? target)
+    {
+        if (world is null || source is null) return null;
+        var origin = point ?? target?.Position ?? source.Position;
+        var radius = action.Distance > 0 ? action.Distance : action.Parameters.GetValueOrDefault("radius", 48f);
+        var lifetime = action.DurationMilliseconds > 0 ? action.DurationMilliseconds : 2000;
+        var interval = (int)action.Parameters.GetValueOrDefault("tickIntervalMilliseconds", 500);
+        var zone = new AreaEffectEntity(
+            world.AllocateId(),
+            source.Id,
+            null,
+            action,
+            source.MapInstanceId,
+            world.Clamp(origin),
+            radius <= 0 ? 48f : radius,
+            lifetime,
+            interval,
+            source.VisualKey,
+            "Zona");
+        world.Spawn(zone);
+        return zone.Id;
     }
 
     private static LivingEntity? ResolveTarget(Player caster, TechniqueDefinition definition, LivingEntity? target)

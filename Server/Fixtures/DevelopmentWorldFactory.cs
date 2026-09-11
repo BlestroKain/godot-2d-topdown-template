@@ -32,7 +32,7 @@ public sealed class ServerComposition
 public static class DevelopmentWorldFactory
 {
     public static ServerComposition Create(string environment)
-        => CreateInMemory(environment, ServerConfiguration.Development());
+        => CreateInMemory(environment, ServerConfiguration.Development() with { Environment = environment });
 
     public static ServerComposition Create(string environment, ServerConfiguration configuration)
         => CreateInMemory(environment, configuration);
@@ -104,15 +104,12 @@ public static class DevelopmentWorldFactory
         string persistenceDescription,
         string? gameDatabasePath = null)
     {
-        if (environment is not ("Development" or "Test")) throw new InvalidOperationException("Fixtures solo en Development/Test.");
+        if (environment is not ("Development" or "Test" or "Production"))
+            throw new InvalidOperationException("Environment no soportado.");
         if (!string.Equals(environment, configuration.Environment, StringComparison.Ordinal))
             throw new InvalidOperationException("Environment no coincide con ServerConfiguration.");
 
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "movement.json")));
-        var data = document.RootElement;
-        var fixtureMap = CreateFixtureMap(data);
-        var fixtureScout = CreateFixtureScout(data);
-        var trainingDummyDefinition = TrainingDummyFixture.CreateDefinition();
+        var fixturesAllowed = environment is "Development" or "Test";
 
         ContentPackage? loadedPackage = null;
         var loadedFromGame = gameDatabasePath is not null
@@ -120,31 +117,61 @@ public static class DevelopmentWorldFactory
             && loadedPackage is not null
             && loadedPackage.Maps.Length > 0;
 
+        if (!fixturesAllowed && !loadedFromGame)
+            throw new InvalidOperationException("Production requiere ContentPackage en game.db; no se usan fixtures.");
+
+        JsonElement data = default;
+        JsonDocument? document = null;
+        MapDefinition? fixtureMap = null;
+        MobDefinition? fixtureScout = null;
+        MobDefinition? trainingDummyDefinition = null;
+        if (fixturesAllowed)
+        {
+            document = JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "movement.json")));
+            data = document.RootElement;
+            fixtureMap = CreateFixtureMap(data);
+            fixtureScout = CreateFixtureScout(data);
+            trainingDummyDefinition = TrainingDummyFixture.CreateDefinition();
+        }
+
+        try
+        {
         ContentPackage package;
         MapDefinition map;
         MobDefinition? scout = null;
         IMobMovementPolicy movementPolicy;
         if (loadedFromGame)
         {
-            package = MergeFixtureDefinitions(loadedPackage!, trainingDummyDefinition);
+            package = fixturesAllowed && trainingDummyDefinition is not null
+                ? MergeFixtureDefinitions(loadedPackage!, trainingDummyDefinition)
+                : EnsureCanonicalTechniques(loadedPackage!);
             map = package.Maps.FirstOrDefault(static value => value.Enabled) ?? package.Maps[0];
             movementPolicy = new StationaryAwareMobPolicy(new OscillatingMobPolicy());
             persistenceDescription += " · game.db";
         }
         else
         {
-            package = ContentPackage.Empty("dev-1") with { Maps = [fixtureMap], Mobs = [fixtureScout, trainingDummyDefinition] };
-            map = fixtureMap;
+            package = ContentPackage.Empty("dev-1") with
+            {
+                Maps = [fixtureMap!],
+                Mobs = [fixtureScout!, trainingDummyDefinition!],
+                Techniques = [CanonicalCombatContent.BasicAttack()]
+            };
+            map = fixtureMap!;
             scout = fixtureScout;
             movementPolicy = new OscillatingMobPolicy();
         }
 
         var definitions = new GameDataLoader().Load(package);
         var systems = new GameSystems(definitions);
-        var options = new WorldOptions(
-            new(data.GetProperty("instance").GetInt64()), data.GetProperty("speed").GetSingle(),
-            data.GetProperty("mobSpeed").GetSingle(), configuration.TickMilliseconds,
-            data.GetProperty("interestRadius").GetSingle(), configuration.MaxPlayers);
+        var options = fixturesAllowed
+            ? new WorldOptions(
+                new(data.GetProperty("instance").GetInt64()), data.GetProperty("speed").GetSingle(),
+                data.GetProperty("mobSpeed").GetSingle(), configuration.TickMilliseconds,
+                data.GetProperty("interestRadius").GetSingle(), configuration.MaxPlayers)
+            : new WorldOptions(
+                new(configuration.InstanceId), configuration.MovementSpeed, configuration.MobSpeed,
+                configuration.TickMilliseconds, configuration.InterestRadius, configuration.MaxPlayers);
 
         WorldRuntime world;
         if (scout is not null)
@@ -159,7 +186,8 @@ public static class DevelopmentWorldFactory
             ContentWorldPopulator.Populate(world, definitions, map);
         }
 
-        if (!world.MapInstance.Entities.All.OfType<Mob>().Any(mob => mob.DefinitionId == TrainingDummyFixture.DefinitionId))
+        if (fixturesAllowed &&
+            !world.MapInstance.Entities.All.OfType<Mob>().Any(mob => mob.DefinitionId == TrainingDummyFixture.DefinitionId))
         {
             var dummyPosition = map.Bounds.Clamp(new Vector2Data(map.Spawn.X + 128f, map.Spawn.Y));
             world.AddEntity(TrainingDummyFixture.CreateEntity(new EntityId(9_000_000_000), world.Instance, dummyPosition));
@@ -187,6 +215,11 @@ public static class DevelopmentWorldFactory
             Sessions = sessions,
             PersistenceDescription = persistenceDescription
         };
+        }
+        finally
+        {
+            document?.Dispose();
+        }
     }
 
     private static MapDefinition CreateFixtureMap(JsonElement data)
@@ -223,6 +256,15 @@ public static class DevelopmentWorldFactory
         var mobs = package.Mobs?.ToList() ?? [];
         if (mobs.All(mob => mob.Id != dummy.Id && mob.Key != dummy.Key))
             mobs.Add(dummy);
-        return package with { Mobs = mobs.ToArray() };
+        return EnsureCanonicalTechniques(package with { Mobs = mobs.ToArray() });
+    }
+
+    private static ContentPackage EnsureCanonicalTechniques(ContentPackage package)
+    {
+        var techniques = package.Techniques?.ToList() ?? [];
+        var basic = CanonicalCombatContent.BasicAttack();
+        if (techniques.All(technique => technique.Id != basic.Id && technique.Key != basic.Key))
+            techniques.Add(basic);
+        return package with { Techniques = techniques.ToArray() };
     }
 }

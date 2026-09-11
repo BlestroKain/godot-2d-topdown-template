@@ -11,6 +11,7 @@ public partial class WorldPresentation : Node2D
     private readonly AssetRegistry assets = new();
     private MapProjection? map;
     private Camera2D camera = null!;
+    public Camera2D Camera => camera;
 
     public override void _Ready()
     {

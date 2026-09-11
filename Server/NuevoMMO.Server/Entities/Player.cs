@@ -28,6 +28,8 @@ public sealed class Player : LivingEntity
     public Knowledge Knowledge { get; } = new();
     public ProfessionSet Professions { get; } = new();
     public TechniqueSet Techniques { get; } = new();
+    public PlayerEventState Events { get; } = new();
+    public EntityId? TargetId { get; set; }
     public MovementInputBuffer Inputs { get; } = new();
     public HashSet<EntityId> Interest { get; } = [];
     public bool DirtyPosition { get; private set; }

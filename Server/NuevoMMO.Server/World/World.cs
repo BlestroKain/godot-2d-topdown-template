@@ -161,6 +161,7 @@ public sealed class WorldRuntime
         mobMovement = new(options.MobSpeed, options.TickMilliseconds, mobPolicy);
         projectiles = systems?.Projectiles ?? new ProjectileSystem();
         interest = new(map.Spatial, options.InterestRadius);
+        systems?.Techniques.BindWorld(new TechniqueMapAccess(this));
     }
 
     public WorldRuntime(MapDefinition definition, MobDefinition mobDefinition, WorldOptions options, IMobMovementPolicy mobPolicy,
@@ -253,6 +254,7 @@ public sealed class WorldRuntime
                 throw new InvalidOperationException("Selección de personaje inválida.");
             var position = IsValidPosition(character.Position) ? character.Position : map.Definition.Spawn;
             var player = spawns.Player(character with { Position = position }, map.Id);
+            player.Techniques.Learn(CanonicalCombatContent.BasicAttackId);
             map.Add(player);
             session.Character = character.Character;
             session.Player = player;
@@ -278,6 +280,152 @@ public sealed class WorldRuntime
             if (session.State != PlayerSessionState.InWorld || session.Player is null) throw new InvalidOperationException("Jugador fuera del mundo.");
             session.Player.Inputs.Enqueue(input);
         }
+    }
+
+    public void SetTarget(PlayerSession session, EntityId target)
+    {
+        lock (gate)
+        {
+            EnsureInWorld(session);
+            if (target.Value <= 0)
+            {
+                session.Player!.TargetId = null;
+                return;
+            }
+
+            if (!map.Entities.TryGet(target, out var entity) || entity is null || entity.MapInstanceId != map.Id)
+                throw new InvalidOperationException("Objetivo inexistente.");
+            session.Player!.TargetId = target;
+        }
+    }
+
+    public InteractionOutcome Interact(PlayerSession session, EntityId targetId)
+    {
+        if (systems is null) throw new InvalidOperationException("GameSystems no está configurado en este WorldRuntime.");
+        lock (gate)
+        {
+            EnsureInWorld(session);
+            var player = session.Player!;
+            var now = checked(tick * options.TickMilliseconds);
+            Entity? target = null;
+            if (targetId.Value > 0)
+            {
+                if (!map.Entities.TryGet(targetId, out target) || target is null)
+                    return InteractionOutcome.Fail("El objetivo ya no existe.");
+            }
+            else
+                target = NearestInteractable(player);
+
+            if (target is not null && !systems.Interactions.CanReach(player, target))
+                return InteractionOutcome.Fail("Fuera de alcance.");
+
+            if (target is WorldItem worldItem)
+            {
+                var picked = systems.Interactions.TryPickup(player, worldItem, now);
+                if (picked.Success) map.Remove(worldItem.Id, out _);
+                return picked.Success
+                    ? InteractionOutcome.Ok(string.IsNullOrWhiteSpace(picked.Message) ? "Recogido." : picked.Message)
+                    : InteractionOutcome.Fail(picked.Message);
+            }
+
+            if (target is ResourceEntity resource)
+            {
+                var harvest = systems.Interactions.TryHarvest(player, resource, 1f, now);
+                return harvest.Success ? InteractionOutcome.Ok(harvest.Message) : InteractionOutcome.Fail(harvest.Message);
+            }
+
+            if (target is Npc)
+            {
+                var evt = systems.Events.MapEvents(map.Definition.Id)
+                    .FirstOrDefault(definition => definition.Placement is { } placement
+                        && DistanceSquared(placement.Position, target.Position) <= 4f * 4f);
+                if (evt is not null)
+                    return ToOutcome(systems.Events.TryTrigger(player, evt, EventTrigger.Action, now));
+                return InteractionOutcome.Ok($"{target.DisplayName} no tiene diálogo.");
+            }
+
+            foreach (var evt in systems.Events.MapEvents(map.Definition.Id))
+            {
+                if (evt.Placement is not { } placement) continue;
+                var page = systems.Events.ActivePage(evt, player);
+                var radius = page?.InteractionRadius ?? 32f;
+                if (DistanceSquared(player.Position, placement.Position) > radius * radius) continue;
+                return ToOutcome(systems.Events.TryTrigger(player, evt, EventTrigger.Action, now));
+            }
+
+            return InteractionOutcome.Fail("Nada que interactuar aquí.");
+        }
+    }
+
+    public TechniqueUseResult BasicAttack(PlayerSession session, EntityId targetId)
+    {
+        if (systems is null) throw new InvalidOperationException("GameSystems no está configurado.");
+        lock (gate)
+        {
+            EnsureInWorld(session);
+            var player = session.Player!;
+            if (!map.Entities.TryGet(targetId, out var entity) || entity is not LivingEntity living)
+                return TechniqueUseResult.Fail(TechniqueUseFailure.InvalidTarget, "Objetivo inválido.", CanonicalCombatContent.BasicAttackId);
+            player.TargetId = targetId;
+            if (!player.Techniques.Knows(CanonicalCombatContent.BasicAttackId))
+                player.Techniques.Learn(CanonicalCombatContent.BasicAttackId);
+            var now = checked(tick * options.TickMilliseconds);
+            var result = systems.Techniques.BeginUse(player, CanonicalCombatContent.BasicAttackId, living, null, now);
+            if (result.Success && !living.IsAlive)
+                systems.Events.NotifyEntityDefeated(player, living, now);
+            return result;
+        }
+    }
+
+    public TechniqueUseResult UseTechnique(PlayerSession session, DefinitionId techniqueId, EntityId targetId, Vector2Data point)
+    {
+        if (systems is null) throw new InvalidOperationException("GameSystems no está configurado.");
+        lock (gate)
+        {
+            EnsureInWorld(session);
+            var player = session.Player!;
+            LivingEntity? living = null;
+            if (targetId.Value > 0)
+            {
+                if (!map.Entities.TryGet(targetId, out var entity) || entity is not LivingEntity target)
+                    return TechniqueUseResult.Fail(TechniqueUseFailure.InvalidTarget, "Objetivo inválido.", techniqueId);
+                living = target;
+                player.TargetId = targetId;
+            }
+
+            var now = checked(tick * options.TickMilliseconds);
+            var result = systems.Techniques.BeginUse(player, techniqueId, living, point, now);
+            if (result.Success && living is { IsAlive: false })
+                systems.Events.NotifyEntityDefeated(player, living, now);
+            return result;
+        }
+    }
+
+    private Entity? NearestInteractable(Player player)
+    {
+        Entity? best = null;
+        var bestDistance = 64f * 64f;
+        foreach (var entity in map.Entities.All)
+        {
+            if (entity.Id == player.Id) continue;
+            if (entity is not (Npc or ResourceEntity or WorldItem)) continue;
+            var distance = DistanceSquared(player.Position, entity.Position);
+            if (distance > bestDistance) continue;
+            best = entity;
+            bestDistance = distance;
+        }
+
+        return best;
+    }
+
+    private static InteractionOutcome ToOutcome(EventExecutionResult result)
+        => result.Success ? InteractionOutcome.Ok(string.Join('\n', result.Log)) : InteractionOutcome.Fail(result.Message);
+
+    private static float DistanceSquared(Vector2Data left, Vector2Data right)
+    {
+        var x = left.X - right.X;
+        var y = left.Y - right.Y;
+        return x * x + y * y;
     }
 
     /// <summary>Inserta entidades runtime creadas por sistemas autorizados (loot, proyectiles, recursos, summons).</summary>
@@ -354,7 +502,13 @@ public sealed class WorldRuntime
                         break;
                     case Projectile projectile:
                         projectiles.Step(projectile, map.Definition, options.TickMilliseconds);
+                        ResolveProjectileImpacts(projectile, nowMilliseconds);
                         if (projectile.IsExpired) despawn.Add(projectile.Id);
+                        break;
+                    case AreaEffectEntity area:
+                        var ticked = area.Advance(options.TickMilliseconds);
+                        if (ticked) ApplyAreaTick(area, nowMilliseconds);
+                        if (area.IsExpired) despawn.Add(area.Id);
                         break;
                     case ResourceEntity resource:
                         resource.TryRespawn(nowMilliseconds);
@@ -367,11 +521,56 @@ public sealed class WorldRuntime
                 if (!despawn.Contains(entity.Id)) map.Refresh(entity);
             }
 
-            foreach (var id in despawn.Distinct()) map.Remove(id, out _);
+            foreach (var id in despawn.Distinct())
+            {
+                if (map.Remove(id, out var removed) && removed is not null)
+                    systems?.OnEntityRemoved(removed);
+            }
             systems?.Advance(map, nowMilliseconds, options.TickMilliseconds);
+            if (systems is not null)
+            {
+                foreach (var session in sessions.Values)
+                {
+                    if (session.State != PlayerSessionState.InWorld || session.Player is null) continue;
+                    systems.Events.Pulse(session.Player, map.Definition, nowMilliseconds);
+                }
+            }
 
             return sessions.Values.Where(session => session.State == PlayerSessionState.InWorld)
                 .ToDictionary(session => session.Connection, Project);
+        }
+    }
+
+    private void ResolveProjectileImpacts(Projectile projectile, long nowMilliseconds)
+    {
+        if (systems is null || projectile.IsExpired || projectile.SourceId is not { } sourceId) return;
+        if (!map.Entities.TryGet(sourceId, out var sourceEntity) || sourceEntity is not LivingEntity source) return;
+        foreach (var entity in map.Entities.All.OfType<LivingEntity>())
+        {
+            if (!systems.Projectiles.TryRegisterImpact(projectile, entity, 16f)) continue;
+            systems.Combat.ApplyDamage(source, entity, 8, Element.Neutral);
+            if (!entity.IsAlive && source is Player player)
+                systems.Events.NotifyEntityDefeated(player, entity, nowMilliseconds);
+        }
+    }
+
+    private void ApplyAreaTick(AreaEffectEntity area, long nowMilliseconds)
+    {
+        if (systems is null) return;
+        area.MarkTickScheduled();
+        map.Entities.TryGet(area.SourceId, out var sourceEntity);
+        var source = sourceEntity as LivingEntity;
+        foreach (var living in map.Entities.All.OfType<LivingEntity>())
+        {
+            if (!living.IsAlive || living.Id == area.SourceId || !area.Contains(living.Position)) continue;
+            if (area.Action.Kind == TechniqueActionKind.Damage)
+            {
+                var stats = source?.Stats ?? new StatBlock();
+                var raw = CombatSystem.CalculateScaledAmount(area.Action.Amount, area.Action.Scaling, stats);
+                systems.Combat.ApplyDamage(source, living, raw, area.Action.Element);
+                if (!living.IsAlive && source is Player player)
+                    systems.Events.NotifyEntityDefeated(player, living, nowMilliseconds);
+            }
         }
     }
 
@@ -422,5 +621,23 @@ public sealed class WorldRuntime
     {
         if (session.State != PlayerSessionState.InWorld || session.Player is null)
             throw new InvalidOperationException("Jugador fuera del mundo.");
+    }
+
+    private sealed class TechniqueMapAccess(WorldRuntime world) : ITechniqueWorldAccess
+    {
+        public IEnumerable<LivingEntity> LivingOn(MapInstanceId mapId)
+            => world.map.Id == mapId ? world.map.Entities.All.OfType<LivingEntity>() : [];
+
+        public EntityId AllocateId() => world.spawns.NextId();
+
+        public void Spawn(Entity entity)
+        {
+            ArgumentNullException.ThrowIfNull(entity);
+            if (entity.MapInstanceId != world.map.Id)
+                throw new InvalidOperationException("La entidad pertenece a otra instancia de mapa.");
+            world.map.Add(entity);
+        }
+
+        public Vector2Data Clamp(Vector2Data position) => world.map.Definition.Bounds.Clamp(position);
     }
 }

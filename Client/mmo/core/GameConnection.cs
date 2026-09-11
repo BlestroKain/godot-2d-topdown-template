@@ -56,8 +56,8 @@ public sealed class GameConnection : IDisposable
         }
         else character = list.Characters[0];
         await TcpPacketFraming.WriteAsync(stream, new CharacterSelectRequest(login.Session, login.SessionToken, character.Id), timeout.Token);
-        IPacket selected = await TcpPacketFraming.ReadAsync(stream, timeout.Token);
-        if (selected is not CharacterSelected) throw new IOException("Selección de personaje inválida.");
+        if (await TcpPacketFraming.ReadAsync(stream, timeout.Token) is not CharacterSelected selected)
+            throw new IOException("Selección de personaje inválida.");
         Message?.Invoke(selected);
         if (await TcpPacketFraming.ReadAsync(stream, timeout.Token) is not MapLoadPacket map)
             throw new IOException("Carga de mapa inválida.");
@@ -65,6 +65,7 @@ public sealed class GameConnection : IDisposable
         Message?.Invoke(map);
         await TcpPacketFraming.WriteAsync(stream, new MapReadyRequest(map.Map.Instance), timeout.Token);
         _ = ReceiveAsync();
+        _ = KeepAliveAsync();
     }
 
     public async Task SendAsync(IPacket packet)
@@ -82,25 +83,45 @@ public sealed class GameConnection : IDisposable
         {
             while (!lifetime.IsCancellationRequested)
             {
-                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
-                timeout.CancelAfter(TimeSpan.FromSeconds(10));
-                var packet = await TcpPacketFraming.ReadAsync(tcp.GetStream(), timeout.Token);
-                if (packet is not (EntityStatePacket or PlayerStatsPacket or CombatDebugPacket or PongPacket or ServerTimePacket or SpawnEntityPacket or DespawnEntityPacket or EntityMovedPacket or ErrorPacket))
-                    throw new InvalidDataException("Mensaje servidor inesperado.");
+                var packet = await TcpPacketFraming.ReadAsync(tcp.GetStream(), lifetime.Token);
+                if (packet is null)
+                {
+                    if (!lifetime.IsCancellationRequested) Closed?.Invoke("disconnected");
+                    break;
+                }
                 Message?.Invoke(packet);
             }
         }
         catch (Exception exception) when (exception is IOException or InvalidDataException or SocketException or OperationCanceledException or ObjectDisposedException)
         {
-            if (!lifetime.IsCancellationRequested) Closed?.Invoke(exception.Message);
+            if (!lifetime.IsCancellationRequested)
+                Closed?.Invoke(exception is EndOfStreamException or OperationCanceledException ? "disconnected" : exception.Message);
         }
         finally { Dispose(); }
+    }
+
+    private async Task KeepAliveAsync()
+    {
+        try
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+            while (await timer.WaitForNextTickAsync(lifetime.Token))
+                await SendAsync(new PingPacket(Environment.TickCount64, NetworkClock.Timestamp));
+        }
+        catch (Exception exception) when (exception is OperationCanceledException or IOException or ObjectDisposedException)
+        {
+        }
     }
 
     public void Dispose()
     {
         if (Interlocked.Exchange(ref disposed, 1) != 0) return;
         lifetime.Cancel();
+        try
+        {
+            if (tcp.Connected) tcp.Client.Shutdown(SocketShutdown.Both);
+        }
+        catch (Exception exception) when (exception is SocketException or ObjectDisposedException) { }
         tcp.Dispose();
     }
 }

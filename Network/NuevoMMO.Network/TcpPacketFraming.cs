@@ -4,13 +4,33 @@ namespace NuevoMMO.Network;
 
 public static class TcpPacketFraming
 {
-    public static async Task<IPacket> ReadAsync(Stream stream, CancellationToken cancellationToken)
+    /// <summary>
+    /// Lee un frame. Devuelve <c>null</c> en EOF (desconexión limpia), sin tratarlo como error de protocolo.
+    /// </summary>
+    public static async Task<IPacket?> ReadAsync(Stream stream, CancellationToken cancellationToken)
     {
         var sizeBytes = new byte[4];
-        await stream.ReadExactlyAsync(sizeBytes, cancellationToken);
+        try
+        {
+            await stream.ReadExactlyAsync(sizeBytes, cancellationToken);
+        }
+        catch (EndOfStreamException)
+        {
+            return null;
+        }
+
         var size = BinaryPrimitives.ReadInt32BigEndian(sizeBytes);
         if (size is < PacketHeader.Size or > PacketCodec.MaxPacketBytes) throw new InvalidDataException("Frame TCP inválido.");
-        var packet = new byte[size]; await stream.ReadExactlyAsync(packet, cancellationToken);
+        var packet = new byte[size];
+        try
+        {
+            await stream.ReadExactlyAsync(packet, cancellationToken);
+        }
+        catch (EndOfStreamException)
+        {
+            return null;
+        }
+
         return PacketCodec.Decode(packet);
     }
 

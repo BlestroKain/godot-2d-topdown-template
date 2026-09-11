@@ -122,6 +122,38 @@ public partial class NetworkBridge : Node
         catch (Exception exception) { Enqueue(current, null, exception.Message); }
     }
 
+    public async void BasicAttack(EntityId target)
+    {
+        if (!InWorld || connection is null || target.Value <= 0) return;
+        var current = connection;
+        try { await current.SendAsync(new BasicAttackRequest(target)); }
+        catch (Exception exception) { Enqueue(current, null, exception.Message); }
+    }
+
+    public async void UseTechnique(DefinitionId techniqueId, EntityId target, Vector2Data point = default)
+    {
+        if (!InWorld || connection is null || techniqueId.IsEmpty) return;
+        var current = connection;
+        try { await current.SendAsync(new UseTechniqueRequest(techniqueId, target, point)); }
+        catch (Exception exception) { Enqueue(current, null, exception.Message); }
+    }
+
+    public async void Interact(EntityId target)
+    {
+        if (!InWorld || connection is null) return;
+        var current = connection;
+        try { await current.SendAsync(new InteractRequest(target)); }
+        catch (Exception exception) { Enqueue(current, null, exception.Message); }
+    }
+
+    public async void SetTarget(EntityId target)
+    {
+        if (!InWorld || connection is null) return;
+        var current = connection;
+        try { await current.SendAsync(new SetTargetRequest(target)); }
+        catch (Exception exception) { Enqueue(current, null, exception.Message); }
+    }
+
     public void DisconnectFromServer()
     {
         connection?.Dispose(); connection = null; sending = false; World.Clear(); LastNotice = string.Empty; LastCombat = null; SetStatus("Desconectado");

@@ -7,10 +7,15 @@ public sealed class InputManager
     public CombatInput Combat { get; }
     public InteractionInput Interaction { get; } = new();
     public HotkeyInput Hotkeys { get; } = new();
+    public GameplayInput Gameplay { get; }
 
     public InputManager()
     {
         Movement = new(Bindings);
         Combat = new(Bindings);
+        Gameplay = new(Bindings);
     }
+
+    public void SetUiFocus(bool typing)
+        => Gameplay.Context = typing ? GameplayInputContext.Ui : GameplayInputContext.World;
 }

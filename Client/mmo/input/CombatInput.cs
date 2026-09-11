@@ -1,7 +1,6 @@
 using Godot;
 using NuevoMMO.Client;
 using NuevoMMO.Core;
-using NuevoMMO.Network;
 
 namespace NuevoMMO.GodotClient;
 
@@ -21,13 +20,9 @@ public sealed class CombatInput
         return CombatTargeting.NearestMob(world.Entities.All.Values, world.Local.Position, predicate, maxRange);
     }
 
-    public DevelopmentAttackKind ReadAttackKind()
+    public MobState? CycleTarget(ClientWorldState world, EntityId? current, float maxRange = CombatTargeting.DefaultRange)
     {
-        if (Input.IsActionJustPressed(Bindings.Hotkey2)) return DevelopmentAttackKind.Earth;
-        if (Input.IsActionJustPressed(Bindings.Hotkey3)) return DevelopmentAttackKind.Fire;
-        if (Input.IsActionJustPressed(Bindings.Hotkey4)) return DevelopmentAttackKind.Air;
-        if (Input.IsActionJustPressed(Bindings.Hotkey5)) return DevelopmentAttackKind.Water;
-        if (Input.IsActionJustPressed(Bindings.Hotkey6)) return DevelopmentAttackKind.NeutralStrength;
-        return DevelopmentAttackKind.Basic;
+        ArgumentNullException.ThrowIfNull(world);
+        return CombatTargeting.CycleMob(world.Entities.All.Values, world.Local.Position, current, maxRange);
     }
 }

@@ -9,6 +9,8 @@
   "handshakeTimeoutSeconds": 5,
   "readTimeoutSeconds": 10,
   "writeTimeoutSeconds": 3,
+  "keepAliveIntervalSeconds": 5,
+  "idleTimeoutSeconds": 120,
   "autosaveIntervalTicks": 40,
   "database": {
     "provider": "sqlite",
