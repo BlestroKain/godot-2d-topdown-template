@@ -16,6 +16,7 @@ public static class PacketRegistry
             [typeof(PingPacket)] = (PacketId.Ping, PacketDirection.ClientToServer),
             [typeof(DisconnectRequest)] = (PacketId.DisconnectRequest, PacketDirection.ClientToServer),
             [typeof(AllocateAttributeRequest)] = (PacketId.AllocateAttributeRequest, PacketDirection.ClientToServer),
+            [typeof(DevelopmentAttackRequest)] = (PacketId.DevelopmentAttackRequest, PacketDirection.ClientToServer),
             [typeof(ConnectionAccepted)] = (PacketId.ConnectionAccepted, PacketDirection.ServerToClient),
             [typeof(LoginResult)] = (PacketId.LoginResult, PacketDirection.ServerToClient),
             [typeof(RegisterResult)] = (PacketId.RegisterResult, PacketDirection.ServerToClient),
@@ -30,7 +31,8 @@ public static class PacketRegistry
             [typeof(ServerTimePacket)] = (PacketId.ServerTime, PacketDirection.ServerToClient),
             [typeof(PongPacket)] = (PacketId.Pong, PacketDirection.ServerToClient),
             [typeof(ErrorPacket)] = (PacketId.Error, PacketDirection.ServerToClient),
-            [typeof(PlayerStatsPacket)] = (PacketId.PlayerStats, PacketDirection.ServerToClient)
+            [typeof(PlayerStatsPacket)] = (PacketId.PlayerStats, PacketDirection.ServerToClient),
+            [typeof(CombatDebugPacket)] = (PacketId.CombatDebug, PacketDirection.ServerToClient)
         };
 
     public static (PacketId Id, PacketDirection Direction) Describe(IPacket packet) =>
