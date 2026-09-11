@@ -11,11 +11,7 @@ public abstract class Entity
         if (!position.IsFinite) throw new ArgumentException("Posición inválida.", nameof(position));
         if (visualKey.IsEmpty) throw new ArgumentException("VisualKey vacío.", nameof(visualKey));
         if (string.IsNullOrWhiteSpace(displayName)) throw new ArgumentException("Nombre vacío.", nameof(displayName));
-        Id = id;
-        MapInstanceId = mapInstance;
-        Position = position;
-        VisualKey = visualKey;
-        DisplayName = displayName.Trim();
+        Id = id; MapInstanceId = mapInstance; Position = position; VisualKey = visualKey; DisplayName = displayName.Trim();
     }
 
     public EntityId Id { get; }
@@ -26,11 +22,16 @@ public abstract class Entity
     public ContentKey VisualKey { get; private set; }
     public string DisplayName { get; }
 
+    /// <summary>La física autoritativa usa este perfil; nunca el rectángulo del frame visual.</summary>
+    public EntityCollisionProfile CollisionProfile { get; private set; } = EntityCollisionProfile.Empty;
+
+    public void ConfigureCollision(EntityCollisionProfile profile)
+        => CollisionProfile = profile ?? throw new ArgumentNullException(nameof(profile));
+
     public void MoveTo(Vector2Data position, Vector2Data velocity, Direction? facing = null)
     {
         if (!position.IsFinite || !velocity.IsFinite) throw new ArgumentException("Movimiento inválido.");
-        Position = position;
-        Velocity = velocity;
+        Position = position; Velocity = velocity;
         if (facing is { } value && value != Direction.None) Direction = value;
         else if (MathF.Abs(velocity.X) + MathF.Abs(velocity.Y) > .001f)
             Direction = MathF.Abs(velocity.X) >= MathF.Abs(velocity.Y)
