@@ -1,4 +1,5 @@
 using Godot;
+using NuevoMMO.Core;
 using NuevoMMO.Network;
 
 namespace NuevoMMO.GodotClient;
@@ -23,10 +24,12 @@ public enum FrontendStage
 public partial class FrontendFlowController : CanvasLayer
 {
     private readonly ClientSettingsStore settings = new();
+    private readonly Dictionary<DefinitionId, Button> traditionButtons = [];
     private NetworkBridge? network;
     private FrontendStage stage = FrontendStage.Login;
     private FrontendStage returnFromSettings = FrontendStage.Login;
     private CharacterSummary? selectedCharacter;
+    private TraditionDefinition? selectedTradition;
     private bool waitingForCreatedCharacter;
     private bool settingsOverWorld;
 
@@ -44,6 +47,10 @@ public partial class FrontendFlowController : CanvasLayer
     private Label selectedName = null!;
     private Label selectedLocation = null!;
     private Button enterWorldButton = null!;
+    private Button createCharacterButton = null!;
+    private GridContainer traditionGrid = null!;
+    private Label selectedTraditionName = null!;
+    private Label selectedTraditionDescription = null!;
     private CheckButton fullscreen = null!;
     private HSlider masterVolume = null!;
     private HSlider uiScale = null!;
@@ -64,10 +71,12 @@ public partial class FrontendFlowController : CanvasLayer
         selectedName = GetNode<Label>("Root/ScreenStack/CharacterSelectScreen/Panel/Margin/Content/Body/Stage/SelectedName");
         selectedLocation = GetNode<Label>("Root/ScreenStack/CharacterSelectScreen/Panel/Margin/Content/Body/Stage/SelectedLocation");
         enterWorldButton = GetNode<Button>("Root/ScreenStack/CharacterSelectScreen/Panel/Margin/Content/Actions/EnterWorldButton");
+        createCharacterButton = GetNode<Button>("Root/ScreenStack/CharacterCreateScreen/Panel/Margin/Content/Actions/CreateButton");
         fullscreen = GetNode<CheckButton>("Root/ScreenStack/SettingsScreen/Panel/Margin/Content/Fullscreen");
         masterVolume = GetNode<HSlider>("Root/ScreenStack/SettingsScreen/Panel/Margin/Content/MasterVolume");
         uiScale = GetNode<HSlider>("Root/ScreenStack/SettingsScreen/Panel/Margin/Content/UiScale");
 
+        BuildTraditionPicker();
         WireButtons();
         settings.Load();
         fullscreen.ButtonPressed = settings.Fullscreen;
@@ -117,6 +126,46 @@ public partial class FrontendFlowController : CanvasLayer
         OnLobbyUpdated();
     }
 
+    private void BuildTraditionPicker()
+    {
+        var preview = GetNode<PanelContainer>("Root/ScreenStack/CharacterCreateScreen/Panel/Margin/Content/Preview");
+        var oldPreview = preview.GetNodeOrNull<Label>("PreviewText");
+        if (oldPreview is not null)
+        {
+            preview.RemoveChild(oldPreview);
+            oldPreview.QueueFree();
+        }
+
+        GetNode<Label>("Root/ScreenStack/CharacterCreateScreen/Panel/Margin/Content/Rule").Text =
+            "Elige nombre y Tradición al crear el personaje. No hay selector de raza y el arma no define la clase.";
+        GetNode<Label>("Root/ScreenStack/CharacterCreateScreen/Panel/Margin/Content/AppearanceNotice").Text =
+            "La personalización anatómica/visual se conectará después sin alterar la Tradición elegida.";
+
+        var picker = GD.Load<PackedScene>("res://mmo/presentation/frontend/tradition_picker.tscn").Instantiate<Control>();
+        preview.AddChild(picker);
+        traditionGrid = picker.GetNode<GridContainer>("VBox/TraditionsScroll/TraditionGrid");
+        selectedTraditionName = picker.GetNode<Label>("VBox/Selection/SelectionMargin/SelectionVBox/SelectedTradition");
+        selectedTraditionDescription = picker.GetNode<Label>("VBox/Selection/SelectionMargin/SelectionVBox/TraditionDescription");
+
+        foreach (var tradition in CanonicalTraditions.All)
+        {
+            var current = tradition;
+            var button = new Button
+            {
+                Text = current.Name,
+                ToggleMode = true,
+                CustomMinimumSize = new Vector2(0, 42),
+                SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+                TooltipText = current.Description ?? current.Name
+            };
+            button.Pressed += () => SelectTradition(current);
+            traditionGrid.AddChild(button);
+            traditionButtons[current.Id] = button;
+        }
+
+        ResetTraditionSelection();
+    }
+
     private void WireButtons()
     {
         Button("Root/ScreenStack/LoginScreen/Panel/Margin/Content/LoginButton").Pressed += SubmitLogin;
@@ -136,7 +185,7 @@ public partial class FrontendFlowController : CanvasLayer
         Button("Root/ScreenStack/CharacterSelectScreen/Panel/Margin/Content/Actions/SettingsButton").Pressed += () => OpenSettings(FrontendStage.CharacterSelect);
         Button("Root/ScreenStack/CharacterSelectScreen/Panel/Margin/Content/Actions/LogoutButton").Pressed += Logout;
 
-        Button("Root/ScreenStack/CharacterCreateScreen/Panel/Margin/Content/Actions/CreateButton").Pressed += CreateCharacter;
+        createCharacterButton.Pressed += CreateCharacter;
         Button("Root/ScreenStack/CharacterCreateScreen/Panel/Margin/Content/Actions/BackButton").Pressed += () => ShowStage(FrontendStage.CharacterSelect);
 
         Button("Root/ScreenStack/SettingsScreen/Panel/Margin/Content/BackButton").Pressed += CloseSettings;
@@ -199,9 +248,37 @@ public partial class FrontendFlowController : CanvasLayer
             globalStatus.Text = "El nombre debe tener entre 2 y 24 caracteres.";
             return;
         }
+        if (selectedTradition is null)
+        {
+            globalStatus.Text = "Debes elegir una Tradición.";
+            return;
+        }
         waitingForCreatedCharacter = true;
-        network.CreateCharacter(name);
-        globalStatus.Text = "Creando personaje…";
+        network.CreateCharacter(name, selectedTradition.Id);
+        globalStatus.Text = $"Creando {name} · {selectedTradition.Name}…";
+    }
+
+    private void SelectTradition(TraditionDefinition tradition)
+    {
+        selectedTradition = tradition;
+        foreach (var pair in traditionButtons)
+            pair.Value.ButtonPressed = pair.Key == tradition.Id;
+        selectedTraditionName.Text = tradition.Name;
+        selectedTraditionDescription.Text = tradition.Description ?? string.Empty;
+        createCharacterButton.Disabled = false;
+    }
+
+    private void ResetTraditionSelection()
+    {
+        selectedTradition = null;
+        foreach (var button in traditionButtons.Values)
+            button.ButtonPressed = false;
+        if (selectedTraditionName is not null)
+            selectedTraditionName.Text = "Ninguna Tradición seleccionada";
+        if (selectedTraditionDescription is not null)
+            selectedTraditionDescription.Text = "Selecciona una de las diez Tradiciones para continuar.";
+        if (createCharacterButton is not null)
+            createCharacterButton.Disabled = true;
     }
 
     private void EnterWorld()
@@ -304,11 +381,15 @@ public partial class FrontendFlowController : CanvasLayer
 
         foreach (var character in network.Characters)
         {
+            var traditionName = CanonicalTraditions.DisplayName(character.TraditionId);
             var button = new Button
             {
-                Text = character.Name,
-                CustomMinimumSize = new Vector2(0, 56),
-                FocusMode = Control.FocusModeEnum.All
+                Text = $"{character.Name}\n{traditionName}",
+                CustomMinimumSize = new Vector2(0, 64),
+                FocusMode = Control.FocusModeEnum.All,
+                TooltipText = character.TraditionId.IsEmpty
+                    ? "Personaje creado antes de la selección de Tradición en creación."
+                    : traditionName
             };
             button.Pressed += () => SelectCharacter(character);
             characterList.AddChild(button);
@@ -321,7 +402,8 @@ public partial class FrontendFlowController : CanvasLayer
     {
         selectedCharacter = character;
         selectedName.Text = character.Name;
-        selectedLocation.Text = $"Ubicación: {character.MapDefinition.Value}";
+        selectedLocation.Text =
+            $"Tradición: {CanonicalTraditions.DisplayName(character.TraditionId)}\nUbicación: {character.MapDefinition.Value}";
         enterWorldButton.Disabled = false;
     }
 
@@ -342,6 +424,12 @@ public partial class FrontendFlowController : CanvasLayer
 
     private void ShowStage(FrontendStage next)
     {
+        if (next == FrontendStage.CharacterCreate && stage != FrontendStage.CharacterCreate)
+        {
+            ResetTraditionSelection();
+            GetNode<LineEdit>("Root/ScreenStack/CharacterCreateScreen/Panel/Margin/Content/Name").Text = string.Empty;
+        }
+
         stage = next;
         loginScreen.Visible = next == FrontendStage.Login;
         registerScreen.Visible = next == FrontendStage.Register;
