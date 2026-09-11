@@ -148,7 +148,8 @@ public sealed record TechniqueActionDefinition
         Vector2Data? destination = null,
         Dictionary<StatId, float>? scaling = null,
         Dictionary<string, float>? parameters = null,
-        Dictionary<string, string>? metadata = null)
+        Dictionary<string, string>? metadata = null,
+        TechniqueActionDefinition[]? payloadActions = null)
     {
         if (!float.IsFinite(amount)) throw new ArgumentOutOfRangeException(nameof(amount));
         if (!float.IsFinite(distance) || distance < 0) throw new ArgumentOutOfRangeException(nameof(distance));
@@ -165,6 +166,12 @@ public sealed record TechniqueActionDefinition
         if (kind == TechniqueActionKind.Teleport && destinationMapId is null && destination is null)
             throw new ArgumentException("Teleport requiere DestinationMapId y/o Destination.");
 
+        var payload = payloadActions?.ToArray() ?? [];
+        if (payload.Any(static action => action is null))
+            throw new ArgumentException("PayloadActions no puede contener acciones nulas.", nameof(payloadActions));
+        if (payload.Length > 64)
+            throw new ArgumentException("PayloadActions excede el máximo de 64 acciones.", nameof(payloadActions));
+
         Kind = kind;
         Moment = moment;
         Amount = amount;
@@ -179,6 +186,7 @@ public sealed record TechniqueActionDefinition
         Scaling = DefinitionModelGuards.CopyFinite(scaling, nameof(scaling));
         Parameters = DefinitionModelGuards.CopyFinite(parameters, nameof(parameters));
         Metadata = DefinitionCollectionGuards.CopyText(metadata, nameof(metadata));
+        PayloadActions = payload;
     }
 
     public TechniqueActionKind Kind { get; }
@@ -195,4 +203,11 @@ public sealed record TechniqueActionDefinition
     public Dictionary<StatId, float> Scaling { get; }
     public Dictionary<string, float> Parameters { get; }
     public Dictionary<string, string> Metadata { get; }
+
+    /// <summary>
+    /// Acciones que pertenecen a la entidad/efecto creado por esta acción. Un proyectil las ejecuta
+    /// al impactar; una zona puede ejecutarlas en sus pulsos. Permite combinar daño, efectos,
+    /// desplazamiento y otras mecánicas sin hardcodear comportamiento en Projectile/WorldRuntime.
+    /// </summary>
+    public TechniqueActionDefinition[] PayloadActions { get; }
 }
