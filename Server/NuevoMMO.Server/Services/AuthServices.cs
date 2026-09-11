@@ -76,15 +76,25 @@ public sealed class CharacterService(ICharacterRepository characters, MapDefinit
         AccountId account,
         string name,
         DefinitionId traditionId,
+        CharacterAppearance appearance,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(name) || name.Length > 24 || name.Any(char.IsControl))
             throw new ArgumentException("Nombre de personaje inválido.");
         if (!CanonicalTraditions.IsSelectable(traditionId))
             throw new ArgumentException("Tradición inválida o no seleccionable.", nameof(traditionId));
-        return await characters.CreateAsync(account, name.Trim(), map.Id, map.Spawn, traditionId, cancellationToken);
+        if (!CanonicalCharacterAppearance.IsSupported(appearance))
+            throw new ArgumentException("La apariencia contiene piezas que aún no están publicadas en el catálogo.", nameof(appearance));
+        return await characters.CreateAsync(account, name.Trim(), map.Id, map.Spawn, traditionId, appearance, cancellationToken);
     }
 
+    public Task<CharacterRecord> CreateAsync(
+        AccountId account,
+        string name,
+        DefinitionId traditionId,
+        CancellationToken cancellationToken = default)
+        => CreateAsync(account, name, traditionId, CanonicalCharacterAppearance.Default, cancellationToken);
+
     public static CharacterSummary ToSummary(CharacterRecord record)
-        => new(record.Id, record.Name, record.MapDefinition, record.Position, record.TraditionId);
+        => new(record.Id, record.Name, record.MapDefinition, record.Position, record.TraditionId, record.Appearance);
 }
