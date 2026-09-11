@@ -45,6 +45,46 @@ internal static class CollisionVerification
         Check(SemanticCollisionService.IsWithinInteractionReach(source, target, 1), "Collision: InteractionShape independiente del fallback");
         Check(SemanticCollisionService.AnyHitboxTouchesAnyHurtbox(source, target), "Collision: Hitbox consulta Hurtbox");
         Check(SemanticCollisionService.NavigationClearance(source) == 3, "Collision: NavigationRadius separado");
+
+        VerifyMapCollisionRuntime();
+    }
+
+    private static void VerifyMapCollisionRuntime()
+    {
+        var wall = new MapCollisionDefinition(
+            Guid.NewGuid(),
+            new MapShapeDefinition(MapShapeKind.Rectangle, new(10, 20), new(4, 20)),
+            blocksMovement: true,
+            blocksProjectiles: true,
+            blocksVision: false,
+            navigationObstacle: true);
+        var concave = new MapCollisionDefinition(
+            Guid.NewGuid(),
+            new MapShapeDefinition(MapShapeKind.Polygon, new(25, 25), points:
+            [new(22,22), new(30,22), new(30,30), new(26,26), new(22,30)]));
+        var map = new MapDefinition(
+            DefinitionId.New(), new("maps.collision.verify"), "Collision Verify", "", true, 1, null,
+            new("maps.collision.verify.visual"), new(new(0,0), new(40,40)), new(4,4), new(32,32),
+            new MapContentDefinition(collisions: [wall, concave]));
+
+        var compiledConcave = MapCollisionShapeCompiler.Compile(concave.Shape);
+        Check(compiledConcave is CompoundCollisionShape, "Collision: polígono cóncavo se compila a collider compuesto");
+
+        var runtime = MapCollisionRuntime.For(map);
+        var mover = new CircleCollisionShape(1);
+        Check(runtime.BlocksMovement(mover, new(7.5f,20)), "Collision: MapCollisionDefinition bloquea volumen de movimiento");
+        Check(!runtime.BlocksMovement(mover, new(6,20)), "Collision: broadphase no crea falsos positivos");
+        Check(runtime.BlocksProjectile(null, new(10,20)), "Collision: BlocksProjectiles usa la misma geometría de mapa");
+        Check(!runtime.BlocksVision(null, new(10,20)), "Collision: flags semánticos de mapa permanecen separados");
+        Check(runtime.IsNavigationObstacle(null, new(10,20)), "Collision: NavigationObstacle disponible para pathfinding");
+
+        var projectile = new Projectile(
+            new EntityId(99), null, new EntityId(1), null, new MapInstanceId(1),
+            new Vector2Data(2,20), Vector2Data.Right, 200, 100, 1000, 1,
+            new ContentKey("template.player"), "Projectile verify");
+        var projectileStep = new ProjectileSystem().Step(projectile, map, 50);
+        Check(projectileStep.Expired && projectile.Position.X < 9,
+            "Collision: proyectil no atraviesa BlocksProjectiles a alta velocidad");
     }
 
     private static Player PlayerAt(long id, Vector2Data position, string name)
