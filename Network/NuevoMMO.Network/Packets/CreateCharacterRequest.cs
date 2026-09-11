@@ -31,7 +31,7 @@ public sealed class CreateCharacterRequest(
     {
         ArgumentNullException.ThrowIfNull(value);
         if (!CanonicalCharacterAppearance.IsSupported(value))
-            throw new ArgumentException("La apariencia todavía no está publicada en el catálogo del cliente/servidor.", nameof(appearance));
+            throw new ArgumentException("La apariencia todavía no está publicada en el catálogo del cliente/servidor.", nameof(value));
         return value;
     }
 }
