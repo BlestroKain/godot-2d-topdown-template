@@ -2,12 +2,6 @@ using NuevoMMO.Core;
 
 namespace NuevoMMO.Client;
 
-public sealed class ClientEntity
-{
-    public required EntityId Id { get; init; }
-    public required EntityState State { get; set; }
-}
-
 public sealed class ClientEntityManager
 {
     private readonly Dictionary<EntityId, ClientEntity> entities = [];
@@ -15,17 +9,42 @@ public sealed class ClientEntityManager
 
     public ClientEntity Spawn(EntityState state)
     {
-        var entity = new ClientEntity { Id = state.Id, State = state };
+        ArgumentNullException.ThrowIfNull(state);
+        var entity = ClientEntityFactory.FromState(state);
         entities[state.Id] = entity;
         return entity;
     }
 
     public bool Despawn(EntityId id) => entities.Remove(id);
+
     public void UpdateState(EntityState state)
     {
-        if (entities.TryGetValue(state.Id, out var entity)) entity.State = state;
-        else Spawn(state);
+        ArgumentNullException.ThrowIfNull(state);
+        if (entities.TryGetValue(state.Id, out var entity) && entity.Kind == state.Kind)
+        {
+            entity.State = state;
+            return;
+        }
+
+        Spawn(state);
     }
-    public ClientEntity Get(EntityId id) => entities[id];
+
+    public bool TryGet(EntityId id, out ClientEntity? entity) => entities.TryGetValue(id, out entity);
+
+    public ClientEntity Get(EntityId id)
+        => entities.TryGetValue(id, out var entity) ? entity : throw new KeyNotFoundException("Entidad cliente inexistente.");
+
+    public T Get<T>(EntityId id) where T : ClientEntity
+        => Get(id) as T ?? throw new InvalidCastException($"La entidad {id} no es {typeof(T).Name}.");
+
+    public void SyncFromCache(EntityStateCache cache)
+    {
+        ArgumentNullException.ThrowIfNull(cache);
+        foreach (var id in entities.Keys.Where(id => !cache.Contains(id)).ToArray())
+            Despawn(id);
+        foreach (var state in cache.All.Values)
+            UpdateState(state);
+    }
+
     public void ClearMap() => entities.Clear();
 }

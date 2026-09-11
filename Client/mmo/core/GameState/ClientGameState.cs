@@ -13,6 +13,10 @@ public class ClientGameState
     public MapState Map { get; } = new();
     public InventoryState Inventory { get; } = new();
     public PartyState Party { get; } = new();
+    public ChatState Chat { get; } = new();
+    public ClientEntityManager WorldEntities { get; } = new();
+    public ClientMap? ClientMap { get; private set; }
+    public GameFlowState Flow { get; private set; } = GameFlowState.Disconnected;
     public LocalMovementPrediction? Predictor => Local.Prediction;
     public long LastTick { get; private set; } = -1;
     public double LastSnapshotTime { get; private set; }
@@ -26,6 +30,9 @@ public class ClientGameState
         Session.Map = packet.Map;
         Map.Projection = packet.Map;
         Local.Id = packet.Self;
+        ClientMap = new ClientMap(packet.Map);
+        Flow = GameFlowState.Loading;
+        Chat.Append(ChatChannel.System, "Entrando al mundo…");
     }
 
     public void Apply(PlayerStatsPacket packet)
@@ -54,6 +61,10 @@ public class ClientGameState
         LastTick = snapshot.Tick;
         LastSnapshotTime = localTime;
         MaxVisibleCount = Math.Max(MaxVisibleCount, Entities.All.Count);
+        WorldEntities.SyncFromCache(Entities);
+        if (WorldEntities.TryGet(Session.Self, out var self) && self is ClientPlayer player)
+            Local.Entity = player;
+        Flow = GameFlowState.InWorld;
     }
 
     public Vector2Data SampleRemote(EntityId id, double localTime)
@@ -72,6 +83,11 @@ public class ClientGameState
         Local.Stats = null;
         Inventory.Clear();
         Party.Clear();
+        Chat.Clear();
+        WorldEntities.ClearMap();
+        ClientMap = null;
+        Local.ClearRuntime();
+        Flow = GameFlowState.Disconnected;
         receivedFull = false;
         LastTick = -1;
         MaxVisibleCount = 0;

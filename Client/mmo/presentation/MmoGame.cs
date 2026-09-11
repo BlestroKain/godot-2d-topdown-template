@@ -8,6 +8,7 @@ public partial class MmoGame : Node2D
 {
     public NetworkBridge Network { get; private set; } = null!;
     private WorldPresentation world = null!;
+    private GameHud gameHud = null!;
     private LineEdit host = null!, username = null!, password = null!;
     private Label status = null!, details = null!, statsText = null!, statsNotice = null!, combatText = null!;
     private Button login = null!, register = null!, disconnect = null!;
@@ -23,6 +24,7 @@ public partial class MmoGame : Node2D
         RenderingServer.SetDefaultClearColor(new Color("121c24"));
         Network = new(); AddChild(Network);
         world = new(); AddChild(world);
+        gameHud = new(); AddChild(gameHud);
         BuildUi(); RegisterInput();
     }
 
@@ -141,6 +143,8 @@ public partial class MmoGame : Node2D
             statsNotice.Text = "No hay un mob visible en alcance.";
             return;
         }
+        Network.World.Local.Target.Set(candidate);
+        Network.World.Local.Entity?.TryTarget(candidate.Id);
         Network.DevelopmentAttack(candidate.Id, attack);
     }
 
@@ -164,6 +168,9 @@ public partial class MmoGame : Node2D
         RegisterAction("mmo_hotkey_4", Key.Key4);
         RegisterAction("mmo_hotkey_5", Key.Key5);
         RegisterAction("mmo_hotkey_6", Key.Key6);
+        RegisterAction("mmo_inventory", Key.I);
+        RegisterAction("mmo_character", Key.C);
+        RegisterAction("mmo_escape", Key.Escape);
     }
 
     private static void RegisterAction(string action, params Key[] keys)
@@ -184,6 +191,9 @@ public partial class MmoGame : Node2D
                 AttackVisibleMob(DevelopmentAttackKind.Basic, targetDummy: false);
             else if (inputs.Hotkeys.ReadCombatHotkey(inputs.Bindings) is { } hotkey)
                 AttackVisibleMob(hotkey, targetDummy: true);
+            if (Input.IsActionJustPressed("mmo_inventory")) gameHud.ToggleInventory();
+            if (Input.IsActionJustPressed("mmo_character")) gameHud.ToggleCharacter();
+            if (Input.IsActionJustPressed("mmo_escape")) gameHud.ToggleEscape();
         }
         if (Network.World.Session.Map is { } map && Network.InWorld)
         {
@@ -195,6 +205,7 @@ public partial class MmoGame : Node2D
         }
         else { accumulator = 0; world.Present(Network.World, Vector2.Zero, 0); }
         status.Text = Network.Status;
+        gameHud.Present(Network);
         RefreshStats();
         RefreshCombat();
         var busy = Network.Status.StartsWith("Conectando", StringComparison.Ordinal)

@@ -25,11 +25,13 @@ public partial class WorldPresentation : Node2D
         foreach (var id in views.Keys.Where(id => !state.Entities.All.ContainsKey(id)).ToArray()) { views[id].QueueFree(); views.Remove(id); }
         foreach (var entity in state.Entities.All.Values)
         {
-            if (entity.VisualKey.Value != "template.player") continue;
             var local = entity.Id == state.Session.Self;
             if (!views.TryGetValue(entity.Id, out var view))
             {
-                view = new(); view.Initialize(assets.PlayerFrames(), local); AddChild(view); views.Add(entity.Id, view);
+                view = new();
+                view.Initialize(assets.PlayerFrames(), local);
+                AddChild(view);
+                views.Add(entity.Id, view);
             }
             var position = local ? state.Predictor.Preview(input.X, input.Y, fraction) : state.SampleRemote(entity.Id, NetworkBridge.Now);
             var motion = local ? input : new Vector2(entity.Velocity.X, entity.Velocity.Y);
