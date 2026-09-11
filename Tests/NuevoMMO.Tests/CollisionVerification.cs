@@ -61,7 +61,7 @@ internal static class CollisionVerification
         var concave = new MapCollisionDefinition(
             Guid.NewGuid(),
             new MapShapeDefinition(MapShapeKind.Polygon, new(25, 25), points:
-            [new(22,22), new(30,22), new(30,30), new(26,26), new(22,30)]));
+            [new(-3,-3), new(5,-3), new(5,5), new(1,1), new(-3,5)]));
         var map = new MapDefinition(
             DefinitionId.New(), new("maps.collision.verify"), "Collision Verify", "", true, 1, null,
             new("maps.collision.verify.visual"), new(new(0,0), new(40,40)), new(4,4), new(32,32),
@@ -69,11 +69,16 @@ internal static class CollisionVerification
 
         var compiledConcave = MapCollisionShapeCompiler.Compile(concave.Shape);
         Check(compiledConcave is CompoundCollisionShape, "Collision: polígono cóncavo se compila a collider compuesto");
+        var concaveBounds = compiledConcave.BoundsAt(default);
+        Check(MathF.Abs(concaveBounds.Left - 22) < .001f && MathF.Abs(concaveBounds.Top - 22) < .001f &&
+              MathF.Abs(concaveBounds.Right - 30) < .001f && MathF.Abs(concaveBounds.Bottom - 30) < .001f,
+            "Collision: puntos de polígono son locales respecto a Center");
 
         var runtime = MapCollisionRuntime.For(map);
         var mover = new CircleCollisionShape(1);
         Check(runtime.BlocksMovement(mover, new(7.5f,20)), "Collision: MapCollisionDefinition bloquea volumen de movimiento");
         Check(!runtime.BlocksMovement(mover, new(6,20)), "Collision: broadphase no crea falsos positivos");
+        Check(runtime.BlocksMovement(null, new(24,24)), "Collision: runtime respeta offset Center de polígono");
         Check(runtime.BlocksProjectile(null, new(10,20)), "Collision: BlocksProjectiles usa la misma geometría de mapa");
         Check(!runtime.BlocksVision(null, new(10,20)), "Collision: flags semánticos de mapa permanecen separados");
         Check(runtime.IsNavigationObstacle(null, new(10,20)), "Collision: NavigationObstacle disponible para pathfinding");
