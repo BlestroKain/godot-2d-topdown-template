@@ -23,7 +23,15 @@ public sealed class CreateCharacterRequest(
     public string SessionToken { get; } = sessionToken;
     public string Name { get; } = name;
     public DefinitionId TraditionId { get; } = traditionId;
-    public CharacterAppearance Appearance { get; } = appearance ?? throw new ArgumentNullException(nameof(appearance));
+    public CharacterAppearance Appearance { get; } = Validate(appearance);
     public override string ToString() =>
         $"CreateCharacterRequest {{ Session = {Session}, SessionToken = [REDACTED], Name = {Name}, TraditionId = {TraditionId}, BaseVisual = {Appearance.BaseVisual} }}";
+
+    private static CharacterAppearance Validate(CharacterAppearance value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        if (!CanonicalCharacterAppearance.IsSupported(value))
+            throw new ArgumentException("La apariencia todavía no está publicada en el catálogo del cliente/servidor.", nameof(appearance));
+        return value;
+    }
 }
