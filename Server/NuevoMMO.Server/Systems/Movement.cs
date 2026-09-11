@@ -71,25 +71,31 @@ public sealed class MobMovementSystem(float speed, int tickMilliseconds, IMobMov
     public void Step(Mob mob, MapDefinition map, long tick)
     {
         var seconds = tickMilliseconds / 1000f;
-        StepDirection(mob, map, policy.NextVelocity(mob, tick, seconds));
+        var direction = mob.CombatState.InCombat ? default : policy.NextVelocity(mob, tick, seconds);
+        ApplyDirection(mob, map, direction, speed, tickMilliseconds);
     }
 
-    /// <summary>
-    /// Ejecuta una intención de movimiento ya resuelta por IA. La dirección se normaliza y el
-    /// desplazamiento continúa usando el mismo pipeline autoritativo de límites/colisión.
-    /// </summary>
     public void StepDirection(Mob mob, MapDefinition map, Vector2Data direction)
+        => ApplyDirection(mob, map, direction, speed, tickMilliseconds);
+
+    /// <summary>
+    /// Ejecuta una intención de movimiento ya resuelta por IA usando el mismo pipeline autoritativo
+    /// de límites/colisión que el movimiento de wander.
+    /// </summary>
+    public static void ApplyDirection(Mob mob, MapDefinition map, Vector2Data direction, float movementSpeed, int deltaMilliseconds)
     {
         ArgumentNullException.ThrowIfNull(mob);
         ArgumentNullException.ThrowIfNull(map);
         if (!direction.IsFinite) throw new ArgumentException("Dirección de mob no finita.", nameof(direction));
+        if (!float.IsFinite(movementSpeed) || movementSpeed < 0) throw new ArgumentOutOfRangeException(nameof(movementSpeed));
+        if (deltaMilliseconds <= 0) throw new ArgumentOutOfRangeException(nameof(deltaMilliseconds));
 
-        var seconds = tickMilliseconds / 1000f;
+        var seconds = deltaMilliseconds / 1000f;
         var length = MathF.Sqrt(direction.LengthSquared);
         var scale = length > 1 ? 1 / length : 1;
         var before = mob.Position;
-        var desired = map.Bounds.Clamp(new(before.X + direction.X * scale * speed * seconds,
-            before.Y + direction.Y * scale * speed * seconds));
+        var desired = map.Bounds.Clamp(new(before.X + direction.X * scale * movementSpeed * seconds,
+            before.Y + direction.Y * scale * movementSpeed * seconds));
         var after = MovementSystem.IsBlocked(map, desired) ? before : desired;
         mob.MoveTo(after, new((after.X - before.X) / seconds, (after.Y - before.Y) / seconds));
     }
