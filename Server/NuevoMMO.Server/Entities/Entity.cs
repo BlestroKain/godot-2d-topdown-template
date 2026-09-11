@@ -26,7 +26,10 @@ public abstract class Entity
     public EntityCollisionProfile CollisionProfile { get; private set; } = EntityCollisionProfile.Empty;
 
     public void ConfigureCollision(EntityCollisionProfile profile)
-        => CollisionProfile = profile ?? throw new ArgumentNullException(nameof(profile));
+    {
+        CollisionProfile = profile ?? throw new ArgumentNullException(nameof(profile));
+        EntityCollisionIndex.Update(this);
+    }
 
     public void MoveTo(Vector2Data position, Vector2Data velocity, Direction? facing = null)
     {
@@ -37,12 +40,14 @@ public abstract class Entity
             Direction = MathF.Abs(velocity.X) >= MathF.Abs(velocity.Y)
                 ? (velocity.X < 0 ? Direction.Left : Direction.Right)
                 : (velocity.Y < 0 ? Direction.Up : Direction.Down);
+        EntityCollisionIndex.Update(this);
     }
 
     public void SetMapInstance(MapInstanceId mapInstance)
     {
         if (mapInstance.Value <= 0) throw new ArgumentException("MapInstanceId inválido.", nameof(mapInstance));
         MapInstanceId = mapInstance;
+        EntityCollisionIndex.Update(this);
     }
 
     protected void SetVisualKey(ContentKey visualKey)
