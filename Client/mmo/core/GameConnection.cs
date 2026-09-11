@@ -41,7 +41,7 @@ public sealed class GameConnection : IDisposable
         await LoginAsync(username, password);
         var list = await ListCharactersAsync();
         var character = list.Characters.Length == 0
-            ? (await CreateCharacterAsync(username)).Character
+            ? (await CreateCharacterAsync(username, CanonicalTraditions.Veyrkan.Id)).Character
             : list.Characters[0];
         await EnterWorldAsync(character.Id);
     }
@@ -95,11 +95,16 @@ public sealed class GameConnection : IDisposable
         return result;
     }
 
-    public async Task<CharacterCreated> CreateCharacterAsync(string name)
+    public Task<CharacterCreated> CreateCharacterAsync(string name)
+        => CreateCharacterAsync(name, CanonicalTraditions.Veyrkan.Id);
+
+    public async Task<CharacterCreated> CreateCharacterAsync(string name, DefinitionId traditionId)
     {
         DemandAuthenticatedLobby();
+        if (!CanonicalTraditions.IsSelectable(traditionId))
+            throw new ArgumentException("Tradición inválida o no seleccionable.", nameof(traditionId));
         using var timeout = LobbyTimeout();
-        await WriteAsync(new CreateCharacterRequest(session, sessionToken, name), timeout.Token);
+        await WriteAsync(new CreateCharacterRequest(session, sessionToken, name, traditionId), timeout.Token);
         var result = await ReadExpectedAsync<CharacterCreated>(timeout.Token, "Creación de personaje inválida.");
         Message?.Invoke(result);
         return result;
