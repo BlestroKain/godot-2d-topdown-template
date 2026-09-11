@@ -13,7 +13,8 @@ public static class SqliteProgressionMigrator
         ("spirit", "INTEGER NOT NULL DEFAULT 10"),
         ("vitality", "INTEGER NOT NULL DEFAULT 10"),
         ("current_health", "INTEGER NULL"),
-        ("current_mana", "INTEGER NULL")
+        ("current_mana", "INTEGER NULL"),
+        ("tradition_id", "TEXT NOT NULL DEFAULT ''")
     ];
 
     public static async Task ApplyAsync(string playersDatabasePath, CancellationToken cancellationToken = default)
