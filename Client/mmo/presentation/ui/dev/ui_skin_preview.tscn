@@ -1,0 +1,174 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Theme" path="res://mmo/presentation/ui/theme/mmo_ui_theme.tres" id="1"]
+[ext_resource type="Script" path="res://mmo/presentation/ui/components/UiTabBar.cs" id="2"]
+[ext_resource type="Script" path="res://mmo/presentation/ui/components/UiSlotGrid.cs" id="3"]
+[ext_resource type="PackedScene" path="res://mmo/presentation/ui/components/ui_slot.tscn" id="4"]
+
+[node name="UiSkinPreview" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.018, 0.025, 0.03, 1)
+
+[node name="Window" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -470.0
+offset_top = -300.0
+offset_right = 470.0
+offset_bottom = 300.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("1")
+theme_type_variation = &"UiWindowPanel"
+
+[node name="Margin" type="MarginContainer" parent="Window"]
+layout_mode = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 18
+
+[node name="VBox" type="VBoxContainer" parent="Window/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Header" type="HBoxContainer" parent="Window/Margin/VBox"]
+layout_mode = 2
+[node name="Crest" type="Label" parent="Window/Margin/VBox/Header"]
+layout_mode = 2
+text = "✦"
+theme_override_colors/font_color = Color(0.25, 0.80, 0.85, 1)
+theme_override_font_sizes/font_size = 30
+[node name="Title" type="Label" parent="Window/Margin/VBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Galería de Skin · Tecnomagia"
+theme_override_font_sizes/font_size = 30
+[node name="Close" type="Button" parent="Window/Margin/VBox/Header"]
+layout_mode = 2
+text = "×"
+
+[node name="Separator" type="HSeparator" parent="Window/Margin/VBox"]
+layout_mode = 2
+
+[node name="Tabs" type="HBoxContainer" parent="Window/Margin/VBox"]
+layout_mode = 2
+script = ExtResource("2")
+[node name="Tab1" type="Button" parent="Window/Margin/VBox/Tabs"]
+layout_mode = 2
+size_flags_horizontal = 3
+button_pressed = true
+text = "General"
+[node name="Tab2" type="Button" parent="Window/Margin/VBox/Tabs"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Equipo"
+[node name="Tab3" type="Button" parent="Window/Margin/VBox/Tabs"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Materiales"
+[node name="Tab4" type="Button" parent="Window/Margin/VBox/Tabs"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Especial"
+
+[node name="Body" type="HBoxContainer" parent="Window/Margin/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 12
+
+[node name="Left" type="PanelContainer" parent="Window/Margin/VBox/Body"]
+layout_mode = 2
+size_flags_horizontal = 3
+[node name="VBox" type="VBoxContainer" parent="Window/Margin/VBox/Body/Left"]
+layout_mode = 2
+theme_override_constants/separation = 9
+[node name="Label" type="Label" parent="Window/Margin/VBox/Body/Left/VBox"]
+layout_mode = 2
+text = "Componentes"
+theme_override_font_sizes/font_size = 22
+[node name="Buttons" type="HBoxContainer" parent="Window/Margin/VBox/Body/Left/VBox"]
+layout_mode = 2
+[node name="Normal" type="Button" parent="Window/Margin/VBox/Body/Left/VBox/Buttons"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Normal"
+[node name="Selected" type="Button" parent="Window/Margin/VBox/Body/Left/VBox/Buttons"]
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+button_pressed = true
+text = "Activo"
+[node name="Disabled" type="Button" parent="Window/Margin/VBox/Body/Left/VBox/Buttons"]
+layout_mode = 2
+size_flags_horizontal = 3
+disabled = true
+text = "Bloqueado"
+[node name="Field" type="LineEdit" parent="Window/Margin/VBox/Body/Left/VBox"]
+layout_mode = 2
+placeholder_text = "Campo de búsqueda..."
+[node name="SlotsTitle" type="Label" parent="Window/Margin/VBox/Body/Left/VBox"]
+layout_mode = 2
+text = "Slots reutilizables"
+[node name="Slots" type="GridContainer" parent="Window/Margin/VBox/Body/Left/VBox"]
+layout_mode = 2
+script = ExtResource("3")
+GridColumns = 6
+SlotCount = 12
+SlotScene = ExtResource("4")
+
+[node name="Right" type="PanelContainer" parent="Window/Margin/VBox/Body"]
+custom_minimum_size = Vector2(330, 0)
+layout_mode = 2
+[node name="VBox" type="VBoxContainer" parent="Window/Margin/VBox/Body/Right"]
+layout_mode = 2
+theme_override_constants/separation = 10
+[node name="Label" type="Label" parent="Window/Margin/VBox/Body/Right/VBox"]
+layout_mode = 2
+text = "Estados y lectura"
+theme_override_font_sizes/font_size = 22
+[node name="HealthLabel" type="Label" parent="Window/Margin/VBox/Body/Right/VBox"]
+layout_mode = 2
+text = "HP 1.820 / 2.450"
+[node name="Health" type="ProgressBar" parent="Window/Margin/VBox/Body/Right/VBox"]
+custom_minimum_size = Vector2(0, 24)
+layout_mode = 2
+theme_type_variation = &"HealthBar"
+show_percentage = false
+value = 74.0
+[node name="ManaLabel" type="Label" parent="Window/Margin/VBox/Body/Right/VBox"]
+layout_mode = 2
+text = "PM 410 / 620"
+[node name="Mana" type="ProgressBar" parent="Window/Margin/VBox/Body/Right/VBox"]
+custom_minimum_size = Vector2(0, 24)
+layout_mode = 2
+theme_type_variation = &"ManaBar"
+show_percentage = false
+value = 66.0
+[node name="Separator" type="HSeparator" parent="Window/Margin/VBox/Body/Right/VBox"]
+layout_mode = 2
+[node name="Copy" type="Label" parent="Window/Margin/VBox/Body/Right/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+text = "Metal oscuro + cobre envejecido\nAcentos Malden en cian\nFondos azul petróleo\nBordes fuertes y poco ornamento\n\nEl contenido sigue siendo Control real de Godot, no una imagen plana."
+autowrap_mode = 2
+[node name="FooterButton" type="Button" parent="Window/Margin/VBox/Body/Right/VBox"]
+layout_mode = 2
+text = "Confirmar"
