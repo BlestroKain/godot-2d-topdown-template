@@ -34,25 +34,24 @@ public sealed class MovementSystem(float speed, int tickMilliseconds)
     public float Speed { get; } = float.IsFinite(speed) && speed > 0 ? speed : throw new ArgumentException("Velocidad inválida.");
     public int TickMilliseconds { get; } = tickMilliseconds is >= 10 and <= 1000 ? tickMilliseconds : throw new ArgumentException("Tick inválido.");
 
-    public void Step(Player player, MapDefinition map)
+    public void Step(Player player, MapDefinition map, Func<Vector2Data, bool>? additionalBlockedAt = null)
     {
         var before = player.Position;
         if (!player.Inputs.TryTake(out var input)) { player.ApplyMovement(before, default); return; }
         var length = MathF.Sqrt(input.X * input.X + input.Y * input.Y); var scale = length > 1 ? 1 / length : 1;
         var seconds = TickMilliseconds / 1000f;
         var delta = new Vector2Data(input.X * scale * Speed * seconds, input.Y * scale * Speed * seconds);
-        var motion = MotionSolver2D.Resolve(before, delta, map.Bounds, player.CollisionProfile.MovementCollider,
-            position => IsBlocked(map, position));
+        var movementCollider = player.CollisionProfile.MovementCollider;
+        var motion = MotionSolver2D.Resolve(before, delta, map.Bounds, movementCollider,
+            position => IsBlocked(map, position, movementCollider) || (additionalBlockedAt?.Invoke(position) ?? false));
         var after = motion.Final;
         player.ApplyMovement(after, new((after.X - before.X) / seconds, (after.Y - before.Y) / seconds));
     }
 
-    public static bool IsBlocked(MapDefinition map, Vector2Data position)
+    public static bool IsBlocked(MapDefinition map, Vector2Data position, CollisionShape? movementCollider = null)
     {
-        // Hook de colisión estática. La geometría de mapa data-driven se conectará aquí;
-        // Bounds ya se resuelven volumétricamente en MotionSolver2D.
-        _ = map;
-        return !position.IsFinite;
+        ArgumentNullException.ThrowIfNull(map);
+        return !position.IsFinite || MapCollisionRuntime.For(map).BlocksMovement(movementCollider, position);
     }
 }
 
@@ -66,17 +65,23 @@ public sealed class StationaryAwareMobPolicy(IMobMovementPolicy moving) : IMobMo
 
 public sealed class MobMovementSystem(float speed, int tickMilliseconds, IMobMovementPolicy policy)
 {
-    public void Step(Mob mob, MapDefinition map, long tick)
+    public void Step(Mob mob, MapDefinition map, long tick, Func<Vector2Data, bool>? additionalBlockedAt = null)
     {
         var seconds = tickMilliseconds / 1000f;
         var direction = mob.CombatState.InCombat ? default : policy.NextVelocity(mob, tick, seconds);
-        ApplyDirection(mob, map, direction, speed, tickMilliseconds);
+        ApplyDirection(mob, map, direction, speed, tickMilliseconds, additionalBlockedAt);
     }
 
-    public void StepDirection(Mob mob, MapDefinition map, Vector2Data direction)
-        => ApplyDirection(mob, map, direction, speed, tickMilliseconds);
+    public void StepDirection(Mob mob, MapDefinition map, Vector2Data direction, Func<Vector2Data, bool>? additionalBlockedAt = null)
+        => ApplyDirection(mob, map, direction, speed, tickMilliseconds, additionalBlockedAt);
 
-    public static void ApplyDirection(Mob mob, MapDefinition map, Vector2Data direction, float movementSpeed, int deltaMilliseconds)
+    public static void ApplyDirection(
+        Mob mob,
+        MapDefinition map,
+        Vector2Data direction,
+        float movementSpeed,
+        int deltaMilliseconds,
+        Func<Vector2Data, bool>? additionalBlockedAt = null)
     {
         ArgumentNullException.ThrowIfNull(mob); ArgumentNullException.ThrowIfNull(map);
         if (!direction.IsFinite) throw new ArgumentException("Dirección de mob no finita.", nameof(direction));
@@ -87,8 +92,9 @@ public sealed class MobMovementSystem(float speed, int tickMilliseconds, IMobMov
         var length = MathF.Sqrt(direction.LengthSquared); var scale = length > 1 ? 1 / length : 1;
         var before = mob.Position;
         var delta = new Vector2Data(direction.X * scale * movementSpeed * seconds, direction.Y * scale * movementSpeed * seconds);
-        var motion = MotionSolver2D.Resolve(before, delta, map.Bounds, mob.CollisionProfile.MovementCollider,
-            position => MovementSystem.IsBlocked(map, position));
+        var movementCollider = mob.CollisionProfile.MovementCollider;
+        var motion = MotionSolver2D.Resolve(before, delta, map.Bounds, movementCollider,
+            position => MovementSystem.IsBlocked(map, position, movementCollider) || (additionalBlockedAt?.Invoke(position) ?? false));
         var after = motion.Final;
         mob.MoveTo(after, new((after.X - before.X) / seconds, (after.Y - before.Y) / seconds));
     }
