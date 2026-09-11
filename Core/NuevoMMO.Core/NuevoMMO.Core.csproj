@@ -1,1 +1,8 @@
-<Project Sdk="Microsoft.NET.Sdk" />
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>NuevoMMO.Core</AssemblyName>
+    <RootNamespace>NuevoMMO.Core</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <Description>Dominio y contratos canónicos de NuevoMMO, independientes de Godot, transporte, UI y persistencia.</Description>
+  </PropertyGroup>
+</Project>
