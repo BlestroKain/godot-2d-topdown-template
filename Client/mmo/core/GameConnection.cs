@@ -85,7 +85,7 @@ public sealed class GameConnection : IDisposable
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
                 timeout.CancelAfter(TimeSpan.FromSeconds(10));
                 var packet = await TcpPacketFraming.ReadAsync(tcp.GetStream(), timeout.Token);
-                if (packet is not (EntityStatePacket or PlayerStatsPacket or PongPacket or ServerTimePacket or SpawnEntityPacket or DespawnEntityPacket or EntityMovedPacket or ErrorPacket))
+                if (packet is not (EntityStatePacket or PlayerStatsPacket or CombatDebugPacket or PongPacket or ServerTimePacket or SpawnEntityPacket or DespawnEntityPacket or EntityMovedPacket or ErrorPacket))
                     throw new InvalidDataException("Mensaje servidor inesperado.");
                 Message?.Invoke(packet);
             }
