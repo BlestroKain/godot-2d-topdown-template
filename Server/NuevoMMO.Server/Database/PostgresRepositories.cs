@@ -100,7 +100,7 @@ public sealed class PostgresCharacterRepository(string connectionString) : IChar
 {
     private const string CharacterColumns =
         "id, account_id, name, map_definition, position_x, position_y, level, experience, " +
-        "available_attribute_points, strength, intelligence, agility, spirit, vitality, current_health, current_mana";
+        "available_attribute_points, strength, intelligence, agility, spirit, vitality, current_health, current_mana, tradition_id";
 
     public async Task<IReadOnlyList<CharacterRecord>> ListByAccountAsync(AccountId account, CancellationToken cancellationToken = default)
     {
@@ -126,12 +126,18 @@ public sealed class PostgresCharacterRepository(string connectionString) : IChar
         return await reader.ReadAsync(cancellationToken) ? ReadCharacter(reader) : null;
     }
 
-    public async Task<CharacterRecord> CreateAsync(AccountId account, string name, DefinitionId map, Vector2Data position, CancellationToken cancellationToken = default)
+    public async Task<CharacterRecord> CreateAsync(
+        AccountId account,
+        string name,
+        DefinitionId map,
+        Vector2Data position,
+        DefinitionId traditionId,
+        CancellationToken cancellationToken = default)
     {
         var record = new CharacterRecord
         {
             Id = new(Guid.NewGuid()), AccountId = account, Name = name,
-            MapDefinition = map, Position = position
+            MapDefinition = map, Position = position, TraditionId = traditionId
         };
         record.ApplyProgression(ProgressionRules.CreateInitial());
 
@@ -142,11 +148,11 @@ public sealed class PostgresCharacterRepository(string connectionString) : IChar
             INSERT INTO characters (
                 id, account_id, name, map_definition, position_x, position_y,
                 level, experience, available_attribute_points,
-                strength, intelligence, agility, spirit, vitality, current_health, current_mana)
+                strength, intelligence, agility, spirit, vitality, current_health, current_mana, tradition_id)
             VALUES (
                 @id, @account, @name, @map, @x, @y,
                 @level, @experience, @points,
-                @str, @int, @agi, @spi, @vit, NULL, NULL)
+                @str, @int, @agi, @spi, @vit, NULL, NULL, @tradition)
             """, connection);
         AddIdentityParameters(command, record);
         AddProgressionParameters(command, record.ToProgressionState());
@@ -212,6 +218,7 @@ public sealed class PostgresCharacterRepository(string connectionString) : IChar
         command.Parameters.AddWithValue("map", record.MapDefinition.Value);
         command.Parameters.AddWithValue("x", record.Position.X);
         command.Parameters.AddWithValue("y", record.Position.Y);
+        command.Parameters.AddWithValue("tradition", record.TraditionId.Value);
     }
 
     private static void AddProgressionParameters(NpgsqlCommand command, PlayerProgressionState progression)
@@ -234,7 +241,8 @@ public sealed class PostgresCharacterRepository(string connectionString) : IChar
         Strength = reader.GetInt32(9), Intelligence = reader.GetInt32(10), Agility = reader.GetInt32(11),
         Spirit = reader.GetInt32(12), Vitality = reader.GetInt32(13),
         CurrentHealth = reader.IsDBNull(14) ? null : reader.GetInt32(14),
-        CurrentMana = reader.IsDBNull(15) ? null : reader.GetInt32(15)
+        CurrentMana = reader.IsDBNull(15) ? null : reader.GetInt32(15),
+        TraditionId = reader.IsDBNull(16) ? DefinitionId.Empty : new(reader.GetGuid(16))
     };
 }
 
