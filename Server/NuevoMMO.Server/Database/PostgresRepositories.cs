@@ -100,7 +100,7 @@ public sealed class PostgresCharacterRepository(string connectionString) : IChar
 {
     private const string CharacterColumns =
         "id, account_id, name, map_definition, position_x, position_y, level, experience, " +
-        "available_attribute_points, strength, intelligence, agility, spirit, vitality, current_health, current_mana, tradition_id";
+        "available_attribute_points, strength, intelligence, agility, spirit, vitality, current_health, current_mana, tradition_id, appearance_data";
 
     public async Task<IReadOnlyList<CharacterRecord>> ListByAccountAsync(AccountId account, CancellationToken cancellationToken = default)
     {
@@ -126,18 +126,32 @@ public sealed class PostgresCharacterRepository(string connectionString) : IChar
         return await reader.ReadAsync(cancellationToken) ? ReadCharacter(reader) : null;
     }
 
-    public async Task<CharacterRecord> CreateAsync(
+    public Task<CharacterRecord> CreateAsync(
         AccountId account,
         string name,
         DefinitionId map,
         Vector2Data position,
         DefinitionId traditionId,
         CancellationToken cancellationToken = default)
+        => CreateAsync(account, name, map, position, traditionId, CanonicalCharacterAppearance.Default, cancellationToken);
+
+    public async Task<CharacterRecord> CreateAsync(
+        AccountId account,
+        string name,
+        DefinitionId map,
+        Vector2Data position,
+        DefinitionId traditionId,
+        CharacterAppearance appearance,
+        CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(appearance);
+        if (!CanonicalCharacterAppearance.IsSupported(appearance))
+            throw new ArgumentException("Apariencia no publicada.", nameof(appearance));
+
         var record = new CharacterRecord
         {
             Id = new(Guid.NewGuid()), AccountId = account, Name = name,
-            MapDefinition = map, Position = position, TraditionId = traditionId
+            MapDefinition = map, Position = position, TraditionId = traditionId, Appearance = appearance
         };
         record.ApplyProgression(ProgressionRules.CreateInitial());
 
@@ -148,14 +162,15 @@ public sealed class PostgresCharacterRepository(string connectionString) : IChar
             INSERT INTO characters (
                 id, account_id, name, map_definition, position_x, position_y,
                 level, experience, available_attribute_points,
-                strength, intelligence, agility, spirit, vitality, current_health, current_mana, tradition_id)
+                strength, intelligence, agility, spirit, vitality, current_health, current_mana, tradition_id, appearance_data)
             VALUES (
                 @id, @account, @name, @map, @x, @y,
                 @level, @experience, @points,
-                @str, @int, @agi, @spi, @vit, NULL, NULL, @tradition)
+                @str, @int, @agi, @spi, @vit, NULL, NULL, @tradition, @appearance)
             """, connection);
         AddIdentityParameters(command, record);
         AddProgressionParameters(command, record.ToProgressionState());
+        command.Parameters.AddWithValue("appearance", record.Appearance.ToStorageString());
         try { await command.ExecuteNonQueryAsync(cancellationToken); }
         catch (PostgresException exception) when (exception.SqlState == PostgresErrorCodes.UniqueViolation)
         { throw new InvalidOperationException("El nombre de personaje ya existe.", exception); }
@@ -233,17 +248,22 @@ public sealed class PostgresCharacterRepository(string connectionString) : IChar
         command.Parameters.AddWithValue("vit", progression.NaturalAttributes.Vitality);
     }
 
-    private static CharacterRecord ReadCharacter(NpgsqlDataReader reader) => new()
+    private static CharacterRecord ReadCharacter(NpgsqlDataReader reader)
     {
-        Id = new(reader.GetGuid(0)), AccountId = new(reader.GetGuid(1)), Name = reader.GetString(2),
-        MapDefinition = new(reader.GetGuid(3)), Position = new(reader.GetFloat(4), reader.GetFloat(5)),
-        Level = reader.GetInt32(6), Experience = reader.GetInt64(7), AvailableAttributePoints = reader.GetInt32(8),
-        Strength = reader.GetInt32(9), Intelligence = reader.GetInt32(10), Agility = reader.GetInt32(11),
-        Spirit = reader.GetInt32(12), Vitality = reader.GetInt32(13),
-        CurrentHealth = reader.IsDBNull(14) ? null : reader.GetInt32(14),
-        CurrentMana = reader.IsDBNull(15) ? null : reader.GetInt32(15),
-        TraditionId = reader.IsDBNull(16) ? DefinitionId.Empty : new(reader.GetGuid(16))
-    };
+        var appearanceText = reader.IsDBNull(17) ? null : reader.GetString(17);
+        return new CharacterRecord
+        {
+            Id = new(reader.GetGuid(0)), AccountId = new(reader.GetGuid(1)), Name = reader.GetString(2),
+            MapDefinition = new(reader.GetGuid(3)), Position = new(reader.GetFloat(4), reader.GetFloat(5)),
+            Level = reader.GetInt32(6), Experience = reader.GetInt64(7), AvailableAttributePoints = reader.GetInt32(8),
+            Strength = reader.GetInt32(9), Intelligence = reader.GetInt32(10), Agility = reader.GetInt32(11),
+            Spirit = reader.GetInt32(12), Vitality = reader.GetInt32(13),
+            CurrentHealth = reader.IsDBNull(14) ? null : reader.GetInt32(14),
+            CurrentMana = reader.IsDBNull(15) ? null : reader.GetInt32(15),
+            TraditionId = reader.IsDBNull(16) ? DefinitionId.Empty : new(reader.GetGuid(16)),
+            Appearance = CharacterAppearance.FromStorageString(appearanceText)
+        };
+    }
 }
 
 public static class PostgresMigrator
