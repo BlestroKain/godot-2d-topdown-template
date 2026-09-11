@@ -43,7 +43,9 @@ public sealed class MovementSystem(float speed, int tickMilliseconds)
         var delta = new Vector2Data(input.X * scale * Speed * seconds, input.Y * scale * Speed * seconds);
         var movementCollider = player.CollisionProfile.MovementCollider;
         var motion = MotionSolver2D.Resolve(before, delta, map.Bounds, movementCollider,
-            position => IsBlocked(map, position, movementCollider) || (additionalBlockedAt?.Invoke(position) ?? false));
+            position => IsBlocked(map, position, movementCollider) ||
+                        EntityCollisionIndex.BlocksMovement(player, position) ||
+                        (additionalBlockedAt?.Invoke(position) ?? false));
         var after = motion.Final;
         player.ApplyMovement(after, new((after.X - before.X) / seconds, (after.Y - before.Y) / seconds));
     }
@@ -94,7 +96,9 @@ public sealed class MobMovementSystem(float speed, int tickMilliseconds, IMobMov
         var delta = new Vector2Data(direction.X * scale * movementSpeed * seconds, direction.Y * scale * movementSpeed * seconds);
         var movementCollider = mob.CollisionProfile.MovementCollider;
         var motion = MotionSolver2D.Resolve(before, delta, map.Bounds, movementCollider,
-            position => MovementSystem.IsBlocked(map, position, movementCollider) || (additionalBlockedAt?.Invoke(position) ?? false));
+            position => MovementSystem.IsBlocked(map, position, movementCollider) ||
+                        EntityCollisionIndex.BlocksMovement(mob, position) ||
+                        (additionalBlockedAt?.Invoke(position) ?? false));
         var after = motion.Final;
         mob.MoveTo(after, new((after.X - before.X) / seconds, (after.Y - before.Y) / seconds));
     }
