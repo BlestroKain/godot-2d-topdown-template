@@ -39,12 +39,14 @@ theme_override_font_sizes/font_size = 14
 unique_name_in_owner = true
 custom_minimum_size = Vector2(260, 24)
 layout_mode = 2
+theme_type_variation = &"HealthBar"
 show_percentage = false
 value = 100.0
 [node name="ManaBar" type="ProgressBar" parent="HBox/Vitals"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(260, 24)
 layout_mode = 2
+theme_type_variation = &"ManaBar"
 show_percentage = false
 value = 100.0
 [node name="Hotbar" type="GridContainer" parent="HBox"]
