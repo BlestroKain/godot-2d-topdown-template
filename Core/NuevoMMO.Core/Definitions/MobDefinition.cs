@@ -20,7 +20,8 @@ public sealed record MobDefinition : GameDefinition
         CreatureBehaviorDefinition? behavior = null,
         CreatureCombatDefinition? combat = null,
         Dictionary<string, DefinitionId>? eventHooks = null,
-        Dictionary<string, string>? metadata = null)
+        Dictionary<string, string>? metadata = null,
+        EntityCollisionProfileDefinition? collision = null)
         : base(id, key, name, description, enabled, version, tags)
     {
         if (visualKey.IsEmpty) throw new ArgumentException("VisualKey vacío.", nameof(visualKey));
@@ -36,25 +37,20 @@ public sealed record MobDefinition : GameDefinition
         Metadata = metadata is null
             ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             : new Dictionary<string, string>(metadata, StringComparer.OrdinalIgnoreCase);
+        Collision = collision;
     }
 
     public ContentKey VisualKey { get; }
     public DefinitionId? LootTableId { get; }
     public LootMode LootMode { get; }
-
-    /// <summary>
-    /// Aggro, movimiento, huida, selección de objetivo, radio de visión/reset y combate entre NPCs.
-    /// </summary>
     public CreatureBehaviorDefinition Behavior { get; }
-
-    /// <summary>
-    /// Nivel, experiencia, daño base, elemento, críticos, stats, vitales, scaling, técnicas e inmunidades.
-    /// </summary>
     public CreatureCombatDefinition Combat { get; }
-
-    /// <summary>
-    /// Hooks como onDeath, onSpawn, onAggro, onReset, etc. El sistema de eventos resuelve las referencias.
-    /// </summary>
     public Dictionary<string, DefinitionId> EventHooks { get; }
     public Dictionary<string, string> Metadata { get; }
+
+    /// <summary>
+    /// Geometría semántica de esta especie/variante. Es independiente del sprite y puede definir
+    /// movimiento, hurtboxes, interacción, hitboxes, navegación y bloqueo dinámico.
+    /// </summary>
+    public EntityCollisionProfileDefinition? Collision { get; }
 }
