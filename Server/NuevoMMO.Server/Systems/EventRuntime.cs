@@ -12,11 +12,34 @@ public sealed record EventExecutionResult(bool Success, string Message, IReadOnl
 
 /// <summary>
 /// Ejecutor autoritativo de EventDefinition. Elige la página activa por prioridad/condiciones
-/// y corre la lista raíz de comandos. No abre UI; emite texto/notificaciones para que el handler las envíe.
+/// y ejecuta directamente los comandos cuyo sistema dueño ya existe. Los módulos que todavía no
+/// tienen runtime (shops, bank, quests, etc.) se conservan explícitamente como deferred.
 /// </summary>
-public sealed class EventRuntime(DefinitionRegistry definitions, ConditionSystem? conditions = null)
+public sealed class EventRuntime
 {
-    private readonly ConditionSystem conditions = conditions ?? new ConditionSystem();
+    private const int MaximumTriggerDepth = 8;
+    private readonly DefinitionRegistry definitions;
+    private readonly ConditionSystem conditions;
+    private readonly ProgressionSystem? progression;
+    private readonly InventorySystem? inventory;
+    private readonly LootSystem? loot;
+    private readonly EffectSystem? effects;
+
+    public EventRuntime(
+        DefinitionRegistry definitions,
+        ConditionSystem? conditions = null,
+        ProgressionSystem? progression = null,
+        InventorySystem? inventory = null,
+        LootSystem? loot = null,
+        EffectSystem? effects = null)
+    {
+        this.definitions = definitions ?? throw new ArgumentNullException(nameof(definitions));
+        this.conditions = conditions ?? new ConditionSystem();
+        this.progression = progression;
+        this.inventory = inventory;
+        this.loot = loot;
+        this.effects = effects;
+    }
 
     public EventPageDefinition? ActivePage(EventDefinition definition, Player player)
     {
@@ -33,9 +56,19 @@ public sealed class EventRuntime(DefinitionRegistry definitions, ConditionSystem
         EventDefinition definition,
         EventTrigger trigger,
         long nowMilliseconds)
+        => TryTriggerCore(player, definition, trigger, nowMilliseconds, 0);
+
+    private EventExecutionResult TryTriggerCore(
+        Player player,
+        EventDefinition definition,
+        EventTrigger trigger,
+        long nowMilliseconds,
+        int depth)
     {
         ArgumentNullException.ThrowIfNull(player);
         ArgumentNullException.ThrowIfNull(definition);
+        if (depth > MaximumTriggerDepth)
+            return EventExecutionResult.Fail("Cadena de eventos demasiado profunda.");
         if (!definition.Enabled) return EventExecutionResult.Fail("El evento está deshabilitado.");
         var page = ActivePage(definition, player);
         if (page is null) return EventExecutionResult.Fail("Ninguna página del evento está activa.");
@@ -47,7 +80,7 @@ public sealed class EventRuntime(DefinitionRegistry definitions, ConditionSystem
 
         var log = new List<string>();
         foreach (var command in commands)
-            ExecuteCommand(player, command, log, nowMilliseconds);
+            ExecuteCommand(player, command, log, nowMilliseconds, depth);
         return EventExecutionResult.Ok(log);
     }
 
@@ -122,9 +155,13 @@ public sealed class EventRuntime(DefinitionRegistry definitions, ConditionSystem
         return results;
     }
 
-    private void ExecuteCommand(Player player, EventCommandDefinition command, List<string> log, long nowMilliseconds)
+    private void ExecuteCommand(
+        Player player,
+        EventCommandDefinition command,
+        List<string> log,
+        long nowMilliseconds,
+        int depth)
     {
-        _ = nowMilliseconds;
         if (command.Condition is { } condition && !conditions.Evaluate(player, condition, Context(player)))
             return;
 
@@ -135,17 +172,30 @@ public sealed class EventRuntime(DefinitionRegistry definitions, ConditionSystem
                 if (command.Text.TryGetValue("text", out var text) && !string.IsNullOrWhiteSpace(text))
                     log.Add(text);
                 break;
+
             case EventCommandKind.SetSwitch:
                 if (command.Text.TryGetValue("key", out var switchKey))
                     player.Events.SetSwitch(switchKey, command.Numbers.GetValueOrDefault("value", 1) != 0);
                 break;
+
             case EventCommandKind.SetVariable:
                 if (command.Text.TryGetValue("key", out var variableKey))
                     player.Events.SetVariable(variableKey, command.Numbers.GetValueOrDefault("value"));
                 break;
+
             case EventCommandKind.GiveExperience:
-                log.Add($"xp:{command.Numbers.GetValueOrDefault("amount")}");
+            {
+                if (progression is null)
+                {
+                    log.Add("deferred:GiveExperience");
+                    break;
+                }
+                var amount = ReadNonNegativeLong(command, "amount");
+                if (amount > 0) progression.GrantExperience(player, amount);
+                log.Add($"xp:{amount}");
                 break;
+            }
+
             case EventCommandKind.LearnTechnique:
                 if (command.References.TryGetValue("technique", out var techniqueId))
                 {
@@ -153,6 +203,7 @@ public sealed class EventRuntime(DefinitionRegistry definitions, ConditionSystem
                     log.Add($"learn:{techniqueId.Value:N}");
                 }
                 break;
+
             case EventCommandKind.ForgetTechnique:
                 if (command.References.TryGetValue("technique", out var forgetId))
                 {
@@ -160,43 +211,145 @@ public sealed class EventRuntime(DefinitionRegistry definitions, ConditionSystem
                     log.Add($"forget:{forgetId.Value:N}");
                 }
                 break;
+
             case EventCommandKind.GiveItem:
-                log.Add($"give_item:{command.References.GetValueOrDefault("item")}");
+            {
+                if (inventory is null || loot is null || !command.References.TryGetValue("item", out var itemId))
+                {
+                    log.Add("deferred:GiveItem");
+                    break;
+                }
+                var quantity = ReadPositiveInt(command, "quantity", 1);
+                var item = loot.CreateItem(itemId, quantity);
+                if (inventory.TryGive(player.Inventory, item, out _, out var error))
+                    log.Add($"give_item:{itemId.Value:N}:{quantity}");
+                else
+                    log.Add($"give_item_failed:{error}");
                 break;
+            }
+
             case EventCommandKind.TakeItem:
-                log.Add($"take_item:{command.References.GetValueOrDefault("item")}");
+            {
+                if (inventory is null || !command.References.TryGetValue("item", out var itemId))
+                {
+                    log.Add("deferred:TakeItem");
+                    break;
+                }
+                var quantity = ReadPositiveInt(command, "quantity", 1);
+                if (inventory.CanTake(player.Inventory, itemId, quantity))
+                {
+                    inventory.Take(player.Inventory, itemId, quantity);
+                    log.Add($"take_item:{itemId.Value:N}:{quantity}");
+                }
+                else
+                    log.Add($"take_item_failed:{itemId.Value:N}:{quantity}");
                 break;
+            }
+
+            case EventCommandKind.ApplyEffect:
+            {
+                if (effects is null || !command.References.TryGetValue("effect", out var effectId))
+                {
+                    log.Add("deferred:ApplyEffect");
+                    break;
+                }
+                effects.Apply(player, effectId, player.Id, nowMilliseconds);
+                log.Add($"apply_effect:{effectId.Value:N}");
+                break;
+            }
+
+            case EventCommandKind.RemoveEffect:
+            {
+                if (effects is null || !command.References.TryGetValue("effect", out var effectId))
+                {
+                    log.Add("deferred:RemoveEffect");
+                    break;
+                }
+                var removed = effects.Remove(player, effectId, requireDispellable: false, nowMilliseconds);
+                log.Add(removed ? $"remove_effect:{effectId.Value:N}" : $"remove_effect_missing:{effectId.Value:N}");
+                break;
+            }
+
+            case EventCommandKind.TriggerEvent:
+            {
+                if (!command.References.TryGetValue("event", out var eventId) ||
+                    !definitions.TryGet<EventDefinition>(eventId, out var nested) || nested is null)
+                {
+                    log.Add("trigger_event_missing");
+                    break;
+                }
+                var nestedResult = TryTriggerCore(player, nested, EventTrigger.Custom, nowMilliseconds, depth + 1);
+                if (nestedResult.Success) log.AddRange(nestedResult.Log);
+                else log.Add($"trigger_event_failed:{nestedResult.Message}");
+                break;
+            }
+
             case EventCommandKind.Wait:
+                // Requiere un scheduler de secuencias; no debe bloquear el tick del servidor.
+                log.Add("deferred:Wait");
                 break;
+
             case EventCommandKind.Teleport:
+                // El teletransporte dentro del mapa actual ya es seguro. Cambiar de MapDefinition/instancia
+                // pertenece al bloque multi-map y se mantiene diferido hasta que WorldManager sea autoridad.
+                if (command.References.ContainsKey("map"))
+                {
+                    log.Add("deferred:Teleport");
+                    break;
+                }
                 if (command.DestinationOrDefault() is { } destination)
                     player.MoveTo(destination, default);
                 break;
+
             case EventCommandKind.PlaySound:
             case EventCommandKind.PlayAnimation:
                 log.Add($"{command.Kind}:{command.Text.GetValueOrDefault("key", command.Kind.ToString())}");
                 break;
+
             case EventCommandKind.MoveEntity:
             case EventCommandKind.SpawnEntity:
             case EventCommandKind.DespawnEntity:
-            case EventCommandKind.ApplyEffect:
-            case EventCommandKind.RemoveEffect:
             case EventCommandKind.StartQuest:
             case EventCommandKind.AdvanceQuest:
             case EventCommandKind.CompleteQuest:
+            case EventCommandKind.FailQuest:
             case EventCommandKind.OpenShop:
             case EventCommandKind.OpenBank:
             case EventCommandKind.SetCheckpoint:
-            case EventCommandKind.TriggerEvent:
             case EventCommandKind.ChangeTradition:
             case EventCommandKind.ModifyProfession:
+            case EventCommandKind.Choice:
+            case EventCommandKind.Conditional:
             case EventCommandKind.Custom:
                 log.Add($"deferred:{command.Kind}");
                 break;
+
             default:
                 log.Add($"deferred:{command.Kind}");
                 break;
         }
+    }
+
+    private static int ReadPositiveInt(EventCommandDefinition command, string key, int fallback)
+    {
+        var value = command.Numbers.GetValueOrDefault(key, fallback);
+        if (value < 1 || value > int.MaxValue)
+            throw new InvalidDataException($"{command.Kind}.{key} debe ser un entero positivo.");
+        var rounded = MathF.Round(value, MidpointRounding.AwayFromZero);
+        if (MathF.Abs(rounded - value) > 0.001f)
+            throw new InvalidDataException($"{command.Kind}.{key} debe ser entero.");
+        return checked((int)rounded);
+    }
+
+    private static long ReadNonNegativeLong(EventCommandDefinition command, string key)
+    {
+        var value = command.Numbers.GetValueOrDefault(key);
+        if (value < 0 || value > long.MaxValue)
+            throw new InvalidDataException($"{command.Kind}.{key} debe ser no negativo.");
+        var rounded = Math.Round((double)value, MidpointRounding.AwayFromZero);
+        if (Math.Abs(rounded - value) > 0.001d)
+            throw new InvalidDataException($"{command.Kind}.{key} debe ser entero.");
+        return checked((long)rounded);
     }
 
     private static ConditionEvaluationContext Context(Player player)
