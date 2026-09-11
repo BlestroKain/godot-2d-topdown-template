@@ -331,8 +331,14 @@ public sealed class TechniqueSystem
         {
             if (!destination.IsFinite)
                 return TechniqueUseResult.Fail(TechniqueUseFailure.InvalidTarget, "Punto objetivo inválido.", definition.Id);
-            if (definition.Targeting.Range > 0 && caster.Position.DistanceTo(destination) > definition.Targeting.Range)
-                return TechniqueUseResult.Fail(TechniqueUseFailure.OutOfRange, "Objetivo fuera de alcance.", definition.Id);
+            if (definition.Targeting.Range > 0)
+            {
+                var inRange = resolvedTarget is not null
+                    ? SemanticCollisionService.IsWithinRange(caster.Position, resolvedTarget, definition.Targeting.Range)
+                    : caster.Position.DistanceTo(destination) <= definition.Targeting.Range;
+                if (!inRange)
+                    return TechniqueUseResult.Fail(TechniqueUseFailure.OutOfRange, "Objetivo fuera de alcance.", definition.Id);
+            }
             if (definition.Targeting.RequiresLineOfSight && lineOfSight is not null && !lineOfSight(caster, destination))
                 return TechniqueUseResult.Fail(TechniqueUseFailure.LineOfSightBlocked, "No hay línea de visión.", definition.Id);
         }
@@ -414,9 +420,18 @@ public sealed class TechniqueSystem
                     result.Add(new(action, TechniqueActionExecutionStatus.Skipped, null, Message: "Damage requiere objetivo."));
                     break;
                 }
+                if (!float.IsFinite(action.Amount) || action.Amount < 0)
+                    throw new InvalidOperationException("Una acción Damage requiere Amount finito y no negativo.");
                 var stats = source?.Stats ?? new StatBlock();
-                var raw = CombatSystem.CalculateScaledAmount(action.Amount, action.Scaling, stats);
-                var damage = combat.ApplyDamage(source, target, raw, action.Element);
+                var characteristic = CombatSystem.CalculateEffectiveCharacteristic(action.Scaling, stats);
+                var resistance = CombatSystem.Resistance(target, action.Element);
+                var breakdown = DamagePipeline.Resolve(new DamageCalculationInput(
+                    action.Element,
+                    action.Amount,
+                    characteristic,
+                    ResistancePercent: resistance,
+                    UsePositivePveResistanceCap: target is Mob));
+                var damage = combat.ApplyResolvedDamage(source, target, breakdown, nowMilliseconds: nowMilliseconds);
                 result.Add(new(action, TechniqueActionExecutionStatus.Executed, target.Id, Damage: damage));
                 break;
             }
@@ -569,14 +584,23 @@ public sealed class TechniqueSystem
         if (facing.IsZero) facing = Vector2Data.Right;
         facing = facing.Normalized();
         var radius = targeting.Radius > 0 ? targeting.Radius : targeting.Range;
+        var areaShape = radius > 0 ? new CircleCollisionShape(radius) : null;
         var candidates = new List<(LivingEntity Entity, float Distance)>();
         foreach (var living in world.LivingOn(active.Caster.MapInstanceId))
         {
             if (!living.IsAlive) continue;
             if ((targeting.Relations & Relation(active.Caster, living)) == 0) continue;
             var distance = active.Caster.Position.DistanceTo(living.Position);
-            if (targeting.Range > 0 && distance > targeting.Range + radius) continue;
-            if (radius > 0 && origin.DistanceTo(living.Position) > radius) continue;
+
+            if (targeting.Mode is TechniqueTargetMode.Point or TechniqueTargetMode.Area)
+            {
+                if (areaShape is not null && !SemanticCollisionService.ShapeTouchesTarget(areaShape, origin, living)) continue;
+            }
+            else if (targeting.Range > 0 && !SemanticCollisionService.IsWithinRange(active.Caster.Position, living, targeting.Range + radius))
+            {
+                continue;
+            }
+
             if (targeting.Mode == TechniqueTargetMode.Cone && targeting.AngleDegrees > 0)
             {
                 var toTarget = living.Position - active.Caster.Position;
