@@ -22,7 +22,10 @@ public sealed partial class MapViewportControl : Control
     private float zoom = 1f;
     private PointF pan = new(24, 24);
     private bool panning;
+    private bool stroking;
     private Point lastMouse;
+    private HashSet<Vector2IntData> selectedCells = [];
+    private RectangleF? rubberBand;
 
     public MapViewportControl()
     {
@@ -91,6 +94,28 @@ public sealed partial class MapViewportControl : Control
     }
 
     public event Action<Vector2Data, MouseButtons>? WorldClicked;
+    public event Action<Vector2Data, MouseButtons>? WorldDragged;
+    public event Action<Vector2Data, MouseButtons>? WorldReleased;
+
+    public IReadOnlyCollection<Vector2IntData> SelectedCells
+    {
+        get => selectedCells;
+        set
+        {
+            selectedCells = value is HashSet<Vector2IntData> set ? set : [..value];
+            Invalidate();
+        }
+    }
+
+    public RectangleF? RubberBand
+    {
+        get => rubberBand;
+        set
+        {
+            rubberBand = value;
+            Invalidate();
+        }
+    }
 
     public void RefreshMap(bool clearAutotileCache = true)
     {
@@ -137,6 +162,7 @@ public sealed partial class MapViewportControl : Control
         DrawLayers(e.Graphics, MapLayerBand.Middle);
         DrawLayers(e.Graphics, MapLayerBand.Upper);
         DrawEditorOverlays(e.Graphics);
+        DrawTileSelection(e.Graphics);
         if (ShowGrid) DrawGrid(e.Graphics);
         DrawSpawnPoint(e.Graphics);
         DrawMapBounds(e.Graphics);
@@ -283,6 +309,30 @@ public sealed partial class MapViewportControl : Control
                 if (evt.Placement is not { } placement || placement.MapId != map.Id) continue;
                 DrawMarker(graphics, placement.Position, "E", Color.DeepSkyBlue);
             }
+        }
+    }
+
+    private void DrawTileSelection(Graphics graphics)
+    {
+        if (document is null) return;
+        var tile = document.TileSize;
+        if (selectedCells.Count > 0)
+        {
+            using var fill = new SolidBrush(Color.FromArgb(70, 80, 180, 255));
+            using var pen = new Pen(Color.FromArgb(220, 120, 200, 255), 1.5f / zoom);
+            foreach (var cell in selectedCells)
+            {
+                var x = document.Bounds.Minimum.X + cell.X * tile.X;
+                var y = document.Bounds.Minimum.Y + cell.Y * tile.Y;
+                graphics.FillRectangle(fill, x, y, tile.X, tile.Y);
+                graphics.DrawRectangle(pen, x, y, tile.X, tile.Y);
+            }
+        }
+
+        if (rubberBand is { } band && band.Width > 0 && band.Height > 0)
+        {
+            using var pen = new Pen(Color.FromArgb(230, 255, 220, 80), 1.5f / zoom) { DashStyle = DashStyle.Dash };
+            graphics.DrawRectangle(pen, band.X, band.Y, band.Width, band.Height);
         }
     }
 
@@ -440,23 +490,36 @@ public sealed partial class MapViewportControl : Control
             return;
         }
 
+        stroking = e.Button is MouseButtons.Left or MouseButtons.Right;
         WorldClicked?.Invoke(ScreenToWorld(e.Location), e.Button);
     }
 
     private void OnViewportMouseMove(object? sender, MouseEventArgs e)
     {
-        if (!panning) return;
-        pan.X += e.X - lastMouse.X;
-        pan.Y += e.Y - lastMouse.Y;
-        lastMouse = e.Location;
-        Invalidate();
+        if (panning)
+        {
+            pan.X += e.X - lastMouse.X;
+            pan.Y += e.Y - lastMouse.Y;
+            lastMouse = e.Location;
+            Invalidate();
+            return;
+        }
+
+        if (!stroking || e.Button == MouseButtons.None) return;
+        WorldDragged?.Invoke(ScreenToWorld(e.Location), e.Button);
     }
 
     private void OnViewportMouseUp(object? sender, MouseEventArgs e)
     {
-        if (!panning) return;
-        panning = false;
-        Cursor = Cursors.Default;
+        if (panning)
+        {
+            panning = false;
+            Cursor = Cursors.Default;
+        }
+
+        if (!stroking) return;
+        stroking = false;
+        WorldReleased?.Invoke(ScreenToWorld(e.Location), e.Button);
     }
 
     public Vector2Data ScreenToWorld(Point screen)

@@ -76,6 +76,15 @@ public sealed class SpawnManager
         spawn.Position, new("template.player"), spawn.Name);
     public Mob Mob(MobDefinition definition, MapInstanceId instance, Vector2Data position) => new(NextId(), definition,
         instance, position);
+    public Npc Npc(NpcDefinition definition, MapInstanceId instance, Vector2Data position) => new(NextId(), definition,
+        instance, position);
+    public ResourceEntity Resource(ResourceDefinition definition, MapInstanceId instance, Vector2Data position)
+    {
+        var health = definition.Harvest.HealthRange is { } range
+            ? Math.Max(1f, range.Maximum)
+            : 1f;
+        return new(NextId(), definition, instance, position, health);
+    }
 }
 
 public sealed class MapInstance(MapInstanceId id, MapDefinition definition, float interestRadius)
@@ -141,8 +150,7 @@ public sealed class WorldRuntime
     public MapInstance MapInstance => map;
     public GameSystems? Systems => systems;
 
-    public WorldRuntime(MapDefinition definition, MobDefinition mobDefinition, WorldOptions options, IMobMovementPolicy mobPolicy,
-        Vector2Data mobSpawn, GameSystems? systems = null)
+    public WorldRuntime(MapDefinition definition, WorldOptions options, IMobMovementPolicy mobPolicy, GameSystems? systems = null)
     {
         if (options.MaxPlayers is < 1 or > 4096 || options.InterestRadius <= 0 || !float.IsFinite(options.InterestRadius))
             throw new ArgumentException("Opciones de mundo inválidas.");
@@ -153,7 +161,46 @@ public sealed class WorldRuntime
         mobMovement = new(options.MobSpeed, options.TickMilliseconds, mobPolicy);
         projectiles = systems?.Projectiles ?? new ProjectileSystem();
         interest = new(map.Spatial, options.InterestRadius);
+    }
+
+    public WorldRuntime(MapDefinition definition, MobDefinition mobDefinition, WorldOptions options, IMobMovementPolicy mobPolicy,
+        Vector2Data mobSpawn, GameSystems? systems = null)
+        : this(definition, options, mobPolicy, systems)
+    {
         map.Add(spawns.Mob(mobDefinition, map.Id, mobSpawn));
+    }
+
+    public Mob SpawnMob(MobDefinition definition, Vector2Data position)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        lock (gate)
+        {
+            var mob = spawns.Mob(definition, map.Id, map.Definition.Bounds.Clamp(position));
+            map.Add(mob);
+            return mob;
+        }
+    }
+
+    public Npc SpawnNpc(NpcDefinition definition, Vector2Data position)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        lock (gate)
+        {
+            var npc = spawns.Npc(definition, map.Id, map.Definition.Bounds.Clamp(position));
+            map.Add(npc);
+            return npc;
+        }
+    }
+
+    public ResourceEntity SpawnResource(ResourceDefinition definition, Vector2Data position)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        lock (gate)
+        {
+            var resource = spawns.Resource(definition, map.Id, map.Definition.Bounds.Clamp(position));
+            map.Add(resource);
+            return resource;
+        }
     }
 
     public PlayerSession AddConnection(ConnectionId connection)

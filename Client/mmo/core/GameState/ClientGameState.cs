@@ -70,6 +70,8 @@ public class ClientGameState
         Session.Map = null;
         Local.Prediction = null;
         Local.Stats = null;
+        Inventory.Clear();
+        Party.Clear();
         receivedFull = false;
         LastTick = -1;
         MaxVisibleCount = 0;

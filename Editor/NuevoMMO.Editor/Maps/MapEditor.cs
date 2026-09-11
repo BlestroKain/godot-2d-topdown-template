@@ -97,17 +97,175 @@ public sealed class MapEditor
             () => { Layers.Replace(previous); dirty.Mark(); }));
     }
 
-    public bool EraseTile(Vector2IntData cell)
+    public bool EraseTile(Vector2IntData cell) => EraseTiles([cell]) > 0;
+
+    public int PaintTiles(IReadOnlyList<Vector2IntData> cells)
     {
+        ArgumentNullException.ThrowIfNull(cells);
+        var unique = UniqueInside(cells);
+        if (unique.Count == 0) return 0;
+
         var previous = Layers.Active();
-        if (!previous.Tiles.Any(tile => tile.Cell == cell)) return false;
-        var replacement = CopyLayer(previous, previous.Tiles.Where(tile => tile.Cell != cell).ToArray());
+        var remaining = previous.Tiles.Where(tile => !unique.Contains(tile.Cell)).ToList();
+        foreach (var cell in unique.OrderBy(static cell => cell.Y).ThenBy(static cell => cell.X))
+            remaining.Add(Palette.CreatePlacement(cell));
+        var replacement = CopyLayer(previous, remaining.ToArray());
 
         history.Push(new ChangeSet(
-            $"Borrar tile {cell}",
+            unique.Count == 1 ? $"Pintar tile {unique.First()}" : $"Pintar {unique.Count} tiles",
             () => { Layers.Replace(replacement); dirty.Mark(); },
             () => { Layers.Replace(previous); dirty.Mark(); }));
-        return true;
+        return unique.Count;
+    }
+
+    public int EraseTiles(IReadOnlyList<Vector2IntData> cells)
+    {
+        ArgumentNullException.ThrowIfNull(cells);
+        var unique = UniqueInside(cells);
+        var previous = Layers.Active();
+        var remaining = previous.Tiles.Where(tile => !unique.Contains(tile.Cell)).ToArray();
+        if (remaining.Length == previous.Tiles.Length) return 0;
+        var removed = previous.Tiles.Length - remaining.Length;
+        var replacement = CopyLayer(previous, remaining);
+
+        history.Push(new ChangeSet(
+            removed == 1 ? "Borrar tile" : $"Borrar {removed} tiles",
+            () => { Layers.Replace(replacement); dirty.Mark(); },
+            () => { Layers.Replace(previous); dirty.Mark(); }));
+        return removed;
+    }
+
+    public int PaintRect(Vector2IntData a, Vector2IntData b) => PaintTiles(CellsInRect(a, b));
+
+    public int Fill(Vector2IntData start)
+    {
+        var document = RequireDocument();
+        if (!IsCellInside(document, start)) return 0;
+        var layer = Layers.Active();
+        var sample = TileAt(layer, start);
+        var fill = new HashSet<Vector2IntData>();
+        var queue = new Queue<Vector2IntData>();
+        queue.Enqueue(start);
+        while (queue.Count > 0)
+        {
+            var cell = queue.Dequeue();
+            if (!fill.Add(cell) || !IsCellInside(document, cell)) continue;
+            if (!SameTile(TileAt(layer, cell), sample)) { fill.Remove(cell); continue; }
+            queue.Enqueue(new(cell.X - 1, cell.Y));
+            queue.Enqueue(new(cell.X + 1, cell.Y));
+            queue.Enqueue(new(cell.X, cell.Y - 1));
+            queue.Enqueue(new(cell.X, cell.Y + 1));
+        }
+
+        return PaintTiles(fill.ToArray());
+    }
+
+    public MapTileClipboard Copy(IReadOnlyCollection<Vector2IntData> cells)
+    {
+        ArgumentNullException.ThrowIfNull(cells);
+        var layer = Layers.Active();
+        var tiles = layer.Tiles.Where(tile => cells.Contains(tile.Cell)).ToArray();
+        if (tiles.Length == 0) throw new InvalidOperationException("La selección no contiene tiles.");
+        var originX = tiles.Min(static tile => tile.Cell.X);
+        var originY = tiles.Min(static tile => tile.Cell.Y);
+        return new MapTileClipboard(new(originX, originY), tiles);
+    }
+
+    public int Paste(Vector2IntData origin, MapTileClipboard clipboard)
+    {
+        ArgumentNullException.ThrowIfNull(clipboard);
+        var document = RequireDocument();
+        var offsetX = origin.X - clipboard.Origin.X;
+        var offsetY = origin.Y - clipboard.Origin.Y;
+        var previous = Layers.Active();
+        var remaining = previous.Tiles.ToList();
+        var pasted = 0;
+        foreach (var tile in clipboard.Tiles)
+        {
+            var cell = new Vector2IntData(tile.Cell.X + offsetX, tile.Cell.Y + offsetY);
+            if (!IsCellInside(document, cell)) continue;
+            remaining.RemoveAll(existing => existing.Cell == cell);
+            remaining.Add(new MapTilePlacementDefinition(
+                cell,
+                tile.TilesetKey,
+                tile.AtlasCell,
+                tile.Alternative,
+                tile.RotationQuarterTurns,
+                tile.FlipHorizontal,
+                tile.FlipVertical,
+                tile.Autotile));
+            pasted++;
+        }
+
+        if (pasted == 0) return 0;
+        var replacement = CopyLayer(previous, remaining.ToArray());
+        history.Push(new ChangeSet(
+            $"Pegar {pasted} tiles",
+            () => { Layers.Replace(replacement); dirty.Mark(); },
+            () => { Layers.Replace(previous); dirty.Mark(); }));
+        return pasted;
+    }
+
+    public MapSpawnZoneDefinition PlaceSpawnZone(DefinitionId spawnTableId, MapShapeDefinition area, int maximumAliveOverride = 0)
+        => AddSpawnZone(spawnTableId, area, maximumAliveOverride);
+
+    public MapPortalDefinition PlacePortal(MapShapeDefinition trigger, DefinitionId destinationMapId, Vector2Data destination)
+    {
+        var document = RequireDocument();
+        var portal = new MapPortalDefinition(Guid.NewGuid(), trigger, destinationMapId, destination);
+        history.Push(new ChangeSet(
+            "Colocar portal",
+            () => { if (!document.Portals.Contains(portal)) document.Portals.Add(portal); dirty.Mark(); },
+            () => { document.Portals.RemoveAll(value => value.Id == portal.Id); dirty.Mark(); }));
+        return portal;
+    }
+
+    public MapRegionDefinition PlaceRegion(string key, string name, MapShapeDefinition area)
+    {
+        var document = RequireDocument();
+        var region = new MapRegionDefinition(Guid.NewGuid(), key, name, area);
+        history.Push(new ChangeSet(
+            "Colocar región",
+            () => { if (!document.Regions.Contains(region)) document.Regions.Add(region); dirty.Mark(); },
+            () => { document.Regions.RemoveAll(value => value.Id == region.Id); dirty.Mark(); }));
+        return region;
+    }
+
+    public MapLightDefinition PlaceLight(Vector2Data position, float radius = 96)
+    {
+        var document = RequireDocument();
+        var light = new MapLightDefinition(Guid.NewGuid(), position, radius);
+        history.Push(new ChangeSet(
+            "Colocar luz",
+            () => { if (!document.Lights.Contains(light)) document.Lights.Add(light); dirty.Mark(); },
+            () => { document.Lights.RemoveAll(value => value.Id == light.Id); dirty.Mark(); }));
+        return light;
+    }
+
+    public EventDefinition PlaceEvent(Vector2Data position)
+    {
+        var key = new ContentKey($"events.{Guid.NewGuid():N}");
+        var created = Events.Create(key, "Evento", position);
+        dirty.Mark();
+        return created;
+    }
+
+    public IReadOnlyList<Vector2IntData> CellsInRect(Vector2IntData a, Vector2IntData b)
+    {
+        var document = RequireDocument();
+        var minX = Math.Min(a.X, b.X);
+        var maxX = Math.Max(a.X, b.X);
+        var minY = Math.Min(a.Y, b.Y);
+        var maxY = Math.Max(a.Y, b.Y);
+        var cells = new List<Vector2IntData>();
+        for (var y = minY; y <= maxY; y++)
+            for (var x = minX; x <= maxX; x++)
+            {
+                var cell = new Vector2IntData(x, y);
+                if (IsCellInside(document, cell)) cells.Add(cell);
+            }
+
+        return cells;
     }
 
     /// <summary>
@@ -292,6 +450,32 @@ public sealed class MapEditor
 
     private MapDocument RequireDocument()
         => Document ?? throw new InvalidOperationException("No hay mapa abierto.");
+
+    private HashSet<Vector2IntData> UniqueInside(IEnumerable<Vector2IntData> cells)
+    {
+        var document = RequireDocument();
+        return cells.Where(cell => IsCellInside(document, cell)).ToHashSet();
+    }
+
+    private static bool IsCellInside(MapDocument map, Vector2IntData cell)
+    {
+        var width = Math.Max(1, (int)Math.Ceiling(map.Bounds.Width / map.TileSize.X));
+        var height = Math.Max(1, (int)Math.Ceiling(map.Bounds.Height / map.TileSize.Y));
+        return cell.X >= 0 && cell.Y >= 0 && cell.X < width && cell.Y < height;
+    }
+
+    private static MapTilePlacementDefinition? TileAt(MapLayerDefinition layer, Vector2IntData cell)
+        => layer.Tiles.FirstOrDefault(tile => tile.Cell == cell);
+
+    private static bool SameTile(MapTilePlacementDefinition? left, MapTilePlacementDefinition? right)
+    {
+        if (left is null && right is null) return true;
+        if (left is null || right is null) return false;
+        return left.TilesetKey == right.TilesetKey
+            && left.AtlasCell == right.AtlasCell
+            && left.Alternative == right.Alternative
+            && left.Autotile == right.Autotile;
+    }
 
     private static MapLayerDefinition CopyLayer(MapLayerDefinition source, MapTilePlacementDefinition[] tiles)
         => new(

@@ -54,6 +54,18 @@ public sealed class MovementSystem(float speed, int tickMilliseconds)
 
 public interface IMobMovementPolicy { Vector2Data NextVelocity(Mob mob, long tick, float seconds); }
 
+/// <summary>
+/// Respeta <see cref="CreatureMovementMode.Stationary"/> de la Definition.
+/// Otros modos delegan en la política de movimiento existente (fixture).
+/// </summary>
+public sealed class StationaryAwareMobPolicy(IMobMovementPolicy moving) : IMobMovementPolicy
+{
+    public Vector2Data NextVelocity(Mob mob, long tick, float seconds)
+        => mob.Behavior.Movement == CreatureMovementMode.Stationary
+            ? default
+            : moving.NextVelocity(mob, tick, seconds);
+}
+
 public sealed class MobMovementSystem(float speed, int tickMilliseconds, IMobMovementPolicy policy)
 {
     public void Step(Mob mob, MapDefinition map, long tick)

@@ -13,6 +13,7 @@ public partial class MmoGame : Node2D
     private Button login = null!, register = null!, disconnect = null!;
     private readonly Dictionary<PrimaryAttributeId, Button> attributeButtons = [];
     private readonly List<Button> combatButtons = [];
+    private readonly InputManager inputs = new();
     private double accumulator;
     private bool focused = true;
     public Vector2? TestInput { get; set; }
@@ -127,27 +128,20 @@ public partial class MmoGame : Node2D
     private void AttackVisibleMob(DevelopmentAttackKind attack, bool targetDummy)
     {
         if (!Network.InWorld) return;
-        var local = Network.World.Local.Position;
-        var candidate = Network.World.Entities.All.Values
-            .OfType<MobState>()
-            .Where(mob => targetDummy
-                ? mob.DisplayName.Contains("Muñeco de entrenamiento", StringComparison.OrdinalIgnoreCase)
-                : mob.DisplayName.Contains("Explorador XP", StringComparison.OrdinalIgnoreCase))
-            .OrderBy(mob => DistanceSquared(local, mob.Position))
-            .FirstOrDefault();
+        MobState? candidate = null;
+        if (targetDummy)
+            candidate = inputs.Combat.FindTarget(Network.World, mob =>
+                mob.DisplayName.Contains("Muñeco de entrenamiento", StringComparison.OrdinalIgnoreCase));
+        else
+            candidate = inputs.Combat.FindTarget(Network.World, mob =>
+                mob.DisplayName.Contains("Explorador XP", StringComparison.OrdinalIgnoreCase));
+        candidate ??= inputs.Combat.FindTarget(Network.World);
         if (candidate is null)
         {
-            statsNotice.Text = targetDummy ? "El dummy no está visible." : "El mob XP no está visible o ya salió del AOI.";
+            statsNotice.Text = "No hay un mob visible en alcance.";
             return;
         }
         Network.DevelopmentAttack(candidate.Id, attack);
-    }
-
-    private static float DistanceSquared(Vector2Data left, Vector2Data right)
-    {
-        var x = left.X - right.X;
-        var y = left.Y - right.Y;
-        return x * x + y * y;
     }
 
     private static void RegisterInput()
@@ -162,12 +156,35 @@ public partial class MmoGame : Node2D
             InputMap.ActionAddEvent(binding.Item1, new InputEventKey { PhysicalKeycode = binding.Item3 });
             InputMap.ActionAddEvent(binding.Item1, new InputEventJoypadMotion { Axis = binding.Item4, AxisValue = binding.Item5 });
         }
+
+        RegisterAction(CombatInput.AttackAction, Key.J, Key.Space);
+        RegisterAction("mmo_hotkey_1", Key.Key1);
+        RegisterAction("mmo_hotkey_2", Key.Key2);
+        RegisterAction("mmo_hotkey_3", Key.Key3);
+        RegisterAction("mmo_hotkey_4", Key.Key4);
+        RegisterAction("mmo_hotkey_5", Key.Key5);
+        RegisterAction("mmo_hotkey_6", Key.Key6);
+    }
+
+    private static void RegisterAction(string action, params Key[] keys)
+    {
+        if (InputMap.HasAction(action)) return;
+        InputMap.AddAction(action, .2f);
+        foreach (var key in keys)
+            InputMap.ActionAddEvent(action, new InputEventKey { PhysicalKeycode = key });
     }
 
     public override void _Process(double delta)
     {
         var typing = GetViewport().GuiGetFocusOwner() is LineEdit;
         var input = TestInput ?? (focused && !typing ? Input.GetVector("mmo_left", "mmo_right", "mmo_up", "mmo_down") : Vector2.Zero);
+        if (!typing && focused && Network.InWorld)
+        {
+            if (inputs.Combat.JustPressed)
+                AttackVisibleMob(DevelopmentAttackKind.Basic, targetDummy: false);
+            else if (inputs.Hotkeys.ReadCombatHotkey(inputs.Bindings) is { } hotkey)
+                AttackVisibleMob(hotkey, targetDummy: true);
+        }
         if (Network.World.Session.Map is { } map && Network.InWorld)
         {
             var step = map.TickMilliseconds / 1000d;

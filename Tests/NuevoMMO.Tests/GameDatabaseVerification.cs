@@ -34,6 +34,10 @@ internal static class GameDatabaseVerification
             Expect(reopened.Definitions.Get<MobDefinition>(mob.Id).Combat.Level == 3, "Mob.Combat sobrevive game.db");
             Expect(reopened.Definitions.Get<MobDefinition>(mob.Id).Behavior.Aggressive, "Mob.Behavior sobrevive game.db");
             Expect(!reopened.Dirty.IsDirty, "Load de game.db deja el proyecto limpio");
+            Expect(NuevoMMO.Server.Database.GameDataSqlite.TryLoad(path, out var serverPackage)
+                && serverPackage is not null
+                && serverPackage.Mobs.Any(value => value.Id == mob.Id),
+                "El servidor carga el game.db del Editor");
 
             try
             {

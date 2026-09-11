@@ -18,7 +18,9 @@ public enum MapEditorTool : byte
     Portal,
     Region,
     Light,
-    Event
+    Event,
+    Fill,
+    Rectangle
 }
 
 [DesignerCategory("Form")]

@@ -12,6 +12,7 @@ internal static class MapEditorVerification
         VerifyExplicitLayerMigrationMarksDirty();
         VerifyTypedContinuousPlacementsAndHistory();
         VerifySpawnZoneHistory();
+        VerifyFillDragCopyPasteAndPlacements();
     }
 
     private static void VerifySaveDoesNotClearProjectDirty()
@@ -147,6 +148,54 @@ internal static class MapEditorVerification
         Expect(editor.Maps.RemoveSpawnZone(zone.Id), "Borrar SpawnZone existente");
         editor.History.Undo();
         Expect(editor.Maps.FindSpawnZone(zone.Id) is not null, "Undo de borrado restaura SpawnZone");
+    }
+
+    private static void VerifyFillDragCopyPasteAndPlacements()
+    {
+        var editor = new EditorApplication(new() { Mode = EditorMode.Offline });
+        editor.Maps.Create(NewMap("maps.tools"));
+        editor.Maps.Palette.Select(new ContentKey("tilesets.ground"), new Vector2IntData(1, 2));
+
+        Expect(editor.Maps.PaintRect(new(0, 0), new(1, 0)) == 2, "Pintar rectángulo cubre dos celdas");
+        Expect(editor.Maps.Document!.Layers[0].Tiles.Length == 2, "El rectángulo queda en la capa activa");
+
+        editor.Maps.Palette.Select(new ContentKey("tilesets.ground"), new Vector2IntData(3, 4));
+        Expect(editor.Maps.Fill(new(0, 1)) > 2, "Fill pinta las celdas vacías conectadas");
+
+        var clipboard = editor.Maps.Copy([new(0, 0), new(1, 0)]);
+        Expect(editor.Maps.Paste(new(4, 0), clipboard) == 2, "Copy/paste mueve el bloque relativo");
+        Expect(editor.Maps.Document.Layers[0].Tiles.Any(tile => tile.Cell == new Vector2IntData(4, 0)), "Paste escribe en el origen");
+
+        var mob = new MobDefinition(
+            DefinitionId.New(), new ContentKey("mobs.editor"), "Lobo", string.Empty, true, 1, null,
+            new ContentKey("visuals.mob"));
+        editor.Definitions.Register(mob);
+        editor.Maps.Place(SpawnEntityKind.Mob, mob.Id, new Vector2Data(64, 64));
+        Expect(editor.Maps.Document.Placements.Count == 1, "Placement de mob queda en el mapa");
+
+        var table = new SpawnTableDefinition(
+            DefinitionId.New(), new ContentKey("spawns.wolves"), "Lobos", string.Empty, true, 1, null,
+            [mob.Id]);
+        editor.Definitions.Register(table);
+        var zone = editor.Maps.PlaceSpawnZone(
+            table.Id,
+            new MapShapeDefinition(MapShapeKind.Rectangle, new Vector2Data(128, 128), new Vector2Data(64, 64)));
+        Expect(editor.Maps.Document.SpawnZones.Count == 1 && zone.SpawnTableId == table.Id, "Zona de spawn usa la tabla");
+
+        var portal = editor.Maps.PlacePortal(
+            new MapShapeDefinition(MapShapeKind.Rectangle, new Vector2Data(200, 200), new Vector2Data(32, 32)),
+            editor.Maps.Document.Id,
+            editor.Maps.Document.Spawn);
+        Expect(editor.Maps.Document.Portals.Count == 1 && portal.DestinationMapId == editor.Maps.Document.Id,
+            "Portal vecino apunta a un mapa existente");
+
+        editor.Maps.PlaceRegion("region.north", "Norte", new MapShapeDefinition(
+            MapShapeKind.Rectangle, new Vector2Data(300, 300), new Vector2Data(48, 48)));
+        editor.Maps.PlaceLight(new Vector2Data(80, 80));
+        editor.Maps.PlaceEvent(new Vector2Data(96, 96));
+        Expect(editor.Maps.Document.Regions.Count == 1, "Región colocada");
+        Expect(editor.Maps.Document.Lights.Count == 1, "Luz colocada");
+        Expect(editor.Definitions.GetAll<EventDefinition>().Count == 1, "Evento de mapa registrado");
     }
 
     private static MapDefinition NewMap(string key)

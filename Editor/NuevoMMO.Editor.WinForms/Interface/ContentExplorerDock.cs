@@ -18,6 +18,11 @@ public sealed partial class ContentExplorerDock : DockContent
             if (e.Node.Tag is GameDefinition definition)
                 DefinitionActivated?.Invoke(definition);
         };
+        tree.AfterSelect += (_, e) =>
+        {
+            if (e.Node?.Tag is GameDefinition definition)
+                DefinitionSelected?.Invoke(definition);
+        };
     }
 
     public ContentExplorerDock(EditorApplication application)
@@ -28,6 +33,7 @@ public sealed partial class ContentExplorerDock : DockContent
     }
 
     public event Action<GameDefinition>? DefinitionActivated;
+    public event Action<GameDefinition>? DefinitionSelected;
 
     public void RefreshTree()
     {

@@ -116,6 +116,18 @@ public static class SqliteMigrator
             payload_json TEXT NOT NULL,
             created_at TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS content_meta (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS definitions (
+            id TEXT PRIMARY KEY,
+            type TEXT NOT NULL,
+            key TEXT NOT NULL UNIQUE,
+            name TEXT NOT NULL,
+            json TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS ix_definitions_type ON definitions(type);
         """;
 
     private const string LogsSchema = """

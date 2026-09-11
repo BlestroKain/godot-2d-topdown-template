@@ -69,7 +69,8 @@ public static class DevelopmentWorldFactory
             new SqliteAccountRepository(paths.Auth),
             new SqliteSessionRepository(paths.Auth),
             new SqliteCharacterRepository(paths.Players),
-            $"SQLite · auth={paths.Auth} · players={paths.Players} · game={paths.Game} · logs={paths.Logs}");
+            $"SQLite · auth={paths.Auth} · players={paths.Players} · game={paths.Game} · logs={paths.Logs}",
+            paths.Game);
     }
 
     private static async Task<ServerComposition> CreatePostgresAsync(
@@ -100,7 +101,8 @@ public static class DevelopmentWorldFactory
         IAccountRepository accounts,
         ISessionRepository sessions,
         ICharacterRepository characters,
-        string persistenceDescription)
+        string persistenceDescription,
+        string? gameDatabasePath = null)
     {
         if (environment is not ("Development" or "Test")) throw new InvalidOperationException("Fixtures solo en Development/Test.");
         if (!string.Equals(environment, configuration.Environment, StringComparison.Ordinal))
@@ -108,48 +110,60 @@ public static class DevelopmentWorldFactory
 
         using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "movement.json")));
         var data = document.RootElement;
-        var map = new MapDefinition(
-            new(data.GetProperty("map").GetGuid()), new("maps.development"), "Development", "Mapa técnico local.",
-            true, 1, ["fixture"], new("maps.development.visual"),
-            new(new(0, 0), new(data.GetProperty("width").GetSingle(), data.GetProperty("height").GetSingle())),
-            new(data.GetProperty("spawnX").GetSingle(), data.GetProperty("spawnY").GetSingle()), new(32, 32));
-
-        // Mob técnico matable: 250 HP / 100 XP. Son valores de fixture para probar el circuito, no balance de contenido.
-        var mob = new MobDefinition(
-            new(data.GetProperty("mob").GetGuid()), new("mobs.scout"), "Explorador XP", "Mob técnico matable para probar XP/subida de nivel.",
-            true, 1, ["fixture", "development", "xp-test"], new("template.player"),
-            behavior: new CreatureBehaviorDefinition(
-                aggressive: false,
-                movement: CreatureMovementMode.Stationary),
-            combat: new CreatureCombatDefinition(
-                level: 1,
-                experience: 100,
-                baseDamage: 0,
-                maxVitals: new Dictionary<VitalId, float>
-                {
-                    [VitalId.Health] = 250,
-                    [VitalId.Mana] = 0
-                },
-                parameters: new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase)
-                {
-                    ["track_damage_telemetry"] = 1,
-                    ["development_xp_target"] = 1
-                }));
-
+        var fixtureMap = CreateFixtureMap(data);
+        var fixtureScout = CreateFixtureScout(data);
         var trainingDummyDefinition = TrainingDummyFixture.CreateDefinition();
-        var package = ContentPackage.Empty("dev-1") with { Maps = [map], Mobs = [mob, trainingDummyDefinition] };
+
+        ContentPackage? loadedPackage = null;
+        var loadedFromGame = gameDatabasePath is not null
+            && GameDataSqlite.TryLoad(gameDatabasePath, out loadedPackage)
+            && loadedPackage is not null
+            && loadedPackage.Maps.Length > 0;
+
+        ContentPackage package;
+        MapDefinition map;
+        MobDefinition? scout = null;
+        IMobMovementPolicy movementPolicy;
+        if (loadedFromGame)
+        {
+            package = MergeFixtureDefinitions(loadedPackage!, trainingDummyDefinition);
+            map = package.Maps.FirstOrDefault(static value => value.Enabled) ?? package.Maps[0];
+            movementPolicy = new StationaryAwareMobPolicy(new OscillatingMobPolicy());
+            persistenceDescription += " · game.db";
+        }
+        else
+        {
+            package = ContentPackage.Empty("dev-1") with { Maps = [fixtureMap], Mobs = [fixtureScout, trainingDummyDefinition] };
+            map = fixtureMap;
+            scout = fixtureScout;
+            movementPolicy = new OscillatingMobPolicy();
+        }
+
         var definitions = new GameDataLoader().Load(package);
         var systems = new GameSystems(definitions);
         var options = new WorldOptions(
             new(data.GetProperty("instance").GetInt64()), data.GetProperty("speed").GetSingle(),
             data.GetProperty("mobSpeed").GetSingle(), configuration.TickMilliseconds,
             data.GetProperty("interestRadius").GetSingle(), configuration.MaxPlayers);
-        var world = new WorldRuntime(map, mob, options, new OscillatingMobPolicy(),
-            new(data.GetProperty("mobX").GetSingle(), data.GetProperty("mobY").GetSingle()), systems);
 
-        // EntityId reservado únicamente para el fixture Development/Test. El dummy sigue siendo un Mob normal.
-        var dummyPosition = map.Bounds.Clamp(new Vector2Data(map.Spawn.X + 128f, map.Spawn.Y));
-        world.AddEntity(TrainingDummyFixture.CreateEntity(new EntityId(9_000_000_000), world.Instance, dummyPosition));
+        WorldRuntime world;
+        if (scout is not null)
+        {
+            world = new WorldRuntime(
+                map, scout, options, movementPolicy,
+                new(data.GetProperty("mobX").GetSingle(), data.GetProperty("mobY").GetSingle()), systems);
+        }
+        else
+        {
+            world = new WorldRuntime(map, options, movementPolicy, systems);
+            ContentWorldPopulator.Populate(world, definitions, map);
+        }
+
+        if (!world.MapInstance.Entities.All.OfType<Mob>().Any(mob => mob.DefinitionId == TrainingDummyFixture.DefinitionId))
+        {
+            var dummyPosition = map.Bounds.Clamp(new Vector2Data(map.Spawn.X + 128f, map.Spawn.Y));
+            world.AddEntity(TrainingDummyFixture.CreateEntity(new EntityId(9_000_000_000), world.Instance, dummyPosition));
+        }
 
         var persistence = new PersistenceService(characters, map);
         var auth = new AuthService(accounts, sessions, new PasswordHasher<string>());
@@ -173,5 +187,42 @@ public static class DevelopmentWorldFactory
             Sessions = sessions,
             PersistenceDescription = persistenceDescription
         };
+    }
+
+    private static MapDefinition CreateFixtureMap(JsonElement data)
+        => new(
+            new(data.GetProperty("map").GetGuid()), new("maps.development"), "Development", "Mapa técnico local.",
+            true, 1, ["fixture"], new("maps.development.visual"),
+            new(new(0, 0), new(data.GetProperty("width").GetSingle(), data.GetProperty("height").GetSingle())),
+            new(data.GetProperty("spawnX").GetSingle(), data.GetProperty("spawnY").GetSingle()), new(32, 32));
+
+    private static MobDefinition CreateFixtureScout(JsonElement data)
+        => new(
+            new(data.GetProperty("mob").GetGuid()), new("mobs.scout"), "Explorador XP", "Mob técnico matable para probar XP/subida de nivel.",
+            true, 1, ["fixture", "development", "xp-test"], new("template.player"),
+            behavior: new CreatureBehaviorDefinition(
+                aggressive: false,
+                movement: CreatureMovementMode.Stationary),
+            combat: new CreatureCombatDefinition(
+                level: 1,
+                experience: 100,
+                baseDamage: 0,
+                maxVitals: new Dictionary<VitalId, float>
+                {
+                    [VitalId.Health] = 250,
+                    [VitalId.Mana] = 0
+                },
+                parameters: new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["track_damage_telemetry"] = 1,
+                    ["development_xp_target"] = 1
+                }));
+
+    private static ContentPackage MergeFixtureDefinitions(ContentPackage package, MobDefinition dummy)
+    {
+        var mobs = package.Mobs?.ToList() ?? [];
+        if (mobs.All(mob => mob.Id != dummy.Id && mob.Key != dummy.Key))
+            mobs.Add(dummy);
+        return package with { Mobs = mobs.ToArray() };
     }
 }

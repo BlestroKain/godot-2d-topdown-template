@@ -39,6 +39,13 @@ public sealed partial class MainForm : Form
         mapDocument = new MapEditorDocument(application, images);
 
         contentExplorer.DefinitionActivated += OpenDefinition;
+        contentExplorer.DefinitionSelected += definition =>
+        {
+            mapDocument.BrushDefinition = definition;
+            mapDocument.SelectedPlacementDefinitionId = definition.Id;
+            if (definition is not MapDefinition)
+                properties.SelectedObject = definition;
+        };
         definitionEditors.ContentChanged += definition =>
         {
             contentExplorer.RefreshTree();
@@ -91,12 +98,16 @@ public sealed partial class MainForm : Form
 
         editUndoMenuItem.Click += (_, _) => Undo();
         editRedoMenuItem.Click += (_, _) => Redo();
+        editCopyMenuItem.Click += (_, _) => CopyMapSelection();
+        editPasteMenuItem.Click += (_, _) => PasteMapSelection();
 
         mapNewMenuItem.Click += (_, _) => CreateMap();
         mapSaveMenuItem.Click += (_, _) => SaveCurrentMap();
         mapSelectMenuItem.Click += (_, _) => SetMapTool(MapEditorTool.Select);
         mapPaintMenuItem.Click += (_, _) => SetMapTool(MapEditorTool.PaintTile);
         mapEraseMenuItem.Click += (_, _) => SetMapTool(MapEditorTool.EraseTile);
+        mapFillMenuItem.Click += (_, _) => SetMapTool(MapEditorTool.Fill);
+        mapRectangleMenuItem.Click += (_, _) => SetMapTool(MapEditorTool.Rectangle);
         mapCollisionMenuItem.Click += (_, _) => SetMapTool(MapEditorTool.Collision);
         mapImportTilesetsMenuItem.Click += (_, _) => ImportTilesets();
 
@@ -303,6 +314,7 @@ public sealed partial class MainForm : Form
             MapEditorTool.Npc => application.Maps.PlacementDefinitions(SpawnEntityKind.Npc),
             MapEditorTool.Resource => application.Maps.PlacementDefinitions(SpawnEntityKind.Resource),
             MapEditorTool.SpawnZone => application.Maps.SpawnTableDefinitions().Cast<GameDefinition>(),
+            MapEditorTool.Portal => application.Definitions.GetAll<MapDefinition>().Cast<GameDefinition>(),
             _ => []
         };
 
@@ -375,6 +387,19 @@ public sealed partial class MainForm : Form
         mapDocument.RefreshView();
         properties.RefreshSelectedObject();
         Text = "NuevoMMO Editor *";
+    }
+
+    private void CopyMapSelection()
+    {
+        if (!mapDocument.CopySelection()) return;
+        SetStatus("Tiles copiados.");
+    }
+
+    private void PasteMapSelection()
+    {
+        if (!mapDocument.PasteAtSelection()) return;
+        Text = "NuevoMMO Editor *";
+        SetStatus("Tiles pegados.");
     }
 
     private void SetMapTool(MapEditorTool tool)

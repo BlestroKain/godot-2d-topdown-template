@@ -208,6 +208,20 @@ Reject(() => DevelopmentWorldFactory.Create("Production"), "Fixtures rechazadas 
 
 var composition = DevelopmentWorldFactory.Create("Development");
 Check(composition.World.EntityCount >= 1, "Fixture carga mob inicial");
+
+var party = new PartyState();
+party.Set(new PartyId(Guid.NewGuid()), new EntityId(1), [new PartyMemberState(new EntityId(1), "Uno", 2, true)]);
+Check(party.HasParty && party.Members.Count == 1, "PartyState conserva miembros");
+party.Clear();
+Check(!party.HasParty, "PartyState.Clear vacía la party");
+
+var nearby = CombatTargeting.NearestMob(
+    [
+        new MobState(new EntityId(2), mobDefinition.Id, new MapInstanceId(1), new Vector2Data(10, 0), default, Direction.Down, new("template.player"), "Cerca"),
+        new MobState(new EntityId(3), mobDefinition.Id, new MapInstanceId(1), new Vector2Data(400, 0), default, Direction.Down, new("template.player"), "Lejos")
+    ],
+    new Vector2Data(0, 0));
+Check(nearby is { DisplayName: "Cerca" }, "CombatTargeting elige el mob más cercano");
 var host = new ServerHost(composition.World, composition.Persistence, composition.Dispatcher, 0);
 using var stop = new CancellationTokenSource();
 var hostTask = host.RunAsync(stop.Token);

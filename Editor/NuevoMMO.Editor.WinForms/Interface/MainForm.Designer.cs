@@ -29,6 +29,8 @@ partial class MainForm
     private ToolStripMenuItem editMenuItem = null!;
     private ToolStripMenuItem editUndoMenuItem = null!;
     private ToolStripMenuItem editRedoMenuItem = null!;
+    private ToolStripMenuItem editCopyMenuItem = null!;
+    private ToolStripMenuItem editPasteMenuItem = null!;
 
     private ToolStripMenuItem mapMenuItem = null!;
     private ToolStripMenuItem mapNewMenuItem = null!;
@@ -36,6 +38,8 @@ partial class MainForm
     private ToolStripMenuItem mapSelectMenuItem = null!;
     private ToolStripMenuItem mapPaintMenuItem = null!;
     private ToolStripMenuItem mapEraseMenuItem = null!;
+    private ToolStripMenuItem mapFillMenuItem = null!;
+    private ToolStripMenuItem mapRectangleMenuItem = null!;
     private ToolStripMenuItem mapCollisionMenuItem = null!;
     private ToolStripMenuItem mapImportTilesetsMenuItem = null!;
 
@@ -109,12 +113,16 @@ partial class MainForm
         editMenuItem = new ToolStripMenuItem();
         editUndoMenuItem = new ToolStripMenuItem();
         editRedoMenuItem = new ToolStripMenuItem();
+        editCopyMenuItem = new ToolStripMenuItem();
+        editPasteMenuItem = new ToolStripMenuItem();
         mapMenuItem = new ToolStripMenuItem();
         mapNewMenuItem = new ToolStripMenuItem();
         mapSaveMenuItem = new ToolStripMenuItem();
         mapSelectMenuItem = new ToolStripMenuItem();
         mapPaintMenuItem = new ToolStripMenuItem();
         mapEraseMenuItem = new ToolStripMenuItem();
+        mapFillMenuItem = new ToolStripMenuItem();
+        mapRectangleMenuItem = new ToolStripMenuItem();
         mapCollisionMenuItem = new ToolStripMenuItem();
         mapImportTilesetsMenuItem = new ToolStripMenuItem();
         contentMenuItem = new ToolStripMenuItem();
@@ -195,7 +203,13 @@ partial class MainForm
         editRedoMenuItem.Name = "editRedoMenuItem";
         editRedoMenuItem.ShortcutKeys = Keys.Control | Keys.Y;
         editRedoMenuItem.Text = "&Rehacer";
-        editMenuItem.DropDownItems.AddRange([editUndoMenuItem, editRedoMenuItem]);
+        editCopyMenuItem.Name = "editCopyMenuItem";
+        editCopyMenuItem.ShortcutKeys = Keys.Control | Keys.C;
+        editCopyMenuItem.Text = "&Copiar tiles";
+        editPasteMenuItem.Name = "editPasteMenuItem";
+        editPasteMenuItem.ShortcutKeys = Keys.Control | Keys.V;
+        editPasteMenuItem.Text = "&Pegar tiles";
+        editMenuItem.DropDownItems.AddRange([editUndoMenuItem, editRedoMenuItem, new ToolStripSeparator(), editCopyMenuItem, editPasteMenuItem]);
         editMenuItem.Name = "editMenuItem";
         editMenuItem.Text = "&Editar";
 
@@ -209,6 +223,10 @@ partial class MainForm
         mapPaintMenuItem.Text = "&Pintar tiles";
         mapEraseMenuItem.Name = "mapEraseMenuItem";
         mapEraseMenuItem.Text = "&Borrar tiles";
+        mapFillMenuItem.Name = "mapFillMenuItem";
+        mapFillMenuItem.Text = "&Rellenar";
+        mapRectangleMenuItem.Name = "mapRectangleMenuItem";
+        mapRectangleMenuItem.Text = "Pintar &rectángulo";
         mapCollisionMenuItem.Name = "mapCollisionMenuItem";
         mapCollisionMenuItem.Text = "&Colisiones";
         mapImportTilesetsMenuItem.Name = "mapImportTilesetsMenuItem";
@@ -221,6 +239,8 @@ partial class MainForm
             mapSelectMenuItem,
             mapPaintMenuItem,
             mapEraseMenuItem,
+            mapFillMenuItem,
+            mapRectangleMenuItem,
             mapCollisionMenuItem,
             new ToolStripSeparator(),
             mapImportTilesetsMenuItem
