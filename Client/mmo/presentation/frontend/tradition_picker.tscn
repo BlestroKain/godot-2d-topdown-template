@@ -11,56 +11,56 @@ theme_override_constants/margin_top = 10
 theme_override_constants/margin_right = 12
 theme_override_constants/margin_bottom = 10
 
-[node name="VBox" type="VBoxContainer" parent="Margin"]
+[node name="VBox" type="VBoxContainer" parent="."]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="Heading" type="Label" parent="Margin/VBox"]
+[node name="Heading" type="Label" parent="VBox"]
 layout_mode = 2
 text = "ELIGE TU TRADICIÓN"
 horizontal_alignment = 1
 theme_override_font_sizes/font_size = 18
 
-[node name="Hint" type="Label" parent="Margin/VBox"]
+[node name="Hint" type="Label" parent="VBox"]
 layout_mode = 2
 text = "La Tradición se fija al crear el personaje. El arma no define tu clase."
 autowrap_mode = 2
 horizontal_alignment = 1
 
-[node name="TraditionsScroll" type="ScrollContainer" parent="Margin/VBox"]
+[node name="TraditionsScroll" type="ScrollContainer" parent="VBox"]
 custom_minimum_size = Vector2(0, 122)
 layout_mode = 2
 size_flags_vertical = 3
 horizontal_scroll_mode = 0
 
-[node name="TraditionGrid" type="GridContainer" parent="Margin/VBox/TraditionsScroll"]
+[node name="TraditionGrid" type="GridContainer" parent="VBox/TraditionsScroll"]
 layout_mode = 2
 size_flags_horizontal = 3
 columns = 2
 theme_override_constants/h_separation = 8
 theme_override_constants/v_separation = 6
 
-[node name="Selection" type="PanelContainer" parent="Margin/VBox"]
+[node name="Selection" type="PanelContainer" parent="VBox"]
 layout_mode = 2
 
-[node name="SelectionMargin" type="MarginContainer" parent="Margin/VBox/Selection"]
+[node name="SelectionMargin" type="MarginContainer" parent="VBox/Selection"]
 layout_mode = 2
 theme_override_constants/margin_left = 10
 theme_override_constants/margin_top = 8
 theme_override_constants/margin_right = 10
 theme_override_constants/margin_bottom = 8
 
-[node name="SelectionVBox" type="VBoxContainer" parent="Margin/VBox/Selection/SelectionMargin"]
+[node name="SelectionVBox" type="VBoxContainer" parent="VBox/Selection/SelectionMargin"]
 layout_mode = 2
 theme_override_constants/separation = 3
 
-[node name="SelectedTradition" type="Label" parent="Margin/VBox/Selection/SelectionMargin/SelectionVBox"]
+[node name="SelectedTradition" type="Label" parent="VBox/Selection/SelectionMargin/SelectionVBox"]
 layout_mode = 2
 text = "Ninguna Tradición seleccionada"
 horizontal_alignment = 1
 theme_override_font_sizes/font_size = 16
 
-[node name="TraditionDescription" type="Label" parent="Margin/VBox/Selection/SelectionMargin/SelectionVBox"]
+[node name="TraditionDescription" type="Label" parent="VBox/Selection/SelectionMargin/SelectionVBox"]
 layout_mode = 2
 text = "Selecciona una de las diez Tradiciones para continuar."
 autowrap_mode = 2
