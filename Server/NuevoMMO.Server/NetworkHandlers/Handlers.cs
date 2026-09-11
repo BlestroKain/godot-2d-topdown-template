@@ -233,6 +233,79 @@ public sealed class AllocateAttributeHandler(
     }
 }
 
+/// <summary>
+/// Harness de Development/Test. Ejecuta fórmulas técnicas sobre Mobs reales a través de CombatSystem;
+/// no define targeting/rango de producción ni una ruta alternativa de daño.
+/// </summary>
+public sealed class DevelopmentAttackHandler(
+    WorldRuntime world,
+    CombatSystem combat,
+    ProgressionSystem progression,
+    PersistenceService persistence,
+    AuthorizationService authorization) : IPacketHandler<ServerPacketContext, DevelopmentAttackRequest>
+{
+    public async ValueTask HandleAsync(ServerPacketContext context, DevelopmentAttackRequest packet, CancellationToken cancellationToken)
+    {
+        ServerAuthorizationGuard.Demand(context, ServerAction.UseTechnique, authorization);
+        var player = context.Session.Player ?? throw new InvalidOperationException("Jugador fuera del mundo.");
+
+        try
+        {
+            if (!Enum.IsDefined(packet.Attack) || packet.Target.Value <= 0)
+                throw new InvalidDataException("Ataque de desarrollo inválido.");
+            if (!world.MapInstance.Entities.TryGet(packet.Target, out var entity) || entity is not Mob target)
+                throw new InvalidOperationException("El objetivo de prueba no es un mob disponible.");
+            if (!target.IsAlive)
+                throw new InvalidOperationException("El objetivo de prueba ya está derrotado.");
+
+            var formula = packet.Attack switch
+            {
+                DevelopmentAttackKind.Basic => TrainingDummyFixture.BasicTestAttack(),
+                DevelopmentAttackKind.Earth => TrainingDummyFixture.EarthTechnique(),
+                DevelopmentAttackKind.Fire => TrainingDummyFixture.FireTechnique(),
+                DevelopmentAttackKind.Air => TrainingDummyFixture.AirTechnique(),
+                DevelopmentAttackKind.Water => TrainingDummyFixture.WaterTechnique(),
+                DevelopmentAttackKind.NeutralStrength => TrainingDummyFixture.NeutralStrengthTechnique(),
+                _ => throw new InvalidDataException("Ataque de desarrollo desconocido.")
+            };
+
+            var now = Environment.TickCount64;
+            var result = combat.ExecuteAttributeDamage(player, target, formula, now);
+            var meter = combat.Telemetry.Snapshot(target.Id, now) ?? new DamageMeterSnapshot(
+                result.RawDamage, result.AppliedDamage, result.Element, result.Critical, 0, 0,
+                result.AppliedDamage, result.AppliedDamage > 0 ? 1 : 0, result.Critical ? 1 : 0);
+
+            context.Send(new CombatDebugPacket(
+                target.Id,
+                packet.Attack,
+                formula.DamageType,
+                formula.ScalingAttribute,
+                result.RawDamage,
+                result.ResistancePercent,
+                result.AppliedDamage,
+                result.Critical,
+                target.Health,
+                target.MaxHealth,
+                meter.Dps5Seconds,
+                meter.Dps10Seconds,
+                meter.TotalDamage,
+                meter.Hits,
+                meter.CriticalHits));
+
+            if (result.Killed && target.ExperienceReward > 0)
+            {
+                progression.GrantExperience(player, target.ExperienceReward);
+                await persistence.SaveCharacterAsync(player, cancellationToken);
+                context.Send(PlayerStatsProjection.Create(player, progression));
+            }
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidDataException or InvalidOperationException or OverflowException or KeyNotFoundException)
+        {
+            context.Send(new ErrorPacket("development_combat", exception.Message, false));
+        }
+    }
+}
+
 public sealed class PingHandler : IPacketHandler<ServerPacketContext, PingPacket>
 {
     public ValueTask HandleAsync(ServerPacketContext context, PingPacket packet, CancellationToken cancellationToken)
@@ -260,13 +333,15 @@ public static class ServerHandlerRegistry
         AbuseDetector? abuse = null,
         AuthenticationSettings? settings = null,
         BanList? bans = null,
-        ProgressionSystem? progression = null)
+        ProgressionSystem? progression = null,
+        CombatSystem? combat = null)
     {
         authorization ??= new AuthorizationService();
         abuse ??= new AbuseDetector();
         settings ??= new AuthenticationSettings();
         bans ??= new BanList();
-        progression ??= new ProgressionSystem();
+        progression ??= world.Systems?.Progression ?? new ProgressionSystem();
+        combat ??= world.Systems?.Combat ?? new CombatSystem();
         settings.Validate();
 
         var registry = new HandlerRegistry<ServerPacketContext>();
@@ -279,6 +354,7 @@ public static class ServerHandlerRegistry
         registry.Register(new MapReadyHandler(world, authorization));
         registry.Register(new MoveRequestHandler(world, authorization));
         registry.Register(new AllocateAttributeHandler(progression, persistence, authorization));
+        registry.Register(new DevelopmentAttackHandler(world, combat, progression, persistence, authorization));
         registry.Register(new PingHandler());
         registry.Register(new DisconnectHandler());
         return registry;
