@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using NuevoMMO.Client;
 using NuevoMMO.Core;
 using NuevoMMO.Network;
+using NuevoMMO.Server;
 using NuevoMMO.Server.Database;
 using NuevoMMO.Server.Systems;
 using NuevoMMO.Server.World;
@@ -35,7 +36,7 @@ internal static class MultiMapHardeningVerification
             "WaitingForMap no participa físicamente en ninguna instancia");
 
         var load = world.PrepareMapLoad(session, "multimap-test");
-        Expect(load.Map.MapDefinition == mapB.Id && load.Map.Instance == secondary.Id,
+        Expect(load.Map.Definition == mapB.Id && load.Map.Instance == secondary.Id,
             "MapLoad inicial corresponde al mapa persistido");
 
         world.Activate(session, secondary.Id);
@@ -68,8 +69,9 @@ internal static class MultiMapHardeningVerification
         var world = new WorldRuntime(mapA, Options(), new OscillatingMobPolicy(), systems);
         var secondary = world.AddMap(mapB, new MapInstanceId(2));
         var session = AuthenticatedSession(world, "PortalTester");
-        var character = new CharacterId(Guid.NewGuid());
-        var player = world.Join(session, new CharacterSpawn(session.Account, character, "PortalTester", mapA.Id, mapA.Spawn));
+        var repository = new InMemoryCharacterRepository();
+        var record = repository.CreateAsync(session.Account, "PortalTester", mapA.Id, mapA.Spawn).GetAwaiter().GetResult();
+        var player = world.Join(session, new CharacterSpawn(session.Account, record.Id, record.Name, mapA.Id, mapA.Spawn));
         world.PrepareMapLoad(session, "multimap-test");
         world.Activate(session, world.Instance);
 
@@ -83,22 +85,14 @@ internal static class MultiMapHardeningVerification
 
         var pending = world.PendingMapLoads("multimap-test");
         Expect(pending.TryGetValue(session.Connection, out var load) &&
-               load.Map.MapDefinition == mapB.Id && load.Map.Instance == secondary.Id,
+               load.Map.Definition == mapB.Id && load.Map.Instance == secondary.Id,
             "Portal produce MapLoad del destino sin reconectar");
 
-        var repository = new InMemoryCharacterRepository();
-        repository.CreateAsync(session.Account, "PortalTester", mapA.Id, mapA.Spawn).GetAwaiter().GetResult();
-        // El registro debe compartir CharacterId con el Player para verificar el checkpoint real.
-        // CreateAsync genera su propio ID, así que usamos un segundo mundo/jugador ligado al registro creado.
-        var persistedRecord = repository.CreateAsync(session.Account, "PortalPersistido", mapA.Id, mapA.Spawn).GetAwaiter().GetResult();
-        var persistedPlayer = new NuevoMMO.Server.Entities.Player(
-            new EntityId(9001), session.Account, persistedRecord.Id, secondary.Id, portal.Destination,
-            new ContentKey("template.player"), persistedRecord.Name);
         var persistence = new PersistenceService(repository, mapA, world.MapDefinitionFor);
-        persistence.SaveCharacterAsync(persistedPlayer).GetAwaiter().GetResult();
-        var saved = repository.GetAsync(persistedRecord.Id).GetAwaiter().GetResult();
+        persistence.SaveCharacterAsync(player).GetAwaiter().GetResult();
+        var saved = repository.GetAsync(record.Id).GetAwaiter().GetResult();
         Expect(saved is not null && saved.MapDefinition == mapB.Id && saved.Position == portal.Destination,
-            "Checkpoint persiste MapDefinition y posición de la instancia actual");
+            "Checkpoint del mismo Player persiste MapDefinition y posición de la instancia actual");
 
         world.Activate(session, secondary.Id);
         var destinationSnapshot = world.Step()[session.Connection];
