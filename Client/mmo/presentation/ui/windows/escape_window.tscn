@@ -50,6 +50,6 @@ layout_mode = 2
 text = "Desconectar"
 [node name="Hint" type="Label" parent="Margin/VBox"]
 layout_mode = 2
-text = "I Inventario · C Personaje · J Misiones · K Técnicas"
+text = "I Inventario · C Personaje · L Misiones · K Técnicas"
 theme_override_font_sizes/font_size = 12
 horizontal_alignment = 1
