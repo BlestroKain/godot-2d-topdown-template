@@ -45,10 +45,8 @@ public static class CanonicalDamageRules
             throw new ArgumentOutOfRangeException(nameof(resistancePercent));
 
         var resistance = Math.Min(resistancePercent, PositivePveResistanceCap);
-        var result = MathF.Floor(MathF.Max(0f, rawDamage * MathF.Max(0f, 1f - resistance / 100f)));
-        if (!float.IsFinite(result))
-            throw new OverflowException("La mitigación produjo daño inválido.");
-        return result;
+        var multiplier = Math.Max(0d, (100d - resistance) / 100d);
+        return DamagePipeline.FloorNonNegative((double)rawDamage * multiplier);
     }
 
     public static AttributeDamageResult Resolve(
