@@ -41,7 +41,7 @@ public sealed class GameConnection : IDisposable
         await LoginAsync(username, password);
         var list = await ListCharactersAsync();
         var character = list.Characters.Length == 0
-            ? (await CreateCharacterAsync(username, CanonicalTraditions.Veyrkan.Id)).Character
+            ? (await CreateCharacterAsync(username, CanonicalTraditions.Veyrkan.Id, CanonicalCharacterAppearance.Default)).Character
             : list.Characters[0];
         await EnterWorldAsync(character.Id);
     }
@@ -96,15 +96,20 @@ public sealed class GameConnection : IDisposable
     }
 
     public Task<CharacterCreated> CreateCharacterAsync(string name)
-        => CreateCharacterAsync(name, CanonicalTraditions.Veyrkan.Id);
+        => CreateCharacterAsync(name, CanonicalTraditions.Veyrkan.Id, CanonicalCharacterAppearance.Default);
 
-    public async Task<CharacterCreated> CreateCharacterAsync(string name, DefinitionId traditionId)
+    public Task<CharacterCreated> CreateCharacterAsync(string name, DefinitionId traditionId)
+        => CreateCharacterAsync(name, traditionId, CanonicalCharacterAppearance.Default);
+
+    public async Task<CharacterCreated> CreateCharacterAsync(string name, DefinitionId traditionId, CharacterAppearance appearance)
     {
         DemandAuthenticatedLobby();
         if (!CanonicalTraditions.IsSelectable(traditionId))
             throw new ArgumentException("Tradición inválida o no seleccionable.", nameof(traditionId));
+        if (!CanonicalCharacterAppearance.IsSupported(appearance))
+            throw new ArgumentException("Apariencia no publicada.", nameof(appearance));
         using var timeout = LobbyTimeout();
-        await WriteAsync(new CreateCharacterRequest(session, sessionToken, name, traditionId), timeout.Token);
+        await WriteAsync(new CreateCharacterRequest(session, sessionToken, name, traditionId, appearance), timeout.Token);
         var result = await ReadExpectedAsync<CharacterCreated>(timeout.Token, "Creación de personaje inválida.");
         Message?.Invoke(result);
         return result;
