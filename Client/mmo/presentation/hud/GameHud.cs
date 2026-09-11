@@ -7,7 +7,8 @@ using NuevoMMO.GodotClient.UI;
 namespace NuevoMMO.GodotClient;
 
 /// <summary>
-/// Production MMO HUD shell. Visual layout lives in .tscn scenes; this class only binds replicated game state and window actions.
+/// Production MMO HUD shell. Visual layout lives in .tscn scenes; this script binds replicated game state.
+/// System-specific window behavior is delegated to UiSystemBinder so this composition root stays small.
 /// </summary>
 public partial class GameHud : CanvasLayer
 {
@@ -17,6 +18,7 @@ public partial class GameHud : CanvasLayer
     private MmoWindow characterRoot = null!, inventoryRoot = null!, escapeRoot = null!, questRoot = null!, techniquesRoot = null!;
     private readonly Dictionary<string, MmoWindow> windows = new(StringComparer.OrdinalIgnoreCase);
     private string lastChatFingerprint = string.Empty;
+    private UiSystemBinder systemBinder = null!;
 
     public override void _Ready()
     {
@@ -58,6 +60,7 @@ public partial class GameHud : CanvasLayer
         GetNode<Button>("Root/CombatBar/HBox/Quick/TechniquesButton").Pressed += ToggleTechniques;
         GetNode<Button>("Root/QuestTracker/VBox/Header/JournalButton").Pressed += ToggleQuests;
 
+        systemBinder = new UiSystemBinder(this);
         Visible = false;
     }
 
@@ -108,6 +111,8 @@ public partial class GameHud : CanvasLayer
               $"STR   {stats.Strength.Effective}\nINT    {stats.Intelligence.Effective}\nAGI    {stats.Agility.Effective}\n" +
               $"SPI    {stats.Spirit.Effective}\nVIT    {stats.Vitality.Effective}\n\n" +
               $"Puntos disponibles   {stats.AvailableAttributePoints}\nHP   {stats.Health}/{stats.MaxHealth}\nPM   {stats.Mana}/{stats.MaxMana}";
+
+        systemBinder.Present(network);
     }
 
     public void ToggleCharacter() => characterRoot.Toggle();
@@ -165,8 +170,8 @@ public partial class GameHud : CanvasLayer
         {
             var slot = inventoryGrid.GetSlot(state.Slot);
             if (slot is null) continue;
-            slot.SetData(null, state.Quantity, $"Slot #{state.Slot} · x{state.Quantity}");
-            slot.Text = $"#{state.Slot}";
+            slot.SetData(null, state.Quantity, $"Item {state.DefinitionId} · x{state.Quantity}");
+            slot.Text = $"#{state.Slot}\nx{state.Quantity}";
         }
 
         inventorySummary.Text = world.Inventory.Count == 0
