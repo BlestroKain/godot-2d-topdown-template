@@ -72,13 +72,19 @@ public sealed class CharacterService(ICharacterRepository characters, MapDefinit
     public Task<IReadOnlyList<CharacterRecord>> ListAsync(AccountId account, CancellationToken cancellationToken = default)
         => characters.ListByAccountAsync(account, cancellationToken);
 
-    public async Task<CharacterRecord> CreateAsync(AccountId account, string name, CancellationToken cancellationToken = default)
+    public async Task<CharacterRecord> CreateAsync(
+        AccountId account,
+        string name,
+        DefinitionId traditionId,
+        CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(name) || name.Length > 24 || name.Any(char.IsControl))
             throw new ArgumentException("Nombre de personaje inválido.");
-        return await characters.CreateAsync(account, name.Trim(), map.Id, map.Spawn, cancellationToken);
+        if (!CanonicalTraditions.IsSelectable(traditionId))
+            throw new ArgumentException("Tradición inválida o no seleccionable.", nameof(traditionId));
+        return await characters.CreateAsync(account, name.Trim(), map.Id, map.Spawn, traditionId, cancellationToken);
     }
 
     public static CharacterSummary ToSummary(CharacterRecord record)
-        => new(record.Id, record.Name, record.MapDefinition, record.Position);
+        => new(record.Id, record.Name, record.MapDefinition, record.Position, record.TraditionId);
 }
