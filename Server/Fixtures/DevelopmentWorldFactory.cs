@@ -116,7 +116,8 @@ public static class DevelopmentWorldFactory
         var mob = new MobDefinition(
             new(data.GetProperty("mob").GetGuid()), new("mobs.scout"), "Explorador", "Mob de fixture.",
             true, 1, ["fixture"], new("template.player"));
-        var package = ContentPackage.Empty("dev-1") with { Maps = [map], Mobs = [mob] };
+        var trainingDummyDefinition = TrainingDummyFixture.CreateDefinition();
+        var package = ContentPackage.Empty("dev-1") with { Maps = [map], Mobs = [mob, trainingDummyDefinition] };
         var definitions = new GameDataLoader().Load(package);
         var systems = new GameSystems(definitions);
         var options = new WorldOptions(
@@ -125,6 +126,11 @@ public static class DevelopmentWorldFactory
             data.GetProperty("interestRadius").GetSingle(), configuration.MaxPlayers);
         var world = new WorldRuntime(map, mob, options, new OscillatingMobPolicy(),
             new(data.GetProperty("mobX").GetSingle(), data.GetProperty("mobY").GetSingle()), systems);
+
+        // EntityId reservado únicamente para el fixture Development/Test. El dummy sigue siendo un Mob normal.
+        var dummyPosition = map.Bounds.Clamp(new Vector2Data(map.Spawn.X + 128f, map.Spawn.Y));
+        world.AddEntity(TrainingDummyFixture.CreateEntity(new EntityId(9_000_000_000), world.Instance, dummyPosition));
+
         var persistence = new PersistenceService(characters, map);
         var auth = new AuthService(accounts, sessions, new PasswordHasher<string>());
         var characterService = new CharacterService(characters, map);
