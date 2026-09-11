@@ -43,11 +43,18 @@ public sealed partial class MainForm : Form
         {
             contentExplorer.RefreshTree();
             tilesetPalette.RefreshTilesets();
+            RefreshMapToolDefinitions(mapDocument.ActiveTool);
             properties.SelectedObject = definition;
             problems.SetProblems(ValidateProject(showMessage: false));
             Text = "NuevoMMO Editor *";
         };
-        mapTools.ToolSelected += tool => mapDocument.ActiveTool = tool;
+        mapTools.ToolSelected += tool =>
+        {
+            mapDocument.ActiveTool = tool;
+            RefreshMapToolDefinitions(tool);
+            SetStatus($"Herramienta: {tool}");
+        };
+        mapTools.DefinitionSelected += id => mapDocument.SelectedPlacementDefinitionId = id;
         mapTools.LayerSelected += key =>
         {
             if (application.Maps.Document is not null)
@@ -57,6 +64,7 @@ public sealed partial class MainForm : Form
         {
             properties.SelectedObject = document;
             RefreshMapLayers();
+            RefreshMapToolDefinitions(mapDocument.ActiveTool);
             SetStatus($"Mapa abierto: {document.Name}");
         };
         mapDocument.MapChanged += () =>
@@ -64,6 +72,8 @@ public sealed partial class MainForm : Form
             properties.RefreshSelectedObject();
             Text = "NuevoMMO Editor *";
         };
+        mapDocument.SelectedObjectChanged += value => properties.SelectedObject = value;
+        mapDocument.EditorNotice += SetStatus;
 
         WireDesignerEvents();
 
@@ -135,6 +145,7 @@ public sealed partial class MainForm : Form
         properties.Show(dockPanel, DockState.DockRight);
         problems.Show(dockPanel, DockState.DockBottom);
         mapDocument.Show(dockPanel, DockState.Document);
+        RefreshMapToolDefinitions(mapDocument.ActiveTool);
         ValidateProject(showMessage: false);
     }
 
@@ -146,6 +157,7 @@ public sealed partial class MainForm : Form
         definitionEditors.RefreshOpenEditors();
         contentExplorer.RefreshTree();
         tilesetPalette.RefreshTilesets();
+        mapTools.ClearDefinitions();
         properties.SelectedObject = null;
         problems.SetProblems([]);
         SetCleanTitle();
@@ -171,6 +183,7 @@ public sealed partial class MainForm : Form
             definitionEditors.RefreshOpenEditors();
             contentExplorer.RefreshTree();
             tilesetPalette.RefreshTilesets();
+            RefreshMapToolDefinitions(mapDocument.ActiveTool);
             properties.SelectedObject = null;
             ValidateProject(showMessage: false);
             SetCleanTitle();
@@ -282,6 +295,29 @@ public sealed partial class MainForm : Form
         mapTools.SetLayers(application.Maps.Layers.Layers, application.Maps.Layers.ActiveLayerKey);
     }
 
+    private void RefreshMapToolDefinitions(MapEditorTool tool)
+    {
+        IEnumerable<GameDefinition> values = tool switch
+        {
+            MapEditorTool.Mob => application.Maps.PlacementDefinitions(SpawnEntityKind.Mob),
+            MapEditorTool.Npc => application.Maps.PlacementDefinitions(SpawnEntityKind.Npc),
+            MapEditorTool.Resource => application.Maps.PlacementDefinitions(SpawnEntityKind.Resource),
+            MapEditorTool.SpawnZone => application.Maps.SpawnTableDefinitions().Cast<GameDefinition>(),
+            _ => []
+        };
+
+        var definitionsForTool = values.ToArray();
+        if (definitionsForTool.Length == 0)
+        {
+            mapTools.ClearDefinitions();
+            mapDocument.SelectedPlacementDefinitionId = null;
+            return;
+        }
+
+        mapTools.SetDefinitions(definitionsForTool, mapDocument.SelectedPlacementDefinitionId);
+        mapDocument.SelectedPlacementDefinitionId = mapTools.SelectedDefinitionId;
+    }
+
     private void ImportTilesets()
     {
         var importer = new TilesetImporter(application.Definitions, images);
@@ -344,6 +380,8 @@ public sealed partial class MainForm : Form
     private void SetMapTool(MapEditorTool tool)
     {
         mapDocument.ActiveTool = tool;
+        mapTools.SelectTool(tool);
+        RefreshMapToolDefinitions(tool);
         SetStatus($"Herramienta: {tool}");
     }
 
