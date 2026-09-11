@@ -68,6 +68,8 @@ internal static class ProgressionCombatVerification
         Check(Math.Abs(CanonicalDamageRules.ApplyPveResistance(110, -20) - 132f) < 0.001f,
             "Combat: resistencia negativa crea vulnerabilidad");
 
+        VerifyDamagePipeline();
+
         var dummy = TrainingDummyFixture.CreateEntity(
             new EntityId(20),
             new MapInstanceId(1),
@@ -87,6 +89,44 @@ internal static class ProgressionCombatVerification
         combat.ApplyDamage(player, dummy, 100_000, Element.Neutral, nowMilliseconds: 2_000);
         Check(dummy.Health == 1 && dummy.IsAlive,
             "Dummy: inmortalidad es flag de LivingEntity y usa el mismo pipeline");
+    }
+
+    private static void VerifyDamagePipeline()
+    {
+        var breakdown = DamagePipeline.Resolve(new DamageCalculationInput(
+            Element.Fire,
+            BaseDamage: 100,
+            Characteristic: 200,
+            CharacteristicScale: 1,
+            Power: 50,
+            FlatDamage: 25,
+            CriticalMultiplier: 1.5f,
+            HardDefense: 100,
+            SoftDefense: 30,
+            FlatReduction: 10,
+            ResistancePercent: 25,
+            FinalMultiplier: 1.2f));
+
+        Check(breakdown.AfterCharacteristicAndPower == 350,
+            "Combat pipeline: característica + Power escalan la base estilo Dofus");
+        Check(breakdown.AfterFlatDamage == 375 && breakdown.AfterCritical == 562,
+            "Combat pipeline: daño plano y crítico son etapas explícitas");
+        Check(Math.Abs(breakdown.HardDefenseMultiplier - .82f) < .0001f && breakdown.AfterHardDefense == 460,
+            "Combat pipeline: Hard DEF usa curva multiplicativa estilo RO");
+        Check(breakdown.AfterSoftDefense == 430 && breakdown.AfterFlatReduction == 420,
+            "Combat pipeline: Soft DEF y reducción plana son sustractivas");
+        Check(breakdown.AfterResistance == 315 && breakdown.FinalDamage == 378,
+            "Combat pipeline: resistencia y multiplicador final cierran el cálculo");
+
+        var capped = DamagePipeline.Resolve(new DamageCalculationInput(
+            Element.Earth, 100, 0, ResistancePercent: 95, UsePositivePveResistanceCap: true));
+        Check(capped.EffectiveResistancePercent == 80 && capped.FinalDamage == 20,
+            "Combat pipeline: cap PvE positivo permanece centralizado");
+
+        var vulnerable = DamagePipeline.Resolve(new DamageCalculationInput(
+            Element.Water, 100, 0, ResistancePercent: -20));
+        Check(vulnerable.FinalDamage == 120,
+            "Combat pipeline: resistencia negativa conserva vulnerabilidad");
     }
 
     private static void Check(bool condition, string name)
