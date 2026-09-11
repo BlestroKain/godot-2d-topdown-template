@@ -10,8 +10,22 @@ public sealed record LoadedCharacter(
     int? CurrentHealth,
     int? CurrentMana);
 
-public sealed class PersistenceService(ICharacterRepository characters, MapDefinition map)
+public sealed class PersistenceService
 {
+    private readonly ICharacterRepository characters;
+    private readonly MapDefinition fallbackMap;
+    private readonly Func<MapInstanceId, DefinitionId>? mapDefinitionResolver;
+
+    public PersistenceService(
+        ICharacterRepository characters,
+        MapDefinition fallbackMap,
+        Func<MapInstanceId, DefinitionId>? mapDefinitionResolver = null)
+    {
+        this.characters = characters ?? throw new ArgumentNullException(nameof(characters));
+        this.fallbackMap = fallbackMap ?? throw new ArgumentNullException(nameof(fallbackMap));
+        this.mapDefinitionResolver = mapDefinitionResolver;
+    }
+
     public async Task<LoadedCharacter> LoadCharacterAsync(AccountId account, CharacterRecord record, CancellationToken cancellationToken = default)
     {
         var stored = await characters.GetAsync(record.Id, cancellationToken) ?? record;
@@ -19,7 +33,7 @@ public sealed class PersistenceService(ICharacterRepository characters, MapDefin
             account,
             stored.Id,
             stored.Name,
-            stored.MapDefinition.Value == Guid.Empty ? map.Id : stored.MapDefinition,
+            stored.MapDefinition.Value == Guid.Empty ? fallbackMap.Id : stored.MapDefinition,
             stored.Position);
         return new LoadedCharacter(
             spawn,
@@ -31,9 +45,12 @@ public sealed class PersistenceService(ICharacterRepository characters, MapDefin
     public Task SaveCharacterAsync(Player player, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(player);
+        var mapDefinition = mapDefinitionResolver?.Invoke(player.MapInstanceId) ?? fallbackMap.Id;
+        if (mapDefinition.IsEmpty)
+            throw new InvalidOperationException("No se pudo resolver la MapDefinition actual del jugador.");
         return characters.SaveCheckpointAsync(
             player.CharacterId,
-            map.Id,
+            mapDefinition,
             player.Position,
             player.Progression,
             player.Health,
