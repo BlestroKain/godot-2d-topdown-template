@@ -1,15 +1,18 @@
 namespace NuevoMMO.Core;
 
 /// <summary>
-/// Fórmula de daño donde el elemento y el atributo de escalado son conceptos
-/// independientes. Neutral, por ejemplo, no implica Strength automáticamente.
+/// Adaptador compacto para contenido que escala con un atributo primario concreto.
+/// Scaling=1 equivale a usar el 100% de la característica en la etapa estilo Dofus.
+/// DamageType y ScalingAttribute siguen siendo conceptos independientes.
 /// </summary>
 public sealed record AttributeDamageFormula(
     Element DamageType,
     PrimaryAttributeId ScalingAttribute,
     float BaseDamage,
     float Scaling,
-    float CriticalMultiplier = 1f);
+    float CriticalMultiplier = 1f,
+    float Power = 0f,
+    float FlatDamage = 0f);
 
 public sealed record AttributeDamageResult(
     Element DamageType,
@@ -17,11 +20,12 @@ public sealed record AttributeDamageResult(
     float RawDamage,
     float ResistancePercent,
     float FinalDamage,
-    bool Critical);
+    bool Critical,
+    DamageBreakdown? Breakdown = null);
 
 /// <summary>
-/// Tuning de combate V0.1 para pruebas. El cap PvE puede cambiar después de
-/// medir builds y criaturas; se mantiene centralizado para no hardcodearlo.
+/// Compatibilidad y tuning canónico de daño. La implementación completa vive en DamagePipeline;
+/// esta clase conserva la API usada por fixtures y contenido temprano.
 /// </summary>
 public static class CanonicalDamageRules
 {
@@ -29,24 +33,8 @@ public static class CanonicalDamageRules
 
     public static float CalculateRaw(AttributeDamageFormula formula, PrimaryStats attributes)
     {
-        ArgumentNullException.ThrowIfNull(formula);
-        ArgumentNullException.ThrowIfNull(attributes);
-        if (!Enum.IsDefined(formula.DamageType)) throw new ArgumentOutOfRangeException(nameof(formula.DamageType));
-        if (!Enum.IsDefined(formula.ScalingAttribute)) throw new ArgumentOutOfRangeException(nameof(formula.ScalingAttribute));
-        if (!float.IsFinite(formula.BaseDamage) || formula.BaseDamage < 0)
-            throw new ArgumentOutOfRangeException(nameof(formula.BaseDamage));
-        if (!float.IsFinite(formula.Scaling) || formula.Scaling < 0)
-            throw new ArgumentOutOfRangeException(nameof(formula.Scaling));
-        if (!float.IsFinite(formula.CriticalMultiplier) || formula.CriticalMultiplier < 1f)
-            throw new ArgumentOutOfRangeException(nameof(formula.CriticalMultiplier));
-
-        var attribute = attributes.Get(formula.ScalingAttribute);
-        if (attribute < 0) throw new ArgumentException("El atributo de escalado no puede ser negativo.", nameof(attributes));
-
-        var raw = formula.BaseDamage * (1f + attribute / 100f * formula.Scaling);
-        raw *= formula.CriticalMultiplier;
-        if (!float.IsFinite(raw)) throw new OverflowException("El daño produjo un valor no finito.");
-        return raw;
+        var breakdown = ResolvePipeline(formula, attributes, 0f, usePveResistanceCap: false);
+        return breakdown.AfterCritical;
     }
 
     public static float ApplyPveResistance(float rawDamage, float resistancePercent)
@@ -57,8 +45,8 @@ public static class CanonicalDamageRules
             throw new ArgumentOutOfRangeException(nameof(resistancePercent));
 
         var resistance = Math.Min(resistancePercent, PositivePveResistanceCap);
-        var result = rawDamage * (1f - resistance / 100f);
-        if (!float.IsFinite(result) || result < 0)
+        var result = MathF.Floor(MathF.Max(0f, rawDamage * MathF.Max(0f, 1f - resistance / 100f)));
+        if (!float.IsFinite(result))
             throw new OverflowException("La mitigación produjo daño inválido.");
         return result;
     }
@@ -68,14 +56,57 @@ public static class CanonicalDamageRules
         PrimaryStats attackerAttributes,
         float targetResistance)
     {
-        var raw = CalculateRaw(formula, attackerAttributes);
-        var final = ApplyPveResistance(raw, targetResistance);
+        var breakdown = ResolvePipeline(formula, attackerAttributes, targetResistance, usePveResistanceCap: true);
         return new AttributeDamageResult(
             formula.DamageType,
             formula.ScalingAttribute,
-            raw,
-            Math.Min(targetResistance, PositivePveResistanceCap),
-            final,
-            formula.CriticalMultiplier > 1f);
+            breakdown.AfterCritical,
+            breakdown.EffectiveResistancePercent,
+            breakdown.FinalDamage,
+            breakdown.Critical,
+            breakdown);
+    }
+
+    public static DamageBreakdown ResolvePipeline(
+        AttributeDamageFormula formula,
+        PrimaryStats attackerAttributes,
+        float targetResistance,
+        bool usePveResistanceCap = true,
+        float hardDefense = 0f,
+        float softDefense = 0f,
+        float flatReduction = 0f,
+        float finalMultiplier = 1f)
+    {
+        ArgumentNullException.ThrowIfNull(formula);
+        ArgumentNullException.ThrowIfNull(attackerAttributes);
+        if (!Enum.IsDefined(formula.DamageType)) throw new ArgumentOutOfRangeException(nameof(formula.DamageType));
+        if (!Enum.IsDefined(formula.ScalingAttribute)) throw new ArgumentOutOfRangeException(nameof(formula.ScalingAttribute));
+        if (!float.IsFinite(formula.BaseDamage) || formula.BaseDamage < 0)
+            throw new ArgumentOutOfRangeException(nameof(formula.BaseDamage));
+        if (!float.IsFinite(formula.Scaling) || formula.Scaling < 0)
+            throw new ArgumentOutOfRangeException(nameof(formula.Scaling));
+        if (!float.IsFinite(formula.CriticalMultiplier) || formula.CriticalMultiplier < 1f)
+            throw new ArgumentOutOfRangeException(nameof(formula.CriticalMultiplier));
+        if (!float.IsFinite(formula.Power)) throw new ArgumentOutOfRangeException(nameof(formula.Power));
+        if (!float.IsFinite(formula.FlatDamage)) throw new ArgumentOutOfRangeException(nameof(formula.FlatDamage));
+        if (!float.IsFinite(targetResistance)) throw new ArgumentOutOfRangeException(nameof(targetResistance));
+
+        var attribute = attackerAttributes.Get(formula.ScalingAttribute);
+        if (attribute < 0) throw new ArgumentException("El atributo de escalado no puede ser negativo.", nameof(attackerAttributes));
+
+        return DamagePipeline.Resolve(new DamageCalculationInput(
+            formula.DamageType,
+            formula.BaseDamage,
+            attribute,
+            formula.Scaling,
+            formula.Power,
+            formula.FlatDamage,
+            formula.CriticalMultiplier,
+            hardDefense,
+            softDefense,
+            flatReduction,
+            targetResistance,
+            usePveResistanceCap,
+            finalMultiplier));
     }
 }
