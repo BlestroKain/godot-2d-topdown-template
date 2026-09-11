@@ -26,6 +26,7 @@ public partial class UiTabBar : HBoxContainer
             first ??= button;
             button.ToggleMode = true;
             button.ButtonGroup = group;
+            button.ThemeTypeVariation = "UiTabButton";
             button.SetMeta("ui_tab_index", tabIndex);
             hasSelection |= button.ButtonPressed;
             button.Pressed += () => EmitTab(button);
