@@ -137,7 +137,8 @@ public sealed class CharacterCreateHandler(CharacterService characters, Authoriz
         ServerAuthorizationGuard.Demand(context, ServerAction.CreateCharacter, authorization);
         AuthService.EnsureSession(context.Session, packet.Session, packet.SessionToken);
         if (!InputValidator.IsSafeName(packet.Name)) throw new ArgumentException("Nombre de personaje inválido.");
-        var created = await characters.CreateAsync(context.Session.Account, packet.Name, cancellationToken);
+        if (!CanonicalTraditions.IsSelectable(packet.TraditionId)) throw new ArgumentException("Tradición inválida.");
+        var created = await characters.CreateAsync(context.Session.Account, packet.Name, packet.TraditionId, cancellationToken);
         context.Send(new CharacterCreated(CharacterService.ToSummary(created)));
     }
 }
