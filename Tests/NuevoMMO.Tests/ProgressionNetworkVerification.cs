@@ -100,6 +100,18 @@ internal static class ProgressionNetworkVerification
               sent.OfType<PlayerStatsPacket>().Any(packet => packet.Stats.Level == 2),
             "Combat/XP: servidor devuelve telemetría y stats actualizados");
 
+        var reloaded = persistence.LoadCharacterAsync(account, saved!).GetAwaiter().GetResult();
+        var reconnectedPlayer = new Player(
+            new EntityId(701), account, record.Id, composition.World.Instance, reloaded.Spawn.Position,
+            new ContentKey("template.player"), record.Name);
+        composition.Systems.Progression.Initialize(reconnectedPlayer, reloaded.Progression, preserveVitals: false);
+        if (reloaded.CurrentHealth is not null || reloaded.CurrentMana is not null)
+            reconnectedPlayer.SetVitals(
+                Math.Clamp(reloaded.CurrentHealth ?? reconnectedPlayer.MaxHealth, 0, reconnectedPlayer.MaxHealth),
+                Math.Clamp(reloaded.CurrentMana ?? reconnectedPlayer.MaxMana, 0, reconnectedPlayer.MaxMana));
+        Check(reconnectedPlayer.Level == 2 && reconnectedPlayer.Experience == 0 && reconnectedPlayer.AttributePoints == 3,
+            "Reconnect: nivel/XP/puntos sobreviven save-load");
+
         var state = new ClientGameState();
         state.Start(new MapLoadPacket(composition.World.Projection("dev-1"), new EntityId(700), record.Id));
         var authoritative = PlayerStatsProjection.Create(player, composition.Systems.Progression);
