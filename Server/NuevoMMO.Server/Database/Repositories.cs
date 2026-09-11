@@ -93,6 +93,15 @@ public sealed class InMemoryCharacterRepository : ICharacterRepository
     public Task<CharacterRecord?> GetAsync(CharacterId id, CancellationToken cancellationToken = default)
         => Task.FromResult(characters.TryGetValue(id, out var character) ? character : null);
 
+    /// <summary>Compatibilidad para fixtures anteriores a Tradición-en-creación.</summary>
+    public Task<CharacterRecord> CreateAsync(
+        AccountId account,
+        string name,
+        DefinitionId map,
+        Vector2Data position,
+        CancellationToken cancellationToken = default)
+        => CreateAsync(account, name, map, position, CanonicalTraditions.Veyrkan.Id, cancellationToken);
+
     public Task<CharacterRecord> CreateAsync(AccountId account, string name, DefinitionId map, Vector2Data position, DefinitionId traditionId, CancellationToken cancellationToken = default)
     {
         if (characters.Values.Any(character => character.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
