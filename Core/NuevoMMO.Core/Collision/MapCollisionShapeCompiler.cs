@@ -90,9 +90,7 @@ public static class MapCollisionShapeCompiler
             throw new InvalidDataException("No se pudo completar la triangulación del polígono de colisión.");
         triangles.Add(new ConvexPolygonCollisionShape(
             [points[remaining[0]], points[remaining[1]], points[remaining[2]]]));
-        return triangles.Count == 1
-            ? new ConvexPolygonCollisionShape(triangles[0] is ConvexPolygonCollisionShape triangle ? triangle.Points : points, center)
-            : new CompoundCollisionShape(triangles, center);
+        return new CompoundCollisionShape(triangles, center);
     }
 
     private static float SignedArea(IReadOnlyList<Vector2Data> points)
