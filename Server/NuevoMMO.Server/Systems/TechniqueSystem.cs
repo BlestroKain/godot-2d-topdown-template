@@ -262,7 +262,8 @@ public sealed class TechniqueSystem
     }
 
     /// <summary>
-    /// Ejecuta las acciones producidas por un EffectSystem contra el portador del efecto.
+    /// Ejecuta las acciones producidas por un EffectSystem o por una entidad técnica (proyectil/zona)
+    /// contra su objetivo usando el mismo pipeline de acciones autoritativo.
     /// </summary>
     public IReadOnlyList<TechniqueActionExecution> ExecuteEffectActions(
         LivingEntity? source,
@@ -656,7 +657,8 @@ public sealed class TechniqueSystem
             lifetime,
             maxImpacts,
             source.VisualKey,
-            "Proyectil");
+            "Proyectil",
+            impactActions: action.PayloadActions);
         world.Spawn(projectile);
         return projectile.Id;
     }
