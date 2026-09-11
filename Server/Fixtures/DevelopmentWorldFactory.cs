@@ -129,7 +129,8 @@ public static class DevelopmentWorldFactory
         var auth = new AuthService(accounts, sessions, new PasswordHasher<string>());
         var characterService = new CharacterService(characters, map);
         var dispatcher = new PacketDispatcher<ServerPacketContext>(
-            ServerHandlerRegistry.Create(world, auth, characterService, persistence), PacketDirection.ClientToServer);
+            ServerHandlerRegistry.Create(world, auth, characterService, persistence, progression: systems.Progression),
+            PacketDirection.ClientToServer);
         return new ServerComposition
         {
             World = world,
