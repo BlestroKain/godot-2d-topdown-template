@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <ProjectReference Include="../../Core/NuevoMMO.Core/NuevoMMO.Core.csproj" />
+    <ProjectReference Include="$(NuevoMMOCoreProject)" />
     <ProjectReference Include="../../Network/NuevoMMO.Network/NuevoMMO.Network.csproj" />
   </ItemGroup>
 
