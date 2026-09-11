@@ -1,108 +1,110 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=18 format=3]
 
 [ext_resource type="Script" path="res://mmo/presentation/hud/GameHud.cs" id="1"]
+[ext_resource type="Theme" path="res://mmo/presentation/ui/theme/mmo_ui_theme.tres" id="2"]
+[ext_resource type="PackedScene" path="res://mmo/presentation/ui/hud/combat_bar.tscn" id="3"]
+[ext_resource type="PackedScene" path="res://mmo/presentation/ui/hud/chat_panel.tscn" id="4"]
+[ext_resource type="PackedScene" path="res://mmo/presentation/ui/hud/quest_tracker.tscn" id="5"]
+[ext_resource type="PackedScene" path="res://mmo/presentation/ui/hud/minimap.tscn" id="6"]
+[ext_resource type="PackedScene" path="res://mmo/presentation/ui/windows/character_window.tscn" id="7"]
+[ext_resource type="PackedScene" path="res://mmo/presentation/ui/windows/inventory_window.tscn" id="8"]
+[ext_resource type="PackedScene" path="res://mmo/presentation/ui/windows/quest_journal.tscn" id="9"]
+[ext_resource type="PackedScene" path="res://mmo/presentation/ui/windows/techniques_window.tscn" id="10"]
+[ext_resource type="PackedScene" path="res://mmo/presentation/ui/windows/shop_window.tscn" id="11"]
+[ext_resource type="PackedScene" path="res://mmo/presentation/ui/windows/bank_window.tscn" id="12"]
+[ext_resource type="PackedScene" path="res://mmo/presentation/ui/windows/mail_window.tscn" id="13"]
+[ext_resource type="PackedScene" path="res://mmo/presentation/ui/windows/community_window.tscn" id="14"]
+[ext_resource type="PackedScene" path="res://mmo/presentation/ui/windows/dialogue_window.tscn" id="15"]
+[ext_resource type="PackedScene" path="res://mmo/presentation/ui/windows/profession_window.tscn" id="16"]
+[ext_resource type="PackedScene" path="res://mmo/presentation/ui/windows/escape_window.tscn" id="17"]
 
 [node name="GameHud" type="CanvasLayer"]
 layer = 10
 script = ExtResource("1")
 
-[node name="SelfBox" type="PanelContainer" parent="."]
+[node name="Root" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+
+[node name="LocationPanel" type="PanelContainer" parent="Root"]
 offset_left = 12.0
-offset_top = 628.0
-offset_right = 392.0
-offset_bottom = 708.0
+offset_top = 12.0
+offset_right = 342.0
+offset_bottom = 80.0
+theme = ExtResource("2")
+[node name="HBox" type="HBoxContainer" parent="Root/LocationPanel"]
+layout_mode = 2
+[node name="Icon" type="Label" parent="Root/LocationPanel/HBox"]
+layout_mode = 2
+text = "⌖"
+theme_override_colors/font_color = Color(0.84, 0.65, 0.32, 1)
+theme_override_font_sizes/font_size = 25
+[node name="Text" type="VBoxContainer" parent="Root/LocationPanel/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+[node name="Zone" type="Label" parent="Root/LocationPanel/HBox/Text"]
+layout_mode = 2
+text = "Zona actual"
+theme_override_font_sizes/font_size = 18
+[node name="SubZone" type="Label" parent="Root/LocationPanel/HBox/Text"]
+layout_mode = 2
+text = "Región"
+theme_override_colors/font_color = Color(0.48, 0.68, 0.70, 1)
+theme_override_font_sizes/font_size = 13
+[node name="Clock" type="Label" parent="Root/LocationPanel/HBox"]
+layout_mode = 2
+text = "☀ 00:00"
+vertical_alignment = 1
 
-[node name="VBox" type="VBoxContainer" parent="SelfBox"]
+[node name="QuestTracker" parent="Root" instance=ExtResource("5")]
+offset_left = 12.0
+offset_top = 88.0
+offset_right = 342.0
+offset_bottom = 318.0
 
-[node name="Title" type="Label" parent="SelfBox/VBox"]
-text = "Jugador"
+[node name="Minimap" parent="Root" instance=ExtResource("6")]
+offset_left = 1018.0
+offset_top = 12.0
+offset_right = 1268.0
+offset_bottom = 262.0
 
-[node name="Vitals" type="Label" parent="SelfBox/VBox"]
-text = "HP --/--  PM --/--"
-
-[node name="TargetBox" type="PanelContainer" parent="."]
-offset_left = 404.0
-offset_top = 628.0
-offset_right = 764.0
-offset_bottom = 708.0
-
-[node name="VBox" type="VBoxContainer" parent="TargetBox"]
-
-[node name="Title" type="Label" parent="TargetBox/VBox"]
-text = "Objetivo"
-
-[node name="Vitals" type="Label" parent="TargetBox/VBox"]
+[node name="TargetBox" type="PanelContainer" parent="Root"]
+offset_left = 475.0
+offset_top = 14.0
+offset_right = 805.0
+offset_bottom = 72.0
+theme = ExtResource("2")
+[node name="TargetVitals" type="Label" parent="Root/TargetBox"]
+layout_mode = 2
 text = "Sin objetivo"
+horizontal_alignment = 1
+vertical_alignment = 1
 
-[node name="ChatBox" type="PanelContainer" parent="."]
+[node name="ChatPanel" parent="Root" instance=ExtResource("4")]
 offset_left = 12.0
-offset_top = 488.0
-offset_right = 532.0
-offset_bottom = 620.0
+offset_top = 454.0
+offset_right = 442.0
+offset_bottom = 604.0
 
-[node name="VBox" type="VBoxContainer" parent="ChatBox"]
-
-[node name="Title" type="Label" parent="ChatBox/VBox"]
-text = "Chat"
-
-[node name="Log" type="Label" parent="ChatBox/VBox"]
-text = "…"
-
-[node name="Hotbar" type="PanelContainer" parent="."]
-offset_left = 776.0
-offset_top = 628.0
-offset_right = 1268.0
+[node name="CombatBar" parent="Root" instance=ExtResource("3")]
+offset_left = 120.0
+offset_top = 612.0
+offset_right = 1160.0
 offset_bottom = 708.0
 
-[node name="VBox" type="VBoxContainer" parent="Hotbar"]
-
-[node name="Title" type="Label" parent="Hotbar/VBox"]
-text = "Hotbar  1–6"
-
-[node name="Slots" type="Label" parent="Hotbar/VBox"]
-text = "1:Básico  2:Tierra  3:Fuego  4:Aire  5:Agua  6:Neutral"
-
-[node name="CharacterWindow" type="PanelContainer" parent="."]
-visible = false
-offset_left = 860.0
-offset_top = 220.0
-offset_right = 1268.0
-offset_bottom = 480.0
-
-[node name="VBox" type="VBoxContainer" parent="CharacterWindow"]
-
-[node name="Title" type="Label" parent="CharacterWindow/VBox"]
-text = "Personaje  (C)"
-
-[node name="Stats" type="Label" parent="CharacterWindow/VBox"]
-text = "Stats esperando servidor…"
-
-[node name="InventoryWindow" type="PanelContainer" parent="."]
-visible = false
-offset_left = 12.0
-offset_top = 120.0
-offset_right = 372.0
-offset_bottom = 360.0
-
-[node name="VBox" type="VBoxContainer" parent="InventoryWindow"]
-
-[node name="Title" type="Label" parent="InventoryWindow/VBox"]
-text = "Inventario  (I)"
-
-[node name="Slots" type="Label" parent="InventoryWindow/VBox"]
-text = "Inventario vacío."
-
-[node name="EscapeWindow" type="PanelContainer" parent="."]
-visible = false
-offset_left = 490.0
-offset_top = 260.0
-offset_right = 790.0
-offset_bottom = 400.0
-
-[node name="VBox" type="VBoxContainer" parent="EscapeWindow"]
-
-[node name="Title" type="Label" parent="EscapeWindow/VBox"]
-text = "Menú  (Esc)"
-
-[node name="Hint" type="Label" parent="EscapeWindow/VBox"]
-text = "I inventario · C personaje · J atacar · 1–6 hotbar"
+[node name="CharacterWindow" parent="Root" instance=ExtResource("7")]
+[node name="InventoryWindow" parent="Root" instance=ExtResource("8")]
+[node name="QuestJournal" parent="Root" instance=ExtResource("9")]
+[node name="TechniquesWindow" parent="Root" instance=ExtResource("10")]
+[node name="ShopWindow" parent="Root" instance=ExtResource("11")]
+[node name="BankWindow" parent="Root" instance=ExtResource("12")]
+[node name="MailWindow" parent="Root" instance=ExtResource("13")]
+[node name="CommunityWindow" parent="Root" instance=ExtResource("14")]
+[node name="DialogueWindow" parent="Root" instance=ExtResource("15")]
+[node name="ProfessionWindow" parent="Root" instance=ExtResource("16")]
+[node name="EscapeWindow" parent="Root" instance=ExtResource("17")]
