@@ -66,18 +66,14 @@ public sealed class ServerHost
     public double LastTickMilliseconds { get; private set; }
 
     public ServerHost(WorldRuntime world, PersistenceService persistence, PacketDispatcher<ServerPacketContext> dispatcher, int port = 7777)
-        : this(world, persistence, dispatcher, ServerConfiguration.Development(port), null)
-    {
-    }
+        : this(world, persistence, dispatcher, ServerConfiguration.Development(port), null) { }
 
     public ServerHost(
         WorldRuntime world,
         PersistenceService persistence,
         PacketDispatcher<ServerPacketContext> dispatcher,
         ServerConfiguration configuration)
-        : this(world, persistence, dispatcher, configuration, null)
-    {
-    }
+        : this(world, persistence, dispatcher, configuration, null) { }
 
     public ServerHost(
         WorldRuntime world,
@@ -92,10 +88,8 @@ public sealed class ServerHost
         this.sessions = sessions;
         this.configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         configuration.Validate();
-
         if (!IPAddress.TryParse(configuration.Host, out var address))
             throw new ArgumentException($"Host debe ser una dirección IP válida: {configuration.Host}.", nameof(configuration));
-
         listener = new(address, configuration.Port);
         slots = new(configuration.MaxConnections);
     }
@@ -140,6 +134,12 @@ public sealed class ServerHost
             var started = Stopwatch.GetTimestamp();
             foreach (var pair in world.Step())
                 if (peers.TryGetValue(pair.Key, out var peer)) peer.Send(pair.Value);
+
+            // Un portal/evento puede mover una sesión a WaitingForMap durante Step(). El MapLoad
+            // se despacha fuera del snapshot para conservar el handshake MapLoad -> MapReady.
+            foreach (var pair in world.PendingMapLoads("dev-1"))
+                if (peers.TryGetValue(pair.Key, out var peer)) peer.Send(pair.Value);
+
             LastTickMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
             metrics.ObserveTick(LastTickMilliseconds, world.PlayerCount, world.EntityCount, 1);
             PumpKeepAlive();
@@ -158,8 +158,7 @@ public sealed class ServerHost
             session = world.AddConnection(id);
             using var handshakeTimeout = CancellationTokenSource.CreateLinkedTokenSource(peer.Token);
             handshakeTimeout.CancelAfter(TimeSpan.FromSeconds(configuration.HandshakeTimeoutSeconds));
-            var first = await TcpPacketFraming.ReadAsync(peer.Stream, handshakeTimeout.Token)
-                ?? throw new EndOfStreamException();
+            var first = await TcpPacketFraming.ReadAsync(peer.Stream, handshakeTimeout.Token) ?? throw new EndOfStreamException();
             if (first is not ConnectRequest) throw new InvalidDataException("Se requiere ConnectRequest.");
             var context = new ServerPacketContext { Connection = id, Session = session, Send = peer.Send };
             await dispatcher.DispatchAsync(context, first, handshakeTimeout.Token);
@@ -228,7 +227,6 @@ public sealed class ServerHost
                 pair.Value.Dispose();
                 continue;
             }
-
             var lastSent = lastKeepAliveSent.GetValueOrDefault(pair.Key, 0);
             if (now - lastSent < keepAliveMs) continue;
             pair.Value.Send(new ServerTimePacket(NetworkClock.Timestamp, world.Tick));
