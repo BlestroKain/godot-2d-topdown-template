@@ -16,18 +16,19 @@ public static class MapCollisionShapeCompiler
         {
             MapShapeKind.Rectangle => new BoxCollisionShape(shape.Size.X * .5f, shape.Size.Y * .5f, shape.Center),
             MapShapeKind.Circle => new CircleCollisionShape(shape.Radius, shape.Center),
-            MapShapeKind.Polygon => CompilePolygon(shape.Points),
+            MapShapeKind.Polygon => CompilePolygon(shape.Center, shape.Points),
             _ => throw new ArgumentOutOfRangeException(nameof(shape), shape.Kind, "Tipo de geometría de mapa desconocido.")
         };
     }
 
     /// <summary>
-    /// Los puntos de MapShapeDefinition.Polygon son coordenadas de mundo, tal como los consumen
-    /// regiones/portales existentes. Un polígono cóncavo se descompone determinísticamente en
-    /// triángulos convexos para no crear un segundo algoritmo de colisión.
+    /// Los puntos de MapShapeDefinition.Polygon son locales respecto a Center, igual que en el editor.
+    /// Un polígono cóncavo se descompone determinísticamente en triángulos convexos y conserva Center
+    /// como offset del collider compilado, evitando duplicar algoritmos de colisión.
     /// </summary>
-    private static CollisionShape CompilePolygon(IReadOnlyList<Vector2Data> authoredPoints)
+    private static CollisionShape CompilePolygon(Vector2Data center, IReadOnlyList<Vector2Data> authoredPoints)
     {
+        if (!center.IsFinite) throw new InvalidDataException("El centro del polígono no es finito.");
         if (authoredPoints.Count < 3) throw new InvalidDataException("El polígono necesita al menos tres puntos.");
         var points = authoredPoints.ToList();
         if (points.Count > 3 && points[0] == points[^1]) points.RemoveAt(points.Count - 1);
@@ -39,7 +40,7 @@ public static class MapCollisionShapeCompiler
 
         try
         {
-            return new ConvexPolygonCollisionShape(points);
+            return new ConvexPolygonCollisionShape(points, center);
         }
         catch (ArgumentException)
         {
@@ -89,7 +90,9 @@ public static class MapCollisionShapeCompiler
             throw new InvalidDataException("No se pudo completar la triangulación del polígono de colisión.");
         triangles.Add(new ConvexPolygonCollisionShape(
             [points[remaining[0]], points[remaining[1]], points[remaining[2]]]));
-        return triangles.Count == 1 ? triangles[0] : new CompoundCollisionShape(triangles);
+        return triangles.Count == 1
+            ? new ConvexPolygonCollisionShape(triangles[0] is ConvexPolygonCollisionShape triangle ? triangle.Points : points, center)
+            : new CompoundCollisionShape(triangles, center);
     }
 
     private static float SignedArea(IReadOnlyList<Vector2Data> points)
