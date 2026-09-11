@@ -24,7 +24,11 @@ public class ClientGameState
 
     public void Start(MapLoadPacket packet)
     {
-        Clear();
+        ArgumentNullException.ThrowIfNull(packet);
+        var mapTransition = Session.Map is not null && Session.Character == packet.Character && Session.Self == packet.Self;
+        if (mapTransition) ResetMapRuntime();
+        else Clear();
+
         Session.Character = packet.Character;
         Session.Self = packet.Self;
         Session.Map = packet.Map;
@@ -32,7 +36,7 @@ public class ClientGameState
         Local.Id = packet.Self;
         ClientMap = new ClientMap(packet.Map);
         Flow = GameFlowState.Loading;
-        Chat.Append(ChatChannel.System, "Entrando al mundo…");
+        Chat.Append(ChatChannel.System, mapTransition ? "Cambiando de zona…" : "Entrando al mundo…");
     }
 
     public void Apply(PlayerStatsPacket packet)
@@ -72,6 +76,28 @@ public class ClientGameState
         if (Session.Map is null || !buffers.TryGetValue(id, out var buffer)) return default;
         var elapsedTicks = Math.Clamp((localTime - LastSnapshotTime) * 1000 / Session.Map.TickMilliseconds, 0, 2);
         return buffer.Sample(LastTick - 2 + elapsedTicks);
+    }
+
+    /// <summary>
+    /// Limpia únicamente estado dependiente del mapa. Inventario, party, chat, stats y demás
+    /// estado del mismo personaje sobreviven a un portal; entidades/AOI/predicción no.
+    /// </summary>
+    private void ResetMapRuntime()
+    {
+        Entities.Clear();
+        buffers.Clear();
+        Session.Map = null;
+        Local.Prediction = null;
+        Local.Position = default;
+        Local.Target.Clear();
+        Local.Entity = null;
+        WorldEntities.ClearMap();
+        ClientMap = null;
+        Flow = GameFlowState.Loading;
+        receivedFull = false;
+        LastTick = -1;
+        MaxVisibleCount = 0;
+        LastSnapshotTime = 0;
     }
 
     public void Clear()
