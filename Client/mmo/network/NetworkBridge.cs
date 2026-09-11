@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Godot;
 using NuevoMMO.Client;
+using NuevoMMO.Core;
 using NuevoMMO.Network;
 
 namespace NuevoMMO.GodotClient;
@@ -9,6 +10,8 @@ public partial class NetworkBridge : Node
 {
     [Signal] public delegate void ConnectionChangedEventHandler(string state);
     [Signal] public delegate void WorldUpdatedEventHandler();
+    [Signal] public delegate void PlayerStatsUpdatedEventHandler();
+    [Signal] public delegate void CombatDebugUpdatedEventHandler();
     private readonly ConcurrentQueue<(GameConnection Connection, IPacket? Message, string? Error)> inbox = new();
     private GameConnection? connection;
     private int queued;
@@ -16,6 +19,8 @@ public partial class NetworkBridge : Node
     private bool sending;
     public ClientWorldState World { get; } = new();
     public string Status { get; private set; } = "Desconectado";
+    public string LastNotice { get; private set; } = string.Empty;
+    public CombatDebugPacket? LastCombat { get; private set; }
     public bool InWorld => World.Predictor is not null;
     public static double Now => Time.GetTicksMsec() / 1000d;
 
@@ -31,7 +36,7 @@ public partial class NetworkBridge : Node
     public async void ConnectToServer(string host, int port, string username, string password, bool registerAccount = false)
     {
         if (connection is not null) return;
-        World.Clear(); SetStatus(registerAccount ? "Registrando…" : "Conectando…");
+        World.Clear(); LastNotice = string.Empty; LastCombat = null; SetStatus(registerAccount ? "Registrando…" : "Conectando…");
         var current = new GameConnection(); connection = current;
         current.Message += message => Enqueue(current, message, null);
         current.Closed += error => Enqueue(current, null, error);
@@ -63,9 +68,16 @@ public partial class NetworkBridge : Node
                     case RegisterResult registration when registration.Succeeded: SetStatus("Cuenta creada · iniciando sesión"); break;
                     case LoginResult login when login.Succeeded: SetStatus("Autenticado · cargando personajes"); break;
                     case MapLoadPacket map: World.Start(map); SetStatus("Conectado · entrando al mundo"); break;
+                    case PlayerStatsPacket stats:
+                        World.Apply(stats); LastNotice = string.Empty; EmitSignal(SignalName.PlayerStatsUpdated); break;
+                    case CombatDebugPacket combat:
+                        LastCombat = combat; LastNotice = string.Empty; EmitSignal(SignalName.CombatDebugUpdated); break;
                     case EntityStatePacket snapshot:
                         World.Apply(snapshot, Now); SetStatus("En el mundo"); EmitSignal(SignalName.WorldUpdated); break;
-                    case ErrorPacket error: DisconnectFromServer(); SetStatus(error.Message); break;
+                    case ErrorPacket error when error.Fatal:
+                        DisconnectFromServer(); SetStatus(error.Message); break;
+                    case ErrorPacket error:
+                        LastNotice = error.Message; EmitSignal(SignalName.PlayerStatsUpdated); EmitSignal(SignalName.CombatDebugUpdated); break;
                 }
             }
             catch (Exception exception) { DisconnectFromServer(); SetStatus("Estado rechazado: " + exception.Message); }
@@ -82,9 +94,25 @@ public partial class NetworkBridge : Node
         finally { if (connection == current) sending = false; }
     }
 
+    public async void AllocateAttribute(PrimaryAttributeId attribute, int increments = 1)
+    {
+        if (!InWorld || connection is null) return;
+        var current = connection;
+        try { await current.SendAsync(new AllocateAttributeRequest(attribute, increments)); }
+        catch (Exception exception) { Enqueue(current, null, exception.Message); }
+    }
+
+    public async void DevelopmentAttack(EntityId target, DevelopmentAttackKind attack)
+    {
+        if (!InWorld || connection is null || target.Value <= 0) return;
+        var current = connection;
+        try { await current.SendAsync(new DevelopmentAttackRequest(target, attack)); }
+        catch (Exception exception) { Enqueue(current, null, exception.Message); }
+    }
+
     public void DisconnectFromServer()
     {
-        connection?.Dispose(); connection = null; sending = false; World.Clear(); SetStatus("Desconectado");
+        connection?.Dispose(); connection = null; sending = false; World.Clear(); LastNotice = string.Empty; LastCombat = null; SetStatus("Desconectado");
     }
 
     private void SetStatus(string value)

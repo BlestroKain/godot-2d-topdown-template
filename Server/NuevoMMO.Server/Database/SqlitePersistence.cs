@@ -34,6 +34,7 @@ public static class SqliteMigrator
 
         await ExecuteAsync(paths.Auth, AuthSchema, cancellationToken);
         await ExecuteAsync(paths.Players, PlayersSchema, cancellationToken);
+        await SqliteProgressionMigrator.ApplyAsync(paths.Players, cancellationToken);
         await ExecuteAsync(paths.Game, GameSchema, cancellationToken);
         await ExecuteAsync(paths.Logs, LogsSchema, cancellationToken);
     }
@@ -92,7 +93,15 @@ public static class SqliteMigrator
             position_x REAL NOT NULL,
             position_y REAL NOT NULL,
             level INTEGER NOT NULL DEFAULT 1,
-            experience INTEGER NOT NULL DEFAULT 0
+            experience INTEGER NOT NULL DEFAULT 0,
+            available_attribute_points INTEGER NOT NULL DEFAULT 0,
+            strength INTEGER NOT NULL DEFAULT 10,
+            intelligence INTEGER NOT NULL DEFAULT 10,
+            agility INTEGER NOT NULL DEFAULT 10,
+            spirit INTEGER NOT NULL DEFAULT 10,
+            vitality INTEGER NOT NULL DEFAULT 10,
+            current_health INTEGER NULL,
+            current_mana INTEGER NULL
         );
         CREATE INDEX IF NOT EXISTS ix_characters_account_id ON characters(account_id);
         """;
@@ -224,6 +233,9 @@ public sealed class SqliteSessionRepository(string databasePath) : ISessionRepos
 public sealed class SqliteCharacterRepository(string databasePath) : ICharacterRepository
 {
     private readonly string connectionString = SqliteMigrator.ConnectionString(databasePath);
+    private const string CharacterColumns =
+        "id, account_id, name, map_definition, position_x, position_y, level, experience, " +
+        "available_attribute_points, strength, intelligence, agility, spirit, vitality, current_health, current_mana";
 
     public async Task<IReadOnlyList<CharacterRecord>> ListByAccountAsync(AccountId account, CancellationToken cancellationToken = default)
     {
@@ -231,7 +243,7 @@ public sealed class SqliteCharacterRepository(string databasePath) : ICharacterR
         await using var connection = new SqliteConnection(connectionString);
         await connection.OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT id, account_id, name, map_definition, position_x, position_y, level, experience FROM characters WHERE account_id = $account ORDER BY name";
+        command.CommandText = $"SELECT {CharacterColumns} FROM characters WHERE account_id = $account ORDER BY name";
         command.Parameters.AddWithValue("$account", account.Value.ToString("D"));
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken)) result.Add(ReadCharacter(reader));
@@ -243,7 +255,7 @@ public sealed class SqliteCharacterRepository(string databasePath) : ICharacterR
         await using var connection = new SqliteConnection(connectionString);
         await connection.OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT id, account_id, name, map_definition, position_x, position_y, level, experience FROM characters WHERE id = $id LIMIT 1";
+        command.CommandText = $"SELECT {CharacterColumns} FROM characters WHERE id = $id LIMIT 1";
         command.Parameters.AddWithValue("$id", id.Value.ToString("D"));
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         return await reader.ReadAsync(cancellationToken) ? ReadCharacter(reader) : null;
@@ -255,18 +267,22 @@ public sealed class SqliteCharacterRepository(string databasePath) : ICharacterR
         {
             Id = new(Guid.NewGuid()), AccountId = account, Name = name, MapDefinition = map, Position = position
         };
+        record.ApplyProgression(ProgressionRules.CreateInitial());
         await using var connection = new SqliteConnection(connectionString);
         await connection.OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand();
-        command.CommandText = "INSERT INTO characters(id, account_id, name, map_definition, position_x, position_y, level, experience) VALUES($id, $account, $name, $map, $x, $y, $level, $experience)";
-        command.Parameters.AddWithValue("$id", record.Id.Value.ToString("D"));
-        command.Parameters.AddWithValue("$account", record.AccountId.Value.ToString("D"));
-        command.Parameters.AddWithValue("$name", record.Name);
-        command.Parameters.AddWithValue("$map", record.MapDefinition.Value.ToString("D"));
-        command.Parameters.AddWithValue("$x", record.Position.X);
-        command.Parameters.AddWithValue("$y", record.Position.Y);
-        command.Parameters.AddWithValue("$level", record.Level);
-        command.Parameters.AddWithValue("$experience", record.Experience);
+        command.CommandText = """
+            INSERT INTO characters(
+                id, account_id, name, map_definition, position_x, position_y,
+                level, experience, available_attribute_points,
+                strength, intelligence, agility, spirit, vitality, current_health, current_mana)
+            VALUES(
+                $id, $account, $name, $map, $x, $y,
+                $level, $experience, $points,
+                $str, $int, $agi, $spi, $vit, NULL, NULL)
+            """;
+        AddIdentityParameters(command, record);
+        AddProgressionParameters(command, record.ToProgressionState());
         try { await command.ExecuteNonQueryAsync(cancellationToken); }
         catch (SqliteException exception) when (exception.SqliteErrorCode == 19)
         { throw new InvalidOperationException("Nombre de personaje duplicado.", exception); }
@@ -287,10 +303,70 @@ public sealed class SqliteCharacterRepository(string databasePath) : ICharacterR
             throw new KeyNotFoundException("Personaje inexistente.");
     }
 
+    public async Task SaveCheckpointAsync(
+        CharacterId id,
+        DefinitionId map,
+        Vector2Data position,
+        PlayerProgressionState progression,
+        int currentHealth,
+        int currentMana,
+        CancellationToken cancellationToken = default)
+    {
+        ProgressionRules.Validate(progression);
+        if (currentHealth < 0 || currentMana < 0) throw new ArgumentOutOfRangeException(nameof(currentHealth));
+
+        await using var connection = new SqliteConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            UPDATE characters SET
+                map_definition = $map, position_x = $x, position_y = $y,
+                level = $level, experience = $experience, available_attribute_points = $points,
+                strength = $str, intelligence = $int, agility = $agi, spirit = $spi, vitality = $vit,
+                current_health = $health, current_mana = $mana
+            WHERE id = $id
+            """;
+        command.Parameters.AddWithValue("$id", id.Value.ToString("D"));
+        command.Parameters.AddWithValue("$map", map.Value.ToString("D"));
+        command.Parameters.AddWithValue("$x", position.X);
+        command.Parameters.AddWithValue("$y", position.Y);
+        AddProgressionParameters(command, progression);
+        command.Parameters.AddWithValue("$health", currentHealth);
+        command.Parameters.AddWithValue("$mana", currentMana);
+        if (await command.ExecuteNonQueryAsync(cancellationToken) == 0)
+            throw new KeyNotFoundException("Personaje inexistente.");
+    }
+
+    private static void AddIdentityParameters(SqliteCommand command, CharacterRecord record)
+    {
+        command.Parameters.AddWithValue("$id", record.Id.Value.ToString("D"));
+        command.Parameters.AddWithValue("$account", record.AccountId.Value.ToString("D"));
+        command.Parameters.AddWithValue("$name", record.Name);
+        command.Parameters.AddWithValue("$map", record.MapDefinition.Value.ToString("D"));
+        command.Parameters.AddWithValue("$x", record.Position.X);
+        command.Parameters.AddWithValue("$y", record.Position.Y);
+    }
+
+    private static void AddProgressionParameters(SqliteCommand command, PlayerProgressionState progression)
+    {
+        command.Parameters.AddWithValue("$level", progression.Level);
+        command.Parameters.AddWithValue("$experience", progression.Experience);
+        command.Parameters.AddWithValue("$points", progression.AvailableAttributePoints);
+        command.Parameters.AddWithValue("$str", progression.NaturalAttributes.Strength);
+        command.Parameters.AddWithValue("$int", progression.NaturalAttributes.Intelligence);
+        command.Parameters.AddWithValue("$agi", progression.NaturalAttributes.Agility);
+        command.Parameters.AddWithValue("$spi", progression.NaturalAttributes.Spirit);
+        command.Parameters.AddWithValue("$vit", progression.NaturalAttributes.Vitality);
+    }
+
     private static CharacterRecord ReadCharacter(SqliteDataReader reader) => new()
     {
         Id = new(Guid.Parse(reader.GetString(0))), AccountId = new(Guid.Parse(reader.GetString(1))), Name = reader.GetString(2),
         MapDefinition = new(Guid.Parse(reader.GetString(3))), Position = new(reader.GetFloat(4), reader.GetFloat(5)),
-        Level = reader.GetInt32(6), Experience = reader.GetInt64(7)
+        Level = reader.GetInt32(6), Experience = reader.GetInt64(7), AvailableAttributePoints = reader.GetInt32(8),
+        Strength = reader.GetInt32(9), Intelligence = reader.GetInt32(10), Agility = reader.GetInt32(11),
+        Spirit = reader.GetInt32(12), Vitality = reader.GetInt32(13),
+        CurrentHealth = reader.IsDBNull(14) ? null : reader.GetInt32(14),
+        CurrentMana = reader.IsDBNull(15) ? null : reader.GetInt32(15)
     };
 }

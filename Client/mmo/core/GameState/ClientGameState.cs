@@ -28,6 +28,13 @@ public class ClientGameState
         Local.Id = packet.Self;
     }
 
+    public void Apply(PlayerStatsPacket packet)
+    {
+        ArgumentNullException.ThrowIfNull(packet);
+        if (Session.Map is null) throw new InvalidDataException("Stats recibidos fuera de una sesión de mapa.");
+        Local.Stats = packet.Stats;
+    }
+
     public void Apply(EntityStatePacket snapshot, double localTime)
     {
         if (Session.Map is null || snapshot.Correction.Self != Session.Self || snapshot.Tick <= LastTick ||
@@ -62,6 +69,7 @@ public class ClientGameState
         buffers.Clear();
         Session.Map = null;
         Local.Prediction = null;
+        Local.Stats = null;
         receivedFull = false;
         LastTick = -1;
         MaxVisibleCount = 0;

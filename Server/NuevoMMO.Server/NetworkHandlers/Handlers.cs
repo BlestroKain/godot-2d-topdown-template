@@ -3,6 +3,7 @@ using NuevoMMO.Network;
 using NuevoMMO.Server.Database;
 using NuevoMMO.Server.Security;
 using NuevoMMO.Server.Services;
+using NuevoMMO.Server.Systems;
 using NuevoMMO.Server.World;
 
 namespace NuevoMMO.Server.NetworkHandlers;
@@ -14,12 +15,21 @@ public sealed class ServerPacketContext
     public required Action<IPacket> Send { get; init; }
 }
 
+internal static class ServerAuthorizationGuard
+{
+    public static void Demand(ServerPacketContext context, ServerAction action, AuthorizationService authorization)
+    {
+        var decision = authorization.Authorize(context.Session, action);
+        if (!decision.Allowed) throw new InvalidOperationException(decision.Reason);
+    }
+}
+
 public sealed class ConnectHandler(WorldRuntime world, AuthorizationService authorization)
     : IPacketHandler<ServerPacketContext, ConnectRequest>
 {
     public ValueTask HandleAsync(ServerPacketContext context, ConnectRequest packet, CancellationToken cancellationToken)
     {
-        Demand(context, ServerAction.AcceptProtocol, authorization);
+        ServerAuthorizationGuard.Demand(context, ServerAction.AcceptProtocol, authorization);
         if (!HandshakeRules.IsCompatible(packet.ProtocolVersion)) throw new InvalidDataException("Protocolo incompatible.");
         world.AcceptProtocol(context.Session);
         context.Send(new ConnectionAccepted(context.Connection, NetworkClock.Timestamp, ProtocolVersion.Current));
@@ -35,7 +45,7 @@ public sealed class RegisterHandler(
 {
     public async ValueTask HandleAsync(ServerPacketContext context, RegisterRequest packet, CancellationToken cancellationToken)
     {
-        Demand(context, ServerAction.Register, authorization);
+        ServerAuthorizationGuard.Demand(context, ServerAction.Register, authorization);
         var rate = abuse.Check($"register:{context.Connection}", Environment.TickCount64,
             settings.RegistrationAttemptsPerWindow, settings.RegistrationWindowMilliseconds);
         if (!rate.Allowed)
@@ -72,7 +82,7 @@ public sealed class LoginHandler(
 {
     public async ValueTask HandleAsync(ServerPacketContext context, LoginRequest packet, CancellationToken cancellationToken)
     {
-        Demand(context, ServerAction.Login, authorization);
+        ServerAuthorizationGuard.Demand(context, ServerAction.Login, authorization);
         var rate = abuse.Check($"login:{context.Connection}", Environment.TickCount64,
             settings.LoginAttemptsPerWindow, settings.LoginWindowMilliseconds);
         if (!rate.Allowed)
@@ -121,7 +131,7 @@ public sealed class CharacterListHandler(CharacterService characters, Authorizat
 {
     public async ValueTask HandleAsync(ServerPacketContext context, CharacterListRequest packet, CancellationToken cancellationToken)
     {
-        Demand(context, ServerAction.ListCharacters, authorization);
+        ServerAuthorizationGuard.Demand(context, ServerAction.ListCharacters, authorization);
         AuthService.EnsureSession(context.Session, packet.Session, packet.SessionToken);
         var list = await characters.ListAsync(context.Session.Account, cancellationToken);
         context.Send(new CharacterListResult(list.Select(CharacterService.ToSummary).ToArray()));
@@ -133,7 +143,7 @@ public sealed class CharacterCreateHandler(CharacterService characters, Authoriz
 {
     public async ValueTask HandleAsync(ServerPacketContext context, CreateCharacterRequest packet, CancellationToken cancellationToken)
     {
-        Demand(context, ServerAction.CreateCharacter, authorization);
+        ServerAuthorizationGuard.Demand(context, ServerAction.CreateCharacter, authorization);
         AuthService.EnsureSession(context.Session, packet.Session, packet.SessionToken);
         if (!InputValidator.IsSafeName(packet.Name)) throw new ArgumentException("Nombre de personaje inválido.");
         var created = await characters.CreateAsync(context.Session.Account, packet.Name, cancellationToken);
@@ -145,19 +155,28 @@ public sealed class CharacterSelectHandler(
     WorldRuntime world,
     CharacterService characters,
     PersistenceService persistence,
+    ProgressionSystem progression,
     AuthorizationService authorization) : IPacketHandler<ServerPacketContext, CharacterSelectRequest>
 {
     public async ValueTask HandleAsync(ServerPacketContext context, CharacterSelectRequest packet, CancellationToken cancellationToken)
     {
-        Demand(context, ServerAction.SelectCharacter, authorization);
+        ServerAuthorizationGuard.Demand(context, ServerAction.SelectCharacter, authorization);
         AuthService.EnsureSession(context.Session, packet.Session, packet.SessionToken);
         var list = await characters.ListAsync(context.Session.Account, cancellationToken);
         var record = list.FirstOrDefault(character => character.Id == packet.Character)
             ?? throw new InvalidOperationException("Personaje inexistente.");
-        var spawn = await persistence.LoadCharacterAsync(context.Session.Account, record, cancellationToken);
-        var player = world.Join(context.Session, spawn);
+        var loaded = await persistence.LoadCharacterAsync(context.Session.Account, record, cancellationToken);
+        var player = world.Join(context.Session, loaded.Spawn);
+        progression.Initialize(player, loaded.Progression, preserveVitals: false);
+        if (loaded.CurrentHealth is not null || loaded.CurrentMana is not null)
+        {
+            var health = Math.Clamp(loaded.CurrentHealth ?? player.MaxHealth, 0, player.MaxHealth);
+            var mana = Math.Clamp(loaded.CurrentMana ?? player.MaxMana, 0, player.MaxMana);
+            player.SetVitals(health, mana);
+        }
         context.Send(new CharacterSelected(player.CharacterId));
         context.Send(new MapLoadPacket(world.Projection("dev-1"), player.Id, player.CharacterId));
+        context.Send(PlayerStatsProjection.Create(player, progression));
     }
 }
 
@@ -166,7 +185,7 @@ public sealed class MapReadyHandler(WorldRuntime world, AuthorizationService aut
 {
     public ValueTask HandleAsync(ServerPacketContext context, MapReadyRequest packet, CancellationToken cancellationToken)
     {
-        Demand(context, ServerAction.EnterWorld, authorization);
+        ServerAuthorizationGuard.Demand(context, ServerAction.EnterWorld, authorization);
         world.Activate(context.Session, packet.Instance);
         return ValueTask.CompletedTask;
     }
@@ -177,7 +196,7 @@ public sealed class MoveRequestHandler(WorldRuntime world, AuthorizationService 
 {
     public ValueTask HandleAsync(ServerPacketContext context, MoveRequest packet, CancellationToken cancellationToken)
     {
-        Demand(context, ServerAction.Move, authorization);
+        ServerAuthorizationGuard.Demand(context, ServerAction.Move, authorization);
         var input = packet.Input ?? throw new InvalidDataException("Input de movimiento ausente.");
         var player = context.Session.Player ?? throw new InvalidOperationException("Jugador fuera del mundo.");
         if (!InputValidator.IsFiniteDirection(input.X, input.Y) || input.ClientTick < 0 ||
@@ -185,6 +204,105 @@ public sealed class MoveRequestHandler(WorldRuntime world, AuthorizationService 
             throw new InvalidDataException("Input de movimiento inválido o fuera de orden.");
         world.SubmitMovement(context.Session, input);
         return ValueTask.CompletedTask;
+    }
+}
+
+public sealed class AllocateAttributeHandler(
+    ProgressionSystem progression,
+    PersistenceService persistence,
+    AuthorizationService authorization) : IPacketHandler<ServerPacketContext, AllocateAttributeRequest>
+{
+    public async ValueTask HandleAsync(ServerPacketContext context, AllocateAttributeRequest packet, CancellationToken cancellationToken)
+    {
+        ServerAuthorizationGuard.Demand(context, ServerAction.AllocateAttribute, authorization);
+        var player = context.Session.Player ?? throw new InvalidOperationException("Jugador fuera del mundo.");
+        if (!Enum.IsDefined(packet.Attribute) || packet.Increments is < 1 or > 100)
+            throw new InvalidDataException("Solicitud de atributo inválida.");
+
+        try
+        {
+            progression.Allocate(player, packet.Attribute, packet.Increments);
+            await persistence.SaveCharacterAsync(player, cancellationToken);
+            context.Send(PlayerStatsProjection.Create(player, progression));
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or OverflowException)
+        {
+            context.Send(new ErrorPacket("attribute_allocation", exception.Message, false));
+            context.Send(PlayerStatsProjection.Create(player, progression));
+        }
+    }
+}
+
+/// <summary>
+/// Harness de Development/Test. Ejecuta fórmulas técnicas sobre Mobs reales a través de CombatSystem;
+/// no define targeting/rango de producción ni una ruta alternativa de daño.
+/// </summary>
+public sealed class DevelopmentAttackHandler(
+    WorldRuntime world,
+    CombatSystem combat,
+    ProgressionSystem progression,
+    PersistenceService persistence,
+    AuthorizationService authorization) : IPacketHandler<ServerPacketContext, DevelopmentAttackRequest>
+{
+    public async ValueTask HandleAsync(ServerPacketContext context, DevelopmentAttackRequest packet, CancellationToken cancellationToken)
+    {
+        ServerAuthorizationGuard.Demand(context, ServerAction.UseTechnique, authorization);
+        var player = context.Session.Player ?? throw new InvalidOperationException("Jugador fuera del mundo.");
+
+        try
+        {
+            if (!Enum.IsDefined(packet.Attack) || packet.Target.Value <= 0)
+                throw new InvalidDataException("Ataque de desarrollo inválido.");
+            if (!world.MapInstance.Entities.TryGet(packet.Target, out var entity) || entity is not Mob target)
+                throw new InvalidOperationException("El objetivo de prueba no es un mob disponible.");
+            if (!target.IsAlive)
+                throw new InvalidOperationException("El objetivo de prueba ya está derrotado.");
+
+            var formula = packet.Attack switch
+            {
+                DevelopmentAttackKind.Basic => TrainingDummyFixture.BasicTestAttack(),
+                DevelopmentAttackKind.Earth => TrainingDummyFixture.EarthTechnique(),
+                DevelopmentAttackKind.Fire => TrainingDummyFixture.FireTechnique(),
+                DevelopmentAttackKind.Air => TrainingDummyFixture.AirTechnique(),
+                DevelopmentAttackKind.Water => TrainingDummyFixture.WaterTechnique(),
+                DevelopmentAttackKind.NeutralStrength => TrainingDummyFixture.NeutralStrengthTechnique(),
+                _ => throw new InvalidDataException("Ataque de desarrollo desconocido.")
+            };
+
+            var now = Environment.TickCount64;
+            var result = combat.ExecuteAttributeDamage(player, target, formula, now);
+            var meter = combat.Telemetry.Snapshot(target.Id, now) ?? new DamageMeterSnapshot(
+                result.RawDamage, result.AppliedDamage, result.Element, result.Critical, 0, 0,
+                result.AppliedDamage, result.AppliedDamage > 0 ? 1 : 0, result.Critical ? 1 : 0);
+
+            context.Send(new CombatDebugPacket(
+                target.Id,
+                packet.Attack,
+                formula.DamageType,
+                formula.ScalingAttribute,
+                result.RawDamage,
+                result.ResistancePercent,
+                result.AppliedDamage,
+                result.Critical,
+                target.Health,
+                target.MaxHealth,
+                meter.Dps5Seconds,
+                meter.Dps10Seconds,
+                meter.TotalDamage,
+                meter.Hits,
+                meter.CriticalHits));
+
+            if (result.Killed && target.ExperienceReward > 0)
+            {
+                progression.GrantExperience(player, target.ExperienceReward);
+                await persistence.SaveCharacterAsync(player, cancellationToken);
+                context.Send(PlayerStatsProjection.Create(player, progression));
+            }
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidDataException or InvalidOperationException or OverflowException or KeyNotFoundException)
+        {
+            context.Send(new ErrorPacket("development_combat", exception.Message, false));
+        }
     }
 }
 
@@ -214,12 +332,16 @@ public static class ServerHandlerRegistry
         AuthorizationService? authorization = null,
         AbuseDetector? abuse = null,
         AuthenticationSettings? settings = null,
-        BanList? bans = null)
+        BanList? bans = null,
+        ProgressionSystem? progression = null,
+        CombatSystem? combat = null)
     {
         authorization ??= new AuthorizationService();
         abuse ??= new AbuseDetector();
         settings ??= new AuthenticationSettings();
         bans ??= new BanList();
+        progression ??= world.Systems?.Progression ?? new ProgressionSystem();
+        combat ??= world.Systems?.Combat ?? new CombatSystem();
         settings.Validate();
 
         var registry = new HandlerRegistry<ServerPacketContext>();
@@ -228,17 +350,13 @@ public static class ServerHandlerRegistry
         registry.Register(new LoginHandler(auth, authorization, abuse, settings, bans));
         registry.Register(new CharacterListHandler(characters, authorization));
         registry.Register(new CharacterCreateHandler(characters, authorization));
-        registry.Register(new CharacterSelectHandler(world, characters, persistence, authorization));
+        registry.Register(new CharacterSelectHandler(world, characters, persistence, progression, authorization));
         registry.Register(new MapReadyHandler(world, authorization));
         registry.Register(new MoveRequestHandler(world, authorization));
+        registry.Register(new AllocateAttributeHandler(progression, persistence, authorization));
+        registry.Register(new DevelopmentAttackHandler(world, combat, progression, persistence, authorization));
         registry.Register(new PingHandler());
         registry.Register(new DisconnectHandler());
         return registry;
-    }
-
-    private static void Demand(ServerPacketContext context, ServerAction action, AuthorizationService authorization)
-    {
-        var decision = authorization.Authorize(context.Session, action);
-        if (!decision.Allowed) throw new InvalidOperationException(decision.Reason);
     }
 }

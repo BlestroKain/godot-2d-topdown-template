@@ -113,10 +113,31 @@ public static class DevelopmentWorldFactory
             true, 1, ["fixture"], new("maps.development.visual"),
             new(new(0, 0), new(data.GetProperty("width").GetSingle(), data.GetProperty("height").GetSingle())),
             new(data.GetProperty("spawnX").GetSingle(), data.GetProperty("spawnY").GetSingle()), new(32, 32));
+
+        // Mob técnico matable: 250 HP / 100 XP. Son valores de fixture para probar el circuito, no balance de contenido.
         var mob = new MobDefinition(
-            new(data.GetProperty("mob").GetGuid()), new("mobs.scout"), "Explorador", "Mob de fixture.",
-            true, 1, ["fixture"], new("template.player"));
-        var package = ContentPackage.Empty("dev-1") with { Maps = [map], Mobs = [mob] };
+            new(data.GetProperty("mob").GetGuid()), new("mobs.scout"), "Explorador XP", "Mob técnico matable para probar XP/subida de nivel.",
+            true, 1, ["fixture", "development", "xp-test"], new("template.player"),
+            behavior: new CreatureBehaviorDefinition(
+                aggressive: false,
+                movement: CreatureMovementMode.Stationary),
+            combat: new CreatureCombatDefinition(
+                level: 1,
+                experience: 100,
+                baseDamage: 0,
+                maxVitals: new Dictionary<VitalId, float>
+                {
+                    [VitalId.Health] = 250,
+                    [VitalId.Mana] = 0
+                },
+                parameters: new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["track_damage_telemetry"] = 1,
+                    ["development_xp_target"] = 1
+                }));
+
+        var trainingDummyDefinition = TrainingDummyFixture.CreateDefinition();
+        var package = ContentPackage.Empty("dev-1") with { Maps = [map], Mobs = [mob, trainingDummyDefinition] };
         var definitions = new GameDataLoader().Load(package);
         var systems = new GameSystems(definitions);
         var options = new WorldOptions(
@@ -125,11 +146,23 @@ public static class DevelopmentWorldFactory
             data.GetProperty("interestRadius").GetSingle(), configuration.MaxPlayers);
         var world = new WorldRuntime(map, mob, options, new OscillatingMobPolicy(),
             new(data.GetProperty("mobX").GetSingle(), data.GetProperty("mobY").GetSingle()), systems);
+
+        // EntityId reservado únicamente para el fixture Development/Test. El dummy sigue siendo un Mob normal.
+        var dummyPosition = map.Bounds.Clamp(new Vector2Data(map.Spawn.X + 128f, map.Spawn.Y));
+        world.AddEntity(TrainingDummyFixture.CreateEntity(new EntityId(9_000_000_000), world.Instance, dummyPosition));
+
         var persistence = new PersistenceService(characters, map);
         var auth = new AuthService(accounts, sessions, new PasswordHasher<string>());
         var characterService = new CharacterService(characters, map);
         var dispatcher = new PacketDispatcher<ServerPacketContext>(
-            ServerHandlerRegistry.Create(world, auth, characterService, persistence), PacketDirection.ClientToServer);
+            ServerHandlerRegistry.Create(
+                world,
+                auth,
+                characterService,
+                persistence,
+                progression: systems.Progression,
+                combat: systems.Combat),
+            PacketDirection.ClientToServer);
         return new ServerComposition
         {
             World = world,

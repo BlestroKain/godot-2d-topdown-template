@@ -98,13 +98,17 @@ public sealed class PostgresSessionRepository(string connectionString) : ISessio
 
 public sealed class PostgresCharacterRepository(string connectionString) : ICharacterRepository
 {
+    private const string CharacterColumns =
+        "id, account_id, name, map_definition, position_x, position_y, level, experience, " +
+        "available_attribute_points, strength, intelligence, agility, spirit, vitality, current_health, current_mana";
+
     public async Task<IReadOnlyList<CharacterRecord>> ListByAccountAsync(AccountId account, CancellationToken cancellationToken = default)
     {
         var result = new List<CharacterRecord>();
         await using var connection = new NpgsqlConnection(connectionString);
         await connection.OpenAsync(cancellationToken);
         await using var command = new NpgsqlCommand(
-            "SELECT id, account_id, name, map_definition, position_x, position_y, level, experience FROM characters WHERE account_id = @account ORDER BY name", connection);
+            $"SELECT {CharacterColumns} FROM characters WHERE account_id = @account ORDER BY name", connection);
         command.Parameters.AddWithValue("account", account.Value);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken)) result.Add(ReadCharacter(reader));
@@ -116,7 +120,7 @@ public sealed class PostgresCharacterRepository(string connectionString) : IChar
         await using var connection = new NpgsqlConnection(connectionString);
         await connection.OpenAsync(cancellationToken);
         await using var command = new NpgsqlCommand(
-            "SELECT id, account_id, name, map_definition, position_x, position_y, level, experience FROM characters WHERE id = @id LIMIT 1", connection);
+            $"SELECT {CharacterColumns} FROM characters WHERE id = @id LIMIT 1", connection);
         command.Parameters.AddWithValue("id", id.Value);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         return await reader.ReadAsync(cancellationToken) ? ReadCharacter(reader) : null;
@@ -127,20 +131,25 @@ public sealed class PostgresCharacterRepository(string connectionString) : IChar
         var record = new CharacterRecord
         {
             Id = new(Guid.NewGuid()), AccountId = account, Name = name,
-            MapDefinition = map, Position = position, Level = 1, Experience = 0
+            MapDefinition = map, Position = position
         };
+        record.ApplyProgression(ProgressionRules.CreateInitial());
+
         await using var connection = new NpgsqlConnection(connectionString);
         await connection.OpenAsync(cancellationToken);
         await using var command = new NpgsqlCommand(
-            "INSERT INTO characters (id, account_id, name, map_definition, position_x, position_y, level, experience) VALUES (@id, @account, @name, @map, @x, @y, @level, @experience)", connection);
-        command.Parameters.AddWithValue("id", record.Id.Value);
-        command.Parameters.AddWithValue("account", record.AccountId.Value);
-        command.Parameters.AddWithValue("name", record.Name);
-        command.Parameters.AddWithValue("map", record.MapDefinition.Value);
-        command.Parameters.AddWithValue("x", record.Position.X);
-        command.Parameters.AddWithValue("y", record.Position.Y);
-        command.Parameters.AddWithValue("level", record.Level);
-        command.Parameters.AddWithValue("experience", record.Experience);
+            """
+            INSERT INTO characters (
+                id, account_id, name, map_definition, position_x, position_y,
+                level, experience, available_attribute_points,
+                strength, intelligence, agility, spirit, vitality, current_health, current_mana)
+            VALUES (
+                @id, @account, @name, @map, @x, @y,
+                @level, @experience, @points,
+                @str, @int, @agi, @spi, @vit, NULL, NULL)
+            """, connection);
+        AddIdentityParameters(command, record);
+        AddProgressionParameters(command, record.ToProgressionState());
         try { await command.ExecuteNonQueryAsync(cancellationToken); }
         catch (PostgresException exception) when (exception.SqlState == PostgresErrorCodes.UniqueViolation)
         { throw new InvalidOperationException("El nombre de personaje ya existe.", exception); }
@@ -161,11 +170,71 @@ public sealed class PostgresCharacterRepository(string connectionString) : IChar
             throw new KeyNotFoundException("Personaje inexistente.");
     }
 
+    public async Task SaveCheckpointAsync(
+        CharacterId id,
+        DefinitionId map,
+        Vector2Data position,
+        PlayerProgressionState progression,
+        int currentHealth,
+        int currentMana,
+        CancellationToken cancellationToken = default)
+    {
+        ProgressionRules.Validate(progression);
+        if (currentHealth < 0 || currentMana < 0) throw new ArgumentOutOfRangeException(nameof(currentHealth));
+
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            """
+            UPDATE characters SET
+                map_definition = @map, position_x = @x, position_y = @y,
+                level = @level, experience = @experience, available_attribute_points = @points,
+                strength = @str, intelligence = @int, agility = @agi, spirit = @spi, vitality = @vit,
+                current_health = @health, current_mana = @mana
+            WHERE id = @id
+            """, connection);
+        command.Parameters.AddWithValue("id", id.Value);
+        command.Parameters.AddWithValue("map", map.Value);
+        command.Parameters.AddWithValue("x", position.X);
+        command.Parameters.AddWithValue("y", position.Y);
+        AddProgressionParameters(command, progression);
+        command.Parameters.AddWithValue("health", currentHealth);
+        command.Parameters.AddWithValue("mana", currentMana);
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+            throw new KeyNotFoundException("Personaje inexistente.");
+    }
+
+    private static void AddIdentityParameters(NpgsqlCommand command, CharacterRecord record)
+    {
+        command.Parameters.AddWithValue("id", record.Id.Value);
+        command.Parameters.AddWithValue("account", record.AccountId.Value);
+        command.Parameters.AddWithValue("name", record.Name);
+        command.Parameters.AddWithValue("map", record.MapDefinition.Value);
+        command.Parameters.AddWithValue("x", record.Position.X);
+        command.Parameters.AddWithValue("y", record.Position.Y);
+    }
+
+    private static void AddProgressionParameters(NpgsqlCommand command, PlayerProgressionState progression)
+    {
+        command.Parameters.AddWithValue("level", progression.Level);
+        command.Parameters.AddWithValue("experience", progression.Experience);
+        command.Parameters.AddWithValue("points", progression.AvailableAttributePoints);
+        command.Parameters.AddWithValue("str", progression.NaturalAttributes.Strength);
+        command.Parameters.AddWithValue("int", progression.NaturalAttributes.Intelligence);
+        command.Parameters.AddWithValue("agi", progression.NaturalAttributes.Agility);
+        command.Parameters.AddWithValue("spi", progression.NaturalAttributes.Spirit);
+        command.Parameters.AddWithValue("vit", progression.NaturalAttributes.Vitality);
+    }
+
     private static CharacterRecord ReadCharacter(NpgsqlDataReader reader) => new()
     {
         Id = new(reader.GetGuid(0)), AccountId = new(reader.GetGuid(1)), Name = reader.GetString(2),
         MapDefinition = new(reader.GetGuid(3)), Position = new(reader.GetFloat(4), reader.GetFloat(5)),
-        Level = reader.GetInt32(6), Experience = reader.GetInt64(7)
+        Level = reader.GetInt32(6), Experience = reader.GetInt64(7), AvailableAttributePoints = reader.GetInt32(8),
+        Strength = reader.GetInt32(9), Intelligence = reader.GetInt32(10), Agility = reader.GetInt32(11),
+        Spirit = reader.GetInt32(12), Vitality = reader.GetInt32(13),
+        CurrentHealth = reader.IsDBNull(14) ? null : reader.GetInt32(14),
+        CurrentMana = reader.IsDBNull(15) ? null : reader.GetInt32(15)
     };
 }
 

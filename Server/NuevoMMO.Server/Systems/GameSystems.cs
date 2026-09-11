@@ -15,7 +15,8 @@ public sealed class GameSystems
         ILootRandomSource? lootRandom = null,
         ITechniqueResourceAccess? techniqueResources = null,
         Func<Player, ConditionGroupDefinition, bool>? requirementsEvaluator = null,
-        Func<Entity, Vector2Data, bool>? lineOfSight = null)
+        Func<Entity, Vector2Data, bool>? lineOfSight = null,
+        LevelProgressionDefinition? levelProgression = null)
     {
         Definitions = definitions ?? throw new ArgumentNullException(nameof(definitions));
         Conditions = new ConditionSystem();
@@ -23,6 +24,7 @@ public sealed class GameSystems
         Effects = new EffectSystem(definitions);
         Inventory = new InventorySystem(definitions);
         Equipment = new EquipmentSystem(definitions);
+        Progression = new ProgressionSystem(levelProgression, Equipment);
         Loot = new LootSystem(definitions, lootRandom);
         Professions = new ProfessionSystem(definitions);
         Knowledge = new KnowledgeSystem();
@@ -45,6 +47,7 @@ public sealed class GameSystems
     public EffectSystem Effects { get; }
     public InventorySystem Inventory { get; }
     public EquipmentSystem Equipment { get; }
+    public ProgressionSystem Progression { get; }
     public LootSystem Loot { get; }
     public ProfessionSystem Professions { get; }
     public KnowledgeSystem Knowledge { get; }
