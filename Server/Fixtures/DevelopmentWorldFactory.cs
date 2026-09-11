@@ -44,7 +44,6 @@ public static class DevelopmentWorldFactory
     {
         ArgumentNullException.ThrowIfNull(configuration);
         configuration.Validate();
-
         return configuration.Database.Provider switch
         {
             "memory" => CreateInMemory(environment, configuration),
@@ -55,40 +54,24 @@ public static class DevelopmentWorldFactory
     }
 
     private static async Task<ServerComposition> CreateSqliteAsync(
-        string environment,
-        ServerConfiguration configuration,
-        CancellationToken cancellationToken)
+        string environment, ServerConfiguration configuration, CancellationToken cancellationToken)
     {
         var paths = SqliteDatabasePaths.FromConfiguration(configuration.Database.Sqlite);
-        if (configuration.Database.AutoMigrate)
-            await SqliteMigrator.ApplyAsync(paths, cancellationToken);
-
-        return CreateInternal(
-            environment,
-            configuration,
-            new SqliteAccountRepository(paths.Auth),
-            new SqliteSessionRepository(paths.Auth),
+        if (configuration.Database.AutoMigrate) await SqliteMigrator.ApplyAsync(paths, cancellationToken);
+        return CreateInternal(environment, configuration,
+            new SqliteAccountRepository(paths.Auth), new SqliteSessionRepository(paths.Auth),
             new SqliteCharacterRepository(paths.Players),
-            $"SQLite · auth={paths.Auth} · players={paths.Players} · game={paths.Game} · logs={paths.Logs}",
-            paths.Game);
+            $"SQLite · auth={paths.Auth} · players={paths.Players} · game={paths.Game} · logs={paths.Logs}", paths.Game);
     }
 
     private static async Task<ServerComposition> CreatePostgresAsync(
-        string environment,
-        ServerConfiguration configuration,
-        CancellationToken cancellationToken)
+        string environment, ServerConfiguration configuration, CancellationToken cancellationToken)
     {
         var connectionString = configuration.Database.PostgreSqlConnectionString;
-        if (configuration.Database.AutoMigrate)
-            await PostgresMigrator.ApplyAsync(connectionString, cancellationToken);
-
-        return CreateInternal(
-            environment,
-            configuration,
-            new PostgresAccountRepository(connectionString),
-            new PostgresSessionRepository(connectionString),
-            new PostgresCharacterRepository(connectionString),
-            "PostgreSQL");
+        if (configuration.Database.AutoMigrate) await PostgresMigrator.ApplyAsync(connectionString, cancellationToken);
+        return CreateInternal(environment, configuration,
+            new PostgresAccountRepository(connectionString), new PostgresSessionRepository(connectionString),
+            new PostgresCharacterRepository(connectionString), "PostgreSQL");
     }
 
     private static ServerComposition CreateInMemory(string environment, ServerConfiguration configuration)
@@ -110,13 +93,10 @@ public static class DevelopmentWorldFactory
             throw new InvalidOperationException("Environment no coincide con ServerConfiguration.");
 
         var fixturesAllowed = environment is "Development" or "Test";
-
         ContentPackage? loadedPackage = null;
         var loadedFromGame = gameDatabasePath is not null
             && GameDataSqlite.TryLoad(gameDatabasePath, out loadedPackage)
-            && loadedPackage is not null
-            && loadedPackage.Maps.Length > 0;
-
+            && loadedPackage is not null && loadedPackage.Maps.Length > 0;
         if (!fixturesAllowed && !loadedFromGame)
             throw new InvalidOperationException("Production requiere ContentPackage en game.db; no se usan fixtures.");
 
@@ -137,7 +117,7 @@ public static class DevelopmentWorldFactory
         try
         {
             ContentPackage package;
-            MapDefinition map;
+            MapDefinition primaryMap;
             MobDefinition? scout = null;
             IMobMovementPolicy movementPolicy;
             if (loadedFromGame)
@@ -145,7 +125,7 @@ public static class DevelopmentWorldFactory
                 package = fixturesAllowed && trainingDummyDefinition is not null
                     ? MergeFixtureDefinitions(loadedPackage!, trainingDummyDefinition)
                     : EnsureCanonicalTechniques(loadedPackage!);
-                map = package.Maps.FirstOrDefault(static value => value.Enabled) ?? package.Maps[0];
+                primaryMap = package.Maps.FirstOrDefault(static value => value.Enabled) ?? package.Maps[0];
                 movementPolicy = new StationaryAwareMobPolicy(new OscillatingMobPolicy());
                 persistenceDescription += " · game.db";
             }
@@ -157,7 +137,7 @@ public static class DevelopmentWorldFactory
                     Mobs = [fixtureScout!, trainingDummyDefinition!],
                     Techniques = [CanonicalCombatContent.BasicAttack()]
                 };
-                map = fixtureMap!;
+                primaryMap = fixtureMap!;
                 scout = fixtureScout;
                 movementPolicy = new OscillatingMobPolicy();
             }
@@ -176,34 +156,33 @@ public static class DevelopmentWorldFactory
             WorldRuntime world;
             if (scout is not null)
             {
-                world = new WorldRuntime(
-                    map, scout, options, movementPolicy,
+                world = new WorldRuntime(primaryMap, scout, options, movementPolicy,
                     new(data.GetProperty("mobX").GetSingle(), data.GetProperty("mobY").GetSingle()), systems);
             }
             else
             {
-                world = new WorldRuntime(map, options, movementPolicy, systems);
-                ContentWorldPopulator.Populate(world, definitions, map);
+                world = new WorldRuntime(primaryMap, options, movementPolicy, systems);
+                var enabledMaps = package.Maps.Where(static candidate => candidate.Enabled).ToArray();
+                foreach (var definition in enabledMaps.Where(candidate => candidate.Id != primaryMap.Id))
+                    world.AddMap(definition);
+                foreach (var instance in world.MapInstances.ToArray())
+                    ContentWorldPopulator.Populate(world, definitions, instance.Id, instance.Definition);
             }
 
             if (fixturesAllowed &&
                 !world.MapInstance.Entities.All.OfType<Mob>().Any(mob => mob.DefinitionId == TrainingDummyFixture.DefinitionId))
             {
-                var dummyPosition = map.Bounds.Clamp(new Vector2Data(map.Spawn.X + 128f, map.Spawn.Y));
+                var dummyPosition = primaryMap.Bounds.Clamp(new Vector2Data(primaryMap.Spawn.X + 128f, primaryMap.Spawn.Y));
                 world.AddEntity(TrainingDummyFixture.CreateEntity(new EntityId(9_000_000_000), world.Instance, dummyPosition));
             }
 
-            var persistence = new PersistenceService(characters, map);
+            var persistence = new PersistenceService(characters, primaryMap, world.MapDefinitionFor);
             var auth = new AuthService(accounts, sessions, new PasswordHasher<string>());
-            var characterService = new CharacterService(characters, map);
+            var characterService = new CharacterService(characters, primaryMap);
             var dispatcher = new PacketDispatcher<ServerPacketContext>(
                 ServerHandlerRegistry.Create(
-                    world,
-                    auth,
-                    characterService,
-                    persistence,
-                    progression: systems.Progression,
-                    combat: systems.Combat),
+                    world, auth, characterService, persistence,
+                    progression: systems.Progression, combat: systems.Combat),
                 PacketDirection.ClientToServer);
             return new ServerComposition
             {
@@ -216,10 +195,7 @@ public static class DevelopmentWorldFactory
                 PersistenceDescription = persistenceDescription
             };
         }
-        finally
-        {
-            document?.Dispose();
-        }
+        finally { document?.Dispose(); }
     }
 
     private static MapDefinition CreateFixtureMap(JsonElement data)
@@ -233,18 +209,10 @@ public static class DevelopmentWorldFactory
         => new(
             new(data.GetProperty("mob").GetGuid()), new("mobs.scout"), "Explorador XP", "Mob técnico matable para probar XP/subida de nivel.",
             true, 1, ["fixture", "development", "xp-test"], new("template.player"),
-            behavior: new CreatureBehaviorDefinition(
-                aggressive: false,
-                movement: CreatureMovementMode.Stationary),
+            behavior: new CreatureBehaviorDefinition(aggressive: false, movement: CreatureMovementMode.Stationary),
             combat: new CreatureCombatDefinition(
-                level: 1,
-                experience: 100,
-                baseDamage: 0,
-                maxVitals: new Dictionary<VitalId, float>
-                {
-                    [VitalId.Health] = 250,
-                    [VitalId.Mana] = 0
-                },
+                level: 1, experience: 100, baseDamage: 0,
+                maxVitals: new Dictionary<VitalId, float> { [VitalId.Health] = 250, [VitalId.Mana] = 0 },
                 parameters: new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase)
                 {
                     ["track_damage_telemetry"] = 1,
@@ -254,8 +222,7 @@ public static class DevelopmentWorldFactory
     private static ContentPackage MergeFixtureDefinitions(ContentPackage package, MobDefinition dummy)
     {
         var mobs = package.Mobs?.ToList() ?? [];
-        if (mobs.All(mob => mob.Id != dummy.Id && mob.Key != dummy.Key))
-            mobs.Add(dummy);
+        if (mobs.All(mob => mob.Id != dummy.Id && mob.Key != dummy.Key)) mobs.Add(dummy);
         return EnsureCanonicalTechniques(package with { Mobs = mobs.ToArray() });
     }
 
@@ -263,8 +230,7 @@ public static class DevelopmentWorldFactory
     {
         var techniques = package.Techniques?.ToList() ?? [];
         var basic = CanonicalCombatContent.BasicAttack();
-        if (techniques.All(technique => technique.Id != basic.Id && technique.Key != basic.Key))
-            techniques.Add(basic);
+        if (techniques.All(technique => technique.Id != basic.Id && technique.Key != basic.Key)) techniques.Add(basic);
         return package with { Techniques = techniques.ToArray() };
     }
 }
