@@ -1,0 +1,632 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://mmo/presentation/frontend/FrontendFlowController.cs" id="1_frontend"]
+[ext_resource type="Theme" path="res://mmo/presentation/ui/theme/mmo_ui_theme.tres" id="2_theme"]
+
+[node name="FrontendRoot" type="CanvasLayer"]
+layer = 50
+script = ExtResource("1_frontend")
+
+[node name="Root" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("2_theme")
+mouse_filter = 0
+
+[node name="Backdrop" type="ColorRect" parent="Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.035, 0.071, 0.086, 1)
+mouse_filter = 2
+
+[node name="MaldenBandTop" type="ColorRect" parent="Root"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 4.0
+grow_horizontal = 2
+color = Color(0.12, 0.58, 0.62, 0.65)
+mouse_filter = 2
+
+[node name="Brand" type="VBoxContainer" parent="Root"]
+layout_mode = 1
+anchors_preset = 0
+offset_left = 36.0
+offset_top = 30.0
+offset_right = 390.0
+offset_bottom = 112.0
+mouse_filter = 2
+
+[node name="Title" type="Label" parent="Root/Brand"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "NUEVO MMO"
+
+[node name="Subtitle" type="Label" parent="Root/Brand"]
+layout_mode = 2
+text = "Fantasía tecnomágica · Malden"
+modulate = Color(0.72, 0.82, 0.82, 1)
+
+[node name="ScreenStack" type="Control" parent="Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+
+[node name="LoginScreen" type="Control" parent="Root/ScreenStack"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="Root/ScreenStack/LoginScreen"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -235.0
+offset_top = -235.0
+offset_right = 235.0
+offset_bottom = 235.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_type_variation = &"UiWindowPanel"
+
+[node name="Margin" type="MarginContainer" parent="Root/ScreenStack/LoginScreen/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 30
+theme_override_constants/margin_top = 26
+theme_override_constants/margin_right = 30
+theme_override_constants/margin_bottom = 26
+
+[node name="Content" type="VBoxContainer" parent="Root/ScreenStack/LoginScreen/Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Heading" type="Label" parent="Root/ScreenStack/LoginScreen/Panel/Margin/Content"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Entrar al mundo"
+horizontal_alignment = 1
+
+[node name="Hint" type="Label" parent="Root/ScreenStack/LoginScreen/Panel/Margin/Content"]
+layout_mode = 2
+text = "Inicia sesión con tu cuenta."
+horizontal_alignment = 1
+
+[node name="HostLabel" type="Label" parent="Root/ScreenStack/LoginScreen/Panel/Margin/Content"]
+layout_mode = 2
+text = "Servidor"
+
+[node name="Host" type="LineEdit" parent="Root/ScreenStack/LoginScreen/Panel/Margin/Content"]
+layout_mode = 2
+text = "127.0.0.1"
+placeholder_text = "127.0.0.1"
+
+[node name="UserLabel" type="Label" parent="Root/ScreenStack/LoginScreen/Panel/Margin/Content"]
+layout_mode = 2
+text = "Usuario"
+
+[node name="Username" type="LineEdit" parent="Root/ScreenStack/LoginScreen/Panel/Margin/Content"]
+layout_mode = 2
+max_length = 24
+placeholder_text = "Nombre de cuenta"
+
+[node name="PassLabel" type="Label" parent="Root/ScreenStack/LoginScreen/Panel/Margin/Content"]
+layout_mode = 2
+text = "Contraseña"
+
+[node name="Password" type="LineEdit" parent="Root/ScreenStack/LoginScreen/Panel/Margin/Content"]
+layout_mode = 2
+secret = true
+max_length = 128
+placeholder_text = "Contraseña"
+
+[node name="LoginButton" type="Button" parent="Root/ScreenStack/LoginScreen/Panel/Margin/Content"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+text = "INGRESAR"
+
+[node name="RegisterButton" type="Button" parent="Root/ScreenStack/LoginScreen/Panel/Margin/Content"]
+layout_mode = 2
+text = "Crear cuenta"
+
+[node name="SettingsButton" type="Button" parent="Root/ScreenStack/LoginScreen/Panel/Margin/Content"]
+layout_mode = 2
+text = "Configuración"
+
+[node name="QuitButton" type="Button" parent="Root/ScreenStack/LoginScreen/Panel/Margin/Content"]
+layout_mode = 2
+text = "Salir"
+
+[node name="RegisterScreen" type="Control" parent="Root/ScreenStack"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="Root/ScreenStack/RegisterScreen"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -250.0
+offset_top = -250.0
+offset_right = 250.0
+offset_bottom = 250.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_type_variation = &"UiWindowPanel"
+
+[node name="Margin" type="MarginContainer" parent="Root/ScreenStack/RegisterScreen/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 30
+theme_override_constants/margin_top = 26
+theme_override_constants/margin_right = 30
+theme_override_constants/margin_bottom = 26
+
+[node name="Content" type="VBoxContainer" parent="Root/ScreenStack/RegisterScreen/Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Heading" type="Label" parent="Root/ScreenStack/RegisterScreen/Panel/Margin/Content"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Crear cuenta"
+horizontal_alignment = 1
+
+[node name="Notice" type="Label" parent="Root/ScreenStack/RegisterScreen/Panel/Margin/Content"]
+layout_mode = 2
+text = "La cuenta pertenece al servidor; el cliente no guarda la contraseña."
+autowrap_mode = 2
+horizontal_alignment = 1
+
+[node name="Host" type="LineEdit" parent="Root/ScreenStack/RegisterScreen/Panel/Margin/Content"]
+layout_mode = 2
+text = "127.0.0.1"
+placeholder_text = "Servidor"
+
+[node name="Username" type="LineEdit" parent="Root/ScreenStack/RegisterScreen/Panel/Margin/Content"]
+layout_mode = 2
+max_length = 24
+placeholder_text = "Usuario · 3 a 24 caracteres"
+
+[node name="Password" type="LineEdit" parent="Root/ScreenStack/RegisterScreen/Panel/Margin/Content"]
+layout_mode = 2
+secret = true
+max_length = 128
+placeholder_text = "Contraseña · mínimo 8 caracteres"
+
+[node name="ConfirmPassword" type="LineEdit" parent="Root/ScreenStack/RegisterScreen/Panel/Margin/Content"]
+layout_mode = 2
+secret = true
+max_length = 128
+placeholder_text = "Confirmar contraseña"
+
+[node name="CreateAccountButton" type="Button" parent="Root/ScreenStack/RegisterScreen/Panel/Margin/Content"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+text = "CREAR CUENTA"
+
+[node name="BackButton" type="Button" parent="Root/ScreenStack/RegisterScreen/Panel/Margin/Content"]
+layout_mode = 2
+text = "Volver"
+
+[node name="ServerSelectScreen" type="Control" parent="Root/ScreenStack"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="Root/ScreenStack/ServerSelectScreen"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -330.0
+offset_top = -220.0
+offset_right = 330.0
+offset_bottom = 220.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_type_variation = &"UiWindowPanel"
+
+[node name="Margin" type="MarginContainer" parent="Root/ScreenStack/ServerSelectScreen/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 30
+theme_override_constants/margin_top = 26
+theme_override_constants/margin_right = 30
+theme_override_constants/margin_bottom = 26
+
+[node name="Content" type="VBoxContainer" parent="Root/ScreenStack/ServerSelectScreen/Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Heading" type="Label" parent="Root/ScreenStack/ServerSelectScreen/Panel/Margin/Content"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Elige un servidor"
+horizontal_alignment = 1
+
+[node name="Description" type="Label" parent="Root/ScreenStack/ServerSelectScreen/Panel/Margin/Content"]
+layout_mode = 2
+text = "El directorio ya está separado del acceso al mundo. Por ahora hay un endpoint de desarrollo."
+autowrap_mode = 2
+horizontal_alignment = 1
+
+[node name="ServerCard" type="Button" parent="Root/ScreenStack/ServerSelectScreen/Panel/Margin/Content"]
+custom_minimum_size = Vector2(0, 96)
+layout_mode = 2
+text = "SERVIDOR LOCAL   ·   Disponible\n127.0.0.1:7777"
+
+[node name="SettingsButton" type="Button" parent="Root/ScreenStack/ServerSelectScreen/Panel/Margin/Content"]
+layout_mode = 2
+text = "Configuración"
+
+[node name="LogoutButton" type="Button" parent="Root/ScreenStack/ServerSelectScreen/Panel/Margin/Content"]
+layout_mode = 2
+text = "Cerrar sesión"
+
+[node name="CharacterSelectScreen" type="Control" parent="Root/ScreenStack"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="Root/ScreenStack/CharacterSelectScreen"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -485.0
+offset_top = -305.0
+offset_right = 485.0
+offset_bottom = 305.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_type_variation = &"UiWindowPanel"
+
+[node name="Margin" type="MarginContainer" parent="Root/ScreenStack/CharacterSelectScreen/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_bottom = 24
+
+[node name="Content" type="VBoxContainer" parent="Root/ScreenStack/CharacterSelectScreen/Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Heading" type="Label" parent="Root/ScreenStack/CharacterSelectScreen/Panel/Margin/Content"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Tus personajes"
+horizontal_alignment = 1
+
+[node name="Body" type="HBoxContainer" parent="Root/ScreenStack/CharacterSelectScreen/Panel/Margin/Content"]
+custom_minimum_size = Vector2(0, 430)
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 20
+
+[node name="CharactersScroll" type="ScrollContainer" parent="Root/ScreenStack/CharacterSelectScreen/Panel/Margin/Content/Body"]
+custom_minimum_size = Vector2(280, 0)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="CharacterList" type="VBoxContainer" parent="Root/ScreenStack/CharacterSelectScreen/Panel/Margin/Content/Body/CharactersScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="Stage" type="PanelContainer" parent="Root/ScreenStack/CharacterSelectScreen/Panel/Margin/Content/Body"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="StageContent" type="VBoxContainer" parent="Root/ScreenStack/CharacterSelectScreen/Panel/Margin/Content/Body/Stage"]
+layout_mode = 2
+alignment = 1
+
+[node name="StageTitle" type="Label" parent="Root/ScreenStack/CharacterSelectScreen/Panel/Margin/Content/Body/Stage/StageContent"]
+layout_mode = 2
+text = "ESCENARIO DEL PERSONAJE"
+horizontal_alignment = 1
+
+[node name="Preview" type="Label" parent="Root/ScreenStack/CharacterSelectScreen/Panel/Margin/Content/Body/Stage/StageContent"]
+custom_minimum_size = Vector2(0, 250)
+layout_mode = 2
+text = "◈\n\nSubViewport / sprite real\nse conectará al renderer del personaje"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="SelectedName" type="Label" parent="Root/ScreenStack/CharacterSelectScreen/Panel/Margin/Content/Body/Stage"]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 330.0
+offset_right = 620.0
+offset_bottom = 360.0
+theme_override_font_sizes/font_size = 22
+text = "Sin personaje seleccionado"
+horizontal_alignment = 1
+
+[node name="SelectedLocation" type="Label" parent="Root/ScreenStack/CharacterSelectScreen/Panel/Margin/Content/Body/Stage"]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 366.0
+offset_right = 620.0
+offset_bottom = 394.0
+text = ""
+horizontal_alignment = 1
+
+[node name="Actions" type="HBoxContainer" parent="Root/ScreenStack/CharacterSelectScreen/Panel/Margin/Content"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 10
+
+[node name="CreateCharacterButton" type="Button" parent="Root/ScreenStack/CharacterSelectScreen/Panel/Margin/Content/Actions"]
+layout_mode = 2
+text = "Crear personaje"
+
+[node name="EnterWorldButton" type="Button" parent="Root/ScreenStack/CharacterSelectScreen/Panel/Margin/Content/Actions"]
+custom_minimum_size = Vector2(180, 44)
+layout_mode = 2
+disabled = true
+text = "ENTRAR AL MUNDO"
+
+[node name="SettingsButton" type="Button" parent="Root/ScreenStack/CharacterSelectScreen/Panel/Margin/Content/Actions"]
+layout_mode = 2
+text = "Configuración"
+
+[node name="LogoutButton" type="Button" parent="Root/ScreenStack/CharacterSelectScreen/Panel/Margin/Content/Actions"]
+layout_mode = 2
+text = "Cerrar sesión"
+
+[node name="CharacterCreateScreen" type="Control" parent="Root/ScreenStack"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="Root/ScreenStack/CharacterCreateScreen"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -430.0
+offset_top = -290.0
+offset_right = 430.0
+offset_bottom = 290.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_type_variation = &"UiWindowPanel"
+
+[node name="Margin" type="MarginContainer" parent="Root/ScreenStack/CharacterCreateScreen/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 30
+theme_override_constants/margin_top = 26
+theme_override_constants/margin_right = 30
+theme_override_constants/margin_bottom = 26
+
+[node name="Content" type="VBoxContainer" parent="Root/ScreenStack/CharacterCreateScreen/Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Heading" type="Label" parent="Root/ScreenStack/CharacterCreateScreen/Panel/Margin/Content"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Crear personaje"
+horizontal_alignment = 1
+
+[node name="Rule" type="Label" parent="Root/ScreenStack/CharacterCreateScreen/Panel/Margin/Content"]
+layout_mode = 2
+text = "La identidad visual no es una raza ni elige Tradición. La Tradición se adopta dentro del mundo."
+autowrap_mode = 2
+horizontal_alignment = 1
+
+[node name="Name" type="LineEdit" parent="Root/ScreenStack/CharacterCreateScreen/Panel/Margin/Content"]
+custom_minimum_size = Vector2(0, 42)
+layout_mode = 2
+max_length = 24
+placeholder_text = "Nombre del personaje"
+
+[node name="Preview" type="PanelContainer" parent="Root/ScreenStack/CharacterCreateScreen/Panel/Margin/Content"]
+custom_minimum_size = Vector2(0, 250)
+layout_mode = 2
+
+[node name="PreviewText" type="Label" parent="Root/ScreenStack/CharacterCreateScreen/Panel/Margin/Content/Preview"]
+layout_mode = 2
+text = "◈ PREVIEW BASE ◈\n\nCuerpo / rostro / cabello / pigmentos\nquedan como catálogo visual data-driven.\nEsta primera pasada crea el personaje real con preset base."
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="AppearanceNotice" type="Label" parent="Root/ScreenStack/CharacterCreateScreen/Panel/Margin/Content"]
+layout_mode = 2
+text = "No se inventan opciones cosméticas hasta conectar el catálogo de sprites."
+horizontal_alignment = 1
+
+[node name="Actions" type="HBoxContainer" parent="Root/ScreenStack/CharacterCreateScreen/Panel/Margin/Content"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 12
+
+[node name="BackButton" type="Button" parent="Root/ScreenStack/CharacterCreateScreen/Panel/Margin/Content/Actions"]
+layout_mode = 2
+text = "Volver"
+
+[node name="CreateButton" type="Button" parent="Root/ScreenStack/CharacterCreateScreen/Panel/Margin/Content/Actions"]
+custom_minimum_size = Vector2(180, 44)
+layout_mode = 2
+text = "CREAR"
+
+[node name="SettingsScreen" type="Control" parent="Root/ScreenStack"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="Root/ScreenStack/SettingsScreen"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -300.0
+offset_top = -245.0
+offset_right = 300.0
+offset_bottom = 245.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_type_variation = &"UiWindowPanel"
+
+[node name="Margin" type="MarginContainer" parent="Root/ScreenStack/SettingsScreen/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 30
+theme_override_constants/margin_top = 26
+theme_override_constants/margin_right = 30
+theme_override_constants/margin_bottom = 26
+
+[node name="Content" type="VBoxContainer" parent="Root/ScreenStack/SettingsScreen/Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Heading" type="Label" parent="Root/ScreenStack/SettingsScreen/Panel/Margin/Content"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Configuración"
+horizontal_alignment = 1
+
+[node name="VideoTitle" type="Label" parent="Root/ScreenStack/SettingsScreen/Panel/Margin/Content"]
+layout_mode = 2
+text = "VIDEO"
+
+[node name="Fullscreen" type="CheckButton" parent="Root/ScreenStack/SettingsScreen/Panel/Margin/Content"]
+layout_mode = 2
+text = "Pantalla completa"
+
+[node name="AudioTitle" type="Label" parent="Root/ScreenStack/SettingsScreen/Panel/Margin/Content"]
+layout_mode = 2
+text = "AUDIO · Volumen maestro"
+
+[node name="MasterVolume" type="HSlider" parent="Root/ScreenStack/SettingsScreen/Panel/Margin/Content"]
+layout_mode = 2
+max_value = 100.0
+value = 100.0
+
+[node name="InterfaceTitle" type="Label" parent="Root/ScreenStack/SettingsScreen/Panel/Margin/Content"]
+layout_mode = 2
+text = "INTERFAZ · Escala"
+
+[node name="UiScale" type="HSlider" parent="Root/ScreenStack/SettingsScreen/Panel/Margin/Content"]
+layout_mode = 2
+min_value = 80.0
+max_value = 150.0
+value = 100.0
+
+[node name="Future" type="Label" parent="Root/ScreenStack/SettingsScreen/Panel/Margin/Content"]
+layout_mode = 2
+text = "Controles · Gameplay · Accesibilidad se conectarán a este mismo store, no a un menú duplicado."
+autowrap_mode = 2
+
+[node name="BackButton" type="Button" parent="Root/ScreenStack/SettingsScreen/Panel/Margin/Content"]
+layout_mode = 2
+text = "Volver"
+
+[node name="LoadingScreen" type="Control" parent="Root/ScreenStack"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="Root/ScreenStack/LoadingScreen"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -220.0
+offset_top = -90.0
+offset_right = 220.0
+offset_bottom = 90.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_type_variation = &"UiWindowPanel"
+
+[node name="Margin" type="MarginContainer" parent="Root/ScreenStack/LoadingScreen/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_bottom = 24
+
+[node name="Content" type="VBoxContainer" parent="Root/ScreenStack/LoadingScreen/Panel/Margin"]
+layout_mode = 2
+alignment = 1
+
+[node name="Glyph" type="Label" parent="Root/ScreenStack/LoadingScreen/Panel/Margin/Content"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 30
+text = "◈"
+horizontal_alignment = 1
+
+[node name="LoadingLabel" type="Label" parent="Root/ScreenStack/LoadingScreen/Panel/Margin/Content"]
+layout_mode = 2
+text = "Cargando…"
+horizontal_alignment = 1
+
+[node name="GlobalStatus" type="Label" parent="Root"]
+layout_mode = 1
+anchors_preset = 12
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 20.0
+offset_top = -38.0
+offset_right = -20.0
+offset_bottom = -12.0
+grow_horizontal = 2
+grow_vertical = 0
+text = "Desconectado"
+horizontal_alignment = 1
+mouse_filter = 2
