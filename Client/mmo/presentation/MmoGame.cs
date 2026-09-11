@@ -23,8 +23,18 @@ public partial class MmoGame : Node2D
     {
         RenderingServer.SetDefaultClearColor(new Color("121c24"));
         Network = new(); AddChild(Network);
-        world = new(); AddChild(world);
-        gameHud = new(); AddChild(gameHud);
+        world = GetNodeOrNull<WorldPresentation>("World");
+        if (world is null)
+        {
+            world = new WorldPresentation();
+            AddChild(world);
+        }
+        gameHud = GetNodeOrNull<GameHud>("GameHud");
+        if (gameHud is null)
+        {
+            gameHud = GD.Load<PackedScene>("res://mmo/presentation/hud/game_hud.tscn").Instantiate<GameHud>();
+            AddChild(gameHud);
+        }
         BuildUi(); RegisterInput();
     }
 
@@ -191,7 +201,8 @@ public partial class MmoGame : Node2D
                 AttackVisibleMob(DevelopmentAttackKind.Basic, targetDummy: false);
             else if (inputs.Hotkeys.ReadCombatHotkey(inputs.Bindings) is { } hotkey)
                 AttackVisibleMob(hotkey, targetDummy: true);
-            if (Input.IsActionJustPressed("mmo_inventory")) gameHud.ToggleInventory();
+            if (Input.IsActionJustPressed("mmo_inventory") || Input.IsActionJustPressed("inventory"))
+                gameHud.ToggleInventory();
             if (Input.IsActionJustPressed("mmo_character")) gameHud.ToggleCharacter();
             if (Input.IsActionJustPressed("mmo_escape")) gameHud.ToggleEscape();
         }

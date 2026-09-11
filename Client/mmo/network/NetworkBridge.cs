@@ -67,17 +67,29 @@ public partial class NetworkBridge : Node
                 {
                     case RegisterResult registration when registration.Succeeded: SetStatus("Cuenta creada · iniciando sesión"); break;
                     case LoginResult login when login.Succeeded: SetStatus("Autenticado · cargando personajes"); break;
-                    case MapLoadPacket map: World.Start(map); SetStatus("Conectado · entrando al mundo"); break;
+                    case MapLoadPacket map:
+                        World.Start(map);
+                        SetStatus("Conectado · entrando al mundo");
+                        break;
                     case PlayerStatsPacket stats:
                         World.Apply(stats); LastNotice = string.Empty; EmitSignal(SignalName.PlayerStatsUpdated); break;
                     case CombatDebugPacket combat:
-                        LastCombat = combat; LastNotice = string.Empty; EmitSignal(SignalName.CombatDebugUpdated); break;
+                        LastCombat = combat;
+                        LastNotice = string.Empty;
+                        World.Chat.Append(ChatChannel.Combat,
+                            $"{combat.Attack} {combat.AppliedDamage} dmg · HP {combat.TargetHealth}/{combat.TargetMaxHealth}");
+                        EmitSignal(SignalName.CombatDebugUpdated);
+                        break;
                     case EntityStatePacket snapshot:
                         World.Apply(snapshot, Now); SetStatus("En el mundo"); EmitSignal(SignalName.WorldUpdated); break;
                     case ErrorPacket error when error.Fatal:
                         DisconnectFromServer(); SetStatus(error.Message); break;
                     case ErrorPacket error:
-                        LastNotice = error.Message; EmitSignal(SignalName.PlayerStatsUpdated); EmitSignal(SignalName.CombatDebugUpdated); break;
+                        LastNotice = error.Message;
+                        World.Chat.Append(ChatChannel.System, error.Message);
+                        EmitSignal(SignalName.PlayerStatsUpdated);
+                        EmitSignal(SignalName.CombatDebugUpdated);
+                        break;
                 }
             }
             catch (Exception exception) { DisconnectFromServer(); SetStatus("Estado rechazado: " + exception.Message); }

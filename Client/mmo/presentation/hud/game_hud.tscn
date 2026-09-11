@@ -1,0 +1,108 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://mmo/presentation/hud/GameHud.cs" id="1"]
+
+[node name="GameHud" type="CanvasLayer"]
+layer = 10
+script = ExtResource("1")
+
+[node name="SelfBox" type="PanelContainer" parent="."]
+offset_left = 12.0
+offset_top = 628.0
+offset_right = 392.0
+offset_bottom = 708.0
+
+[node name="VBox" type="VBoxContainer" parent="SelfBox"]
+
+[node name="Title" type="Label" parent="SelfBox/VBox"]
+text = "Jugador"
+
+[node name="Vitals" type="Label" parent="SelfBox/VBox"]
+text = "HP --/--  PM --/--"
+
+[node name="TargetBox" type="PanelContainer" parent="."]
+offset_left = 404.0
+offset_top = 628.0
+offset_right = 764.0
+offset_bottom = 708.0
+
+[node name="VBox" type="VBoxContainer" parent="TargetBox"]
+
+[node name="Title" type="Label" parent="TargetBox/VBox"]
+text = "Objetivo"
+
+[node name="Vitals" type="Label" parent="TargetBox/VBox"]
+text = "Sin objetivo"
+
+[node name="ChatBox" type="PanelContainer" parent="."]
+offset_left = 12.0
+offset_top = 488.0
+offset_right = 532.0
+offset_bottom = 620.0
+
+[node name="VBox" type="VBoxContainer" parent="ChatBox"]
+
+[node name="Title" type="Label" parent="ChatBox/VBox"]
+text = "Chat"
+
+[node name="Log" type="Label" parent="ChatBox/VBox"]
+text = "…"
+
+[node name="Hotbar" type="PanelContainer" parent="."]
+offset_left = 776.0
+offset_top = 628.0
+offset_right = 1268.0
+offset_bottom = 708.0
+
+[node name="VBox" type="VBoxContainer" parent="Hotbar"]
+
+[node name="Title" type="Label" parent="Hotbar/VBox"]
+text = "Hotbar  1–6"
+
+[node name="Slots" type="Label" parent="Hotbar/VBox"]
+text = "1:Básico  2:Tierra  3:Fuego  4:Aire  5:Agua  6:Neutral"
+
+[node name="CharacterWindow" type="PanelContainer" parent="."]
+visible = false
+offset_left = 860.0
+offset_top = 220.0
+offset_right = 1268.0
+offset_bottom = 480.0
+
+[node name="VBox" type="VBoxContainer" parent="CharacterWindow"]
+
+[node name="Title" type="Label" parent="CharacterWindow/VBox"]
+text = "Personaje  (C)"
+
+[node name="Stats" type="Label" parent="CharacterWindow/VBox"]
+text = "Stats esperando servidor…"
+
+[node name="InventoryWindow" type="PanelContainer" parent="."]
+visible = false
+offset_left = 12.0
+offset_top = 120.0
+offset_right = 372.0
+offset_bottom = 360.0
+
+[node name="VBox" type="VBoxContainer" parent="InventoryWindow"]
+
+[node name="Title" type="Label" parent="InventoryWindow/VBox"]
+text = "Inventario  (I)"
+
+[node name="Slots" type="Label" parent="InventoryWindow/VBox"]
+text = "Inventario vacío."
+
+[node name="EscapeWindow" type="PanelContainer" parent="."]
+visible = false
+offset_left = 490.0
+offset_top = 260.0
+offset_right = 790.0
+offset_bottom = 400.0
+
+[node name="VBox" type="VBoxContainer" parent="EscapeWindow"]
+
+[node name="Title" type="Label" parent="EscapeWindow/VBox"]
+text = "Menú  (Esc)"
+
+[node name="Hint" type="Label" parent="EscapeWindow/VBox"]
+text = "I inventario · C personaje · J atacar · 1–6 hotbar"
