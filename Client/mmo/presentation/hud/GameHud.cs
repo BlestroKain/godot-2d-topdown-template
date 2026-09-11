@@ -60,8 +60,33 @@ public partial class GameHud : CanvasLayer
         GetNode<Button>("Root/CombatBar/HBox/Quick/TechniquesButton").Pressed += ToggleTechniques;
         GetNode<Button>("Root/QuestTracker/VBox/Header/JournalButton").Pressed += ToggleQuests;
 
+        WireEscapeMenu();
         systemBinder = new UiSystemBinder(this);
         Visible = false;
+    }
+
+    private void WireEscapeMenu()
+    {
+        escapeRoot.GetNode<Button>("Margin/VBox/Resume").Pressed += escapeRoot.Close;
+        escapeRoot.GetNode<Button>("Margin/VBox/Settings").Pressed += OpenSharedSettings;
+        escapeRoot.GetNode<Button>("Margin/VBox/Controls").Pressed += OpenSharedSettings;
+        escapeRoot.GetNode<Button>("Margin/VBox/Character").Pressed += () =>
+        {
+            escapeRoot.Close();
+            characterRoot.Open();
+        };
+        escapeRoot.GetNode<Button>("Margin/VBox/Logout").Pressed += () =>
+        {
+            escapeRoot.Close();
+            if (GetParent() is MmoGame game)
+                game.Network.DisconnectFromServer();
+        };
+    }
+
+    private void OpenSharedSettings()
+    {
+        escapeRoot.Close();
+        GetParent()?.GetNodeOrNull<FrontendFlowController>("FrontendRoot")?.OpenInGameSettings();
     }
 
     public void Present(NetworkBridge network)
