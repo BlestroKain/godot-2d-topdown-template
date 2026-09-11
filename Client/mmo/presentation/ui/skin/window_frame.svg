@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" shape-rendering="crispEdges">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0b2027"/><stop offset="1" stop-color="#061419"/>
+    </linearGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#c39451"/><stop offset="0.45" stop-color="#76502a"/><stop offset="1" stop-color="#3d291b"/>
+    </linearGradient>
+  </defs>
+  <rect x="1" y="1" width="62" height="62" rx="6" fill="#02090c" stroke="#020507" stroke-width="2"/>
+  <rect x="3" y="3" width="58" height="58" rx="5" fill="url(#metal)"/>
+  <rect x="6" y="6" width="52" height="52" rx="3" fill="url(#bg)" stroke="#1c3135" stroke-width="1"/>
+  <rect x="8" y="8" width="48" height="48" rx="2" fill="none" stroke="#3a2c20" stroke-width="1"/>
+  <path d="M3 15V7a4 4 0 0 1 4-4h8v4H8a1 1 0 0 0-1 1v7zM49 3h8a4 4 0 0 1 4 4v8h-4V8a1 1 0 0 0-1-1h-7zM3 49h4v7a1 1 0 0 0 1 1h7v4H7a4 4 0 0 1-4-4zM57 49h4v8a4 4 0 0 1-4 4h-8v-4h7a1 1 0 0 0 1-1z" fill="#cf9d54"/>
+  <path d="M22 5h20v2H22z" fill="#27a7b5" opacity=".72"/>
+  <path d="M27 6h10v1H27z" fill="#9be3e7" opacity=".85"/>
+  <circle cx="9" cy="9" r="1.5" fill="#2aaab7"/><circle cx="55" cy="9" r="1.5" fill="#2aaab7" opacity=".7"/>
+</svg>
