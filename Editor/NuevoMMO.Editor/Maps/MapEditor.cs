@@ -8,6 +8,7 @@ namespace NuevoMMO.Editor;
 /// </summary>
 public sealed class MapEditor
 {
+    private readonly DefinitionRegistry registry;
     private readonly MapDefinitionEditor definitions;
     private readonly EditorHistory history;
     private readonly DirtyState dirty;
@@ -19,10 +20,11 @@ public sealed class MapEditor
 
     public MapEditor(DefinitionRegistry registry, EditorHistory history, DirtyState dirty)
     {
-        definitions = new MapDefinitionEditor(registry ?? throw new ArgumentNullException(nameof(registry)));
+        this.registry = registry ?? throw new ArgumentNullException(nameof(registry));
+        definitions = new MapDefinitionEditor(this.registry);
         this.history = history ?? throw new ArgumentNullException(nameof(history));
         this.dirty = dirty ?? throw new ArgumentNullException(nameof(dirty));
-        Events = new MapEventPlacementEditor(registry);
+        Events = new MapEventPlacementEditor(this.registry);
     }
 
     public MapDocument? Document { get; private set; }
@@ -108,6 +110,142 @@ public sealed class MapEditor
         return true;
     }
 
+    /// <summary>
+    /// Devuelve únicamente Definitions compatibles con el tipo de placement.
+    /// La selección visual del editor nunca mezcla mobs, NPCs y recursos.
+    /// </summary>
+    public IReadOnlyList<GameDefinition> PlacementDefinitions(SpawnEntityKind kind)
+        => kind switch
+        {
+            SpawnEntityKind.Mob => registry.GetAll<MobDefinition>().Cast<GameDefinition>().OrderBy(static value => value.Name).ToArray(),
+            SpawnEntityKind.Npc => registry.GetAll<NpcDefinition>().Cast<GameDefinition>().OrderBy(static value => value.Name).ToArray(),
+            SpawnEntityKind.Resource => registry.GetAll<ResourceDefinition>().Cast<GameDefinition>().OrderBy(static value => value.Name).ToArray(),
+            _ => []
+        };
+
+    public IReadOnlyList<SpawnTableDefinition> SpawnTableDefinitions()
+        => registry.GetAll<SpawnTableDefinition>().OrderBy(static value => value.Name).ToArray();
+
+    /// <summary>
+    /// Coloca una entidad de contenido en coordenadas continuas de mundo. No se ajusta a la grilla:
+    /// los tiles son una ayuda visual, no la unidad física de movimiento/placement.
+    /// </summary>
+    public MapContentPlacementDefinition Place(
+        SpawnEntityKind kind,
+        DefinitionId definitionId,
+        Vector2Data position,
+        Direction direction = Direction.Down)
+    {
+        var document = RequireDocument();
+        ValidatePlacementDefinition(kind, definitionId);
+        EnsureInsideMap(document, position);
+
+        var placement = new MapContentPlacementDefinition(Guid.NewGuid(), kind, definitionId, position, direction);
+        history.Push(new ChangeSet(
+            $"Colocar {kind} {definitionId}",
+            () =>
+            {
+                if (document.Placements.All(value => value.Id != placement.Id)) document.Placements.Add(placement);
+                dirty.Mark();
+            },
+            () =>
+            {
+                document.Placements.RemoveAll(value => value.Id == placement.Id);
+                dirty.Mark();
+            }));
+        return placement;
+    }
+
+    public MapContentPlacementDefinition? FindPlacement(Guid id)
+        => RequireDocument().Placements.FirstOrDefault(value => value.Id == id);
+
+    public MapContentPlacementDefinition MovePlacement(Guid id, Vector2Data position)
+    {
+        var document = RequireDocument();
+        EnsureInsideMap(document, position);
+        var previous = document.Placements.FirstOrDefault(value => value.Id == id)
+            ?? throw new KeyNotFoundException($"Placement inexistente: {id}.");
+        if (previous.Position == position) return previous;
+
+        var replacement = new MapContentPlacementDefinition(
+            previous.Id,
+            previous.Kind,
+            previous.DefinitionId,
+            position,
+            previous.Direction,
+            previous.Parameters);
+
+        history.Push(new ChangeSet(
+            $"Mover {previous.Kind} {previous.Id}",
+            () => { ReplacePlacement(document, replacement); dirty.Mark(); },
+            () => { ReplacePlacement(document, previous); dirty.Mark(); }));
+        return replacement;
+    }
+
+    public bool RemovePlacement(Guid id)
+    {
+        var document = RequireDocument();
+        var previous = document.Placements.FirstOrDefault(value => value.Id == id);
+        if (previous is null) return false;
+
+        history.Push(new ChangeSet(
+            $"Borrar {previous.Kind} {previous.Id}",
+            () => { document.Placements.RemoveAll(value => value.Id == id); dirty.Mark(); },
+            () =>
+            {
+                if (document.Placements.All(value => value.Id != id)) document.Placements.Add(previous);
+                dirty.Mark();
+            }));
+        return true;
+    }
+
+    public MapSpawnZoneDefinition AddSpawnZone(
+        DefinitionId spawnTableId,
+        MapShapeDefinition area,
+        int maximumAliveOverride = 0)
+    {
+        var document = RequireDocument();
+        if (!registry.TryGet<SpawnTableDefinition>(spawnTableId, out _))
+            throw new InvalidOperationException($"{spawnTableId} no es una SpawnTableDefinition válida.");
+        if (!document.Bounds.Contains(area.Center))
+            throw new ArgumentOutOfRangeException(nameof(area), "El centro de la zona debe estar dentro del mapa.");
+
+        var zone = new MapSpawnZoneDefinition(Guid.NewGuid(), spawnTableId, area, maximumAliveOverride);
+        history.Push(new ChangeSet(
+            $"Crear SpawnZone {spawnTableId}",
+            () =>
+            {
+                if (document.SpawnZones.All(value => value.Id != zone.Id)) document.SpawnZones.Add(zone);
+                dirty.Mark();
+            },
+            () =>
+            {
+                document.SpawnZones.RemoveAll(value => value.Id == zone.Id);
+                dirty.Mark();
+            }));
+        return zone;
+    }
+
+    public MapSpawnZoneDefinition? FindSpawnZone(Guid id)
+        => RequireDocument().SpawnZones.FirstOrDefault(value => value.Id == id);
+
+    public bool RemoveSpawnZone(Guid id)
+    {
+        var document = RequireDocument();
+        var previous = document.SpawnZones.FirstOrDefault(value => value.Id == id);
+        if (previous is null) return false;
+
+        history.Push(new ChangeSet(
+            $"Borrar SpawnZone {id}",
+            () => { document.SpawnZones.RemoveAll(value => value.Id == id); dirty.Mark(); },
+            () =>
+            {
+                if (document.SpawnZones.All(value => value.Id != id)) document.SpawnZones.Add(previous);
+                dirty.Mark();
+            }));
+        return true;
+    }
+
     public MapDefinition PreviewDefinition() => RequireDocument().ToDefinition();
 
     public void MarkDirty() => dirty.Mark();
@@ -124,6 +262,32 @@ public sealed class MapEditor
         Regions.Bind(document);
         Environment.Bind(document);
         Events.Bind(document.Id);
+    }
+
+    private void ValidatePlacementDefinition(SpawnEntityKind kind, DefinitionId id)
+    {
+        var valid = kind switch
+        {
+            SpawnEntityKind.Mob => registry.TryGet<MobDefinition>(id, out _),
+            SpawnEntityKind.Npc => registry.TryGet<NpcDefinition>(id, out _),
+            SpawnEntityKind.Resource => registry.TryGet<ResourceDefinition>(id, out _),
+            _ => false
+        };
+        if (!valid)
+            throw new InvalidOperationException($"{id} no es una Definition válida para placement {kind}.");
+    }
+
+    private static void EnsureInsideMap(MapDocument document, Vector2Data position)
+    {
+        if (!document.Bounds.Contains(position))
+            throw new ArgumentOutOfRangeException(nameof(position), "El placement debe quedar dentro de los límites del mapa.");
+    }
+
+    private static void ReplacePlacement(MapDocument document, MapContentPlacementDefinition replacement)
+    {
+        var index = document.Placements.FindIndex(value => value.Id == replacement.Id);
+        if (index < 0) throw new KeyNotFoundException($"Placement inexistente: {replacement.Id}.");
+        document.Placements[index] = replacement;
     }
 
     private MapDocument RequireDocument()
