@@ -1,11 +1,19 @@
 using Godot;
+using NuevoMMO.Core;
 
 namespace NuevoMMO.GodotClient;
 
-/// <summary>Template SpriteFrames extracted by tools/extract-template-frames.ps1, without gameplay nodes.</summary>
+/// <summary>Assets visuales del cliente resueltos por ContentKey; nunca forman parte de la autoridad del servidor.</summary>
 public sealed class AssetRegistry
 {
     private SpriteFrames? playerFrames;
+
+    public SpriteFrames Frames(ContentKey visualKey)
+    {
+        if (visualKey == CanonicalCharacterAppearance.BaseVisual) return PlayerFrames();
+        throw new KeyNotFoundException($"Visual no registrado en cliente: {visualKey}");
+    }
+
     public SpriteFrames PlayerFrames()
     {
         if (playerFrames is not null) return playerFrames;
