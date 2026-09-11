@@ -20,7 +20,25 @@ public interface ICharacterRepository
 {
     Task<IReadOnlyList<CharacterRecord>> ListByAccountAsync(AccountId account, CancellationToken cancellationToken = default);
     Task<CharacterRecord?> GetAsync(CharacterId id, CancellationToken cancellationToken = default);
-    Task<CharacterRecord> CreateAsync(AccountId account, string name, DefinitionId map, Vector2Data position, DefinitionId traditionId, CharacterAppearance appearance, CancellationToken cancellationToken = default);
+    Task<CharacterRecord> CreateAsync(AccountId account, string name, DefinitionId map, Vector2Data position, DefinitionId traditionId, CancellationToken cancellationToken = default);
+
+    async Task<CharacterRecord> CreateAsync(
+        AccountId account,
+        string name,
+        DefinitionId map,
+        Vector2Data position,
+        DefinitionId traditionId,
+        CharacterAppearance appearance,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(appearance);
+        if (!CanonicalCharacterAppearance.IsSupported(appearance))
+            throw new ArgumentException("Apariencia no publicada.", nameof(appearance));
+        var record = await CreateAsync(account, name, map, position, traditionId, cancellationToken);
+        record.Appearance = appearance;
+        return record;
+    }
+
     Task SavePositionAsync(CharacterId id, DefinitionId map, Vector2Data position, CancellationToken cancellationToken = default);
     Task SaveCheckpointAsync(
         CharacterId id,
