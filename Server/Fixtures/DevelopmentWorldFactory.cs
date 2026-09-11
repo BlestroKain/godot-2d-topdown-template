@@ -136,85 +136,85 @@ public static class DevelopmentWorldFactory
 
         try
         {
-        ContentPackage package;
-        MapDefinition map;
-        MobDefinition? scout = null;
-        IMobMovementPolicy movementPolicy;
-        if (loadedFromGame)
-        {
-            package = fixturesAllowed && trainingDummyDefinition is not null
-                ? MergeFixtureDefinitions(loadedPackage!, trainingDummyDefinition)
-                : EnsureCanonicalTechniques(loadedPackage!);
-            map = package.Maps.FirstOrDefault(static value => value.Enabled) ?? package.Maps[0];
-            movementPolicy = new StationaryAwareMobPolicy(new OscillatingMobPolicy());
-            persistenceDescription += " · game.db";
-        }
-        else
-        {
-            package = ContentPackage.Empty("dev-1") with
+            ContentPackage package;
+            MapDefinition map;
+            MobDefinition? scout = null;
+            IMobMovementPolicy movementPolicy;
+            if (loadedFromGame)
             {
-                Maps = [fixtureMap!],
-                Mobs = [fixtureScout!, trainingDummyDefinition!],
-                Techniques = [CanonicalCombatContent.BasicAttack()]
+                package = fixturesAllowed && trainingDummyDefinition is not null
+                    ? MergeFixtureDefinitions(loadedPackage!, trainingDummyDefinition)
+                    : EnsureCanonicalTechniques(loadedPackage!);
+                map = package.Maps.FirstOrDefault(static value => value.Enabled) ?? package.Maps[0];
+                movementPolicy = new StationaryAwareMobPolicy(new OscillatingMobPolicy());
+                persistenceDescription += " · game.db";
+            }
+            else
+            {
+                package = ContentPackage.Empty("dev-1") with
+                {
+                    Maps = [fixtureMap!],
+                    Mobs = [fixtureScout!, trainingDummyDefinition!],
+                    Techniques = [CanonicalCombatContent.BasicAttack()]
+                };
+                map = fixtureMap!;
+                scout = fixtureScout;
+                movementPolicy = new OscillatingMobPolicy();
+            }
+
+            var definitions = new GameDataLoader().Load(package);
+            var options = fixturesAllowed
+                ? new WorldOptions(
+                    new(data.GetProperty("instance").GetInt64()), data.GetProperty("speed").GetSingle(),
+                    data.GetProperty("mobSpeed").GetSingle(), configuration.TickMilliseconds,
+                    data.GetProperty("interestRadius").GetSingle(), configuration.MaxPlayers)
+                : new WorldOptions(
+                    new(configuration.InstanceId), configuration.MovementSpeed, configuration.MobSpeed,
+                    configuration.TickMilliseconds, configuration.InterestRadius, configuration.MaxPlayers);
+            var systems = new GameSystems(definitions, mobMovementSpeed: options.MobSpeed);
+
+            WorldRuntime world;
+            if (scout is not null)
+            {
+                world = new WorldRuntime(
+                    map, scout, options, movementPolicy,
+                    new(data.GetProperty("mobX").GetSingle(), data.GetProperty("mobY").GetSingle()), systems);
+            }
+            else
+            {
+                world = new WorldRuntime(map, options, movementPolicy, systems);
+                ContentWorldPopulator.Populate(world, definitions, map);
+            }
+
+            if (fixturesAllowed &&
+                !world.MapInstance.Entities.All.OfType<Mob>().Any(mob => mob.DefinitionId == TrainingDummyFixture.DefinitionId))
+            {
+                var dummyPosition = map.Bounds.Clamp(new Vector2Data(map.Spawn.X + 128f, map.Spawn.Y));
+                world.AddEntity(TrainingDummyFixture.CreateEntity(new EntityId(9_000_000_000), world.Instance, dummyPosition));
+            }
+
+            var persistence = new PersistenceService(characters, map);
+            var auth = new AuthService(accounts, sessions, new PasswordHasher<string>());
+            var characterService = new CharacterService(characters, map);
+            var dispatcher = new PacketDispatcher<ServerPacketContext>(
+                ServerHandlerRegistry.Create(
+                    world,
+                    auth,
+                    characterService,
+                    persistence,
+                    progression: systems.Progression,
+                    combat: systems.Combat),
+                PacketDirection.ClientToServer);
+            return new ServerComposition
+            {
+                World = world,
+                Systems = systems,
+                Persistence = persistence,
+                Dispatcher = dispatcher,
+                Definitions = definitions,
+                Sessions = sessions,
+                PersistenceDescription = persistenceDescription
             };
-            map = fixtureMap!;
-            scout = fixtureScout;
-            movementPolicy = new OscillatingMobPolicy();
-        }
-
-        var definitions = new GameDataLoader().Load(package);
-        var systems = new GameSystems(definitions);
-        var options = fixturesAllowed
-            ? new WorldOptions(
-                new(data.GetProperty("instance").GetInt64()), data.GetProperty("speed").GetSingle(),
-                data.GetProperty("mobSpeed").GetSingle(), configuration.TickMilliseconds,
-                data.GetProperty("interestRadius").GetSingle(), configuration.MaxPlayers)
-            : new WorldOptions(
-                new(configuration.InstanceId), configuration.MovementSpeed, configuration.MobSpeed,
-                configuration.TickMilliseconds, configuration.InterestRadius, configuration.MaxPlayers);
-
-        WorldRuntime world;
-        if (scout is not null)
-        {
-            world = new WorldRuntime(
-                map, scout, options, movementPolicy,
-                new(data.GetProperty("mobX").GetSingle(), data.GetProperty("mobY").GetSingle()), systems);
-        }
-        else
-        {
-            world = new WorldRuntime(map, options, movementPolicy, systems);
-            ContentWorldPopulator.Populate(world, definitions, map);
-        }
-
-        if (fixturesAllowed &&
-            !world.MapInstance.Entities.All.OfType<Mob>().Any(mob => mob.DefinitionId == TrainingDummyFixture.DefinitionId))
-        {
-            var dummyPosition = map.Bounds.Clamp(new Vector2Data(map.Spawn.X + 128f, map.Spawn.Y));
-            world.AddEntity(TrainingDummyFixture.CreateEntity(new EntityId(9_000_000_000), world.Instance, dummyPosition));
-        }
-
-        var persistence = new PersistenceService(characters, map);
-        var auth = new AuthService(accounts, sessions, new PasswordHasher<string>());
-        var characterService = new CharacterService(characters, map);
-        var dispatcher = new PacketDispatcher<ServerPacketContext>(
-            ServerHandlerRegistry.Create(
-                world,
-                auth,
-                characterService,
-                persistence,
-                progression: systems.Progression,
-                combat: systems.Combat),
-            PacketDirection.ClientToServer);
-        return new ServerComposition
-        {
-            World = world,
-            Systems = systems,
-            Persistence = persistence,
-            Dispatcher = dispatcher,
-            Definitions = definitions,
-            Sessions = sessions,
-            PersistenceDescription = persistenceDescription
-        };
         }
         finally
         {
