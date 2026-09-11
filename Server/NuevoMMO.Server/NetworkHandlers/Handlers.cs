@@ -83,7 +83,7 @@ public sealed class LoginHandler(
     {
         ServerAuthorizationGuard.Demand(context, ServerAction.Login, authorization);
         var rate = abuse.Check($"login:{context.Connection}", Environment.TickCount64,
-            settings.LoginAttemptsPerWindow, settings.RegistrationWindowMilliseconds);
+            settings.LoginAttemptsPerWindow, settings.LoginWindowMilliseconds);
         if (!rate.Allowed)
         {
             context.Send(new LoginResult(false, "Demasiados intentos de inicio de sesión. Intenta nuevamente más tarde.",
