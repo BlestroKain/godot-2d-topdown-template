@@ -102,7 +102,8 @@ public static class SqliteMigrator
             vitality INTEGER NOT NULL DEFAULT 10,
             current_health INTEGER NULL,
             current_mana INTEGER NULL,
-            tradition_id TEXT NOT NULL DEFAULT ''
+            tradition_id TEXT NOT NULL DEFAULT '',
+            appearance_data TEXT NOT NULL DEFAULT 'v1|template.player||||||||'
         );
         CREATE INDEX IF NOT EXISTS ix_characters_account_id ON characters(account_id);
         """;
@@ -248,7 +249,7 @@ public sealed class SqliteCharacterRepository(string databasePath) : ICharacterR
     private readonly string connectionString = SqliteMigrator.ConnectionString(databasePath);
     private const string CharacterColumns =
         "id, account_id, name, map_definition, position_x, position_y, level, experience, " +
-        "available_attribute_points, strength, intelligence, agility, spirit, vitality, current_health, current_mana, tradition_id";
+        "available_attribute_points, strength, intelligence, agility, spirit, vitality, current_health, current_mana, tradition_id, appearance_data";
 
     public async Task<IReadOnlyList<CharacterRecord>> ListByAccountAsync(AccountId account, CancellationToken cancellationToken = default)
     {
@@ -274,18 +275,32 @@ public sealed class SqliteCharacterRepository(string databasePath) : ICharacterR
         return await reader.ReadAsync(cancellationToken) ? ReadCharacter(reader) : null;
     }
 
-    public async Task<CharacterRecord> CreateAsync(
+    public Task<CharacterRecord> CreateAsync(
         AccountId account,
         string name,
         DefinitionId map,
         Vector2Data position,
         DefinitionId traditionId,
         CancellationToken cancellationToken = default)
+        => CreateAsync(account, name, map, position, traditionId, CanonicalCharacterAppearance.Default, cancellationToken);
+
+    public async Task<CharacterRecord> CreateAsync(
+        AccountId account,
+        string name,
+        DefinitionId map,
+        Vector2Data position,
+        DefinitionId traditionId,
+        CharacterAppearance appearance,
+        CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(appearance);
+        if (!CanonicalCharacterAppearance.IsSupported(appearance))
+            throw new ArgumentException("Apariencia no publicada.", nameof(appearance));
+
         var record = new CharacterRecord
         {
             Id = new(Guid.NewGuid()), AccountId = account, Name = name, MapDefinition = map,
-            Position = position, TraditionId = traditionId
+            Position = position, TraditionId = traditionId, Appearance = appearance
         };
         record.ApplyProgression(ProgressionRules.CreateInitial());
         await using var connection = new SqliteConnection(connectionString);
@@ -295,14 +310,15 @@ public sealed class SqliteCharacterRepository(string databasePath) : ICharacterR
             INSERT INTO characters(
                 id, account_id, name, map_definition, position_x, position_y,
                 level, experience, available_attribute_points,
-                strength, intelligence, agility, spirit, vitality, current_health, current_mana, tradition_id)
+                strength, intelligence, agility, spirit, vitality, current_health, current_mana, tradition_id, appearance_data)
             VALUES(
                 $id, $account, $name, $map, $x, $y,
                 $level, $experience, $points,
-                $str, $int, $agi, $spi, $vit, NULL, NULL, $tradition)
+                $str, $int, $agi, $spi, $vit, NULL, NULL, $tradition, $appearance)
             """;
         AddIdentityParameters(command, record);
         AddProgressionParameters(command, record.ToProgressionState());
+        command.Parameters.AddWithValue("$appearance", record.Appearance.ToStorageString());
         try { await command.ExecuteNonQueryAsync(cancellationToken); }
         catch (SqliteException exception) when (exception.SqliteErrorCode == 19)
         { throw new InvalidOperationException("Nombre de personaje duplicado.", exception); }
@@ -383,6 +399,7 @@ public sealed class SqliteCharacterRepository(string databasePath) : ICharacterR
     private static CharacterRecord ReadCharacter(SqliteDataReader reader)
     {
         var traditionText = reader.IsDBNull(16) ? string.Empty : reader.GetString(16);
+        var appearanceText = reader.IsDBNull(17) ? null : reader.GetString(17);
         return new CharacterRecord
         {
             Id = new(Guid.Parse(reader.GetString(0))), AccountId = new(Guid.Parse(reader.GetString(1))), Name = reader.GetString(2),
@@ -392,7 +409,8 @@ public sealed class SqliteCharacterRepository(string databasePath) : ICharacterR
             Spirit = reader.GetInt32(12), Vitality = reader.GetInt32(13),
             CurrentHealth = reader.IsDBNull(14) ? null : reader.GetInt32(14),
             CurrentMana = reader.IsDBNull(15) ? null : reader.GetInt32(15),
-            TraditionId = DefinitionId.TryParse(traditionText, out var traditionId) ? traditionId : DefinitionId.Empty
+            TraditionId = DefinitionId.TryParse(traditionText, out var traditionId) ? traditionId : DefinitionId.Empty,
+            Appearance = CharacterAppearance.FromStorageString(appearanceText)
         };
     }
 }
