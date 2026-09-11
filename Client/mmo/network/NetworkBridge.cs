@@ -106,15 +106,21 @@ public partial class NetworkBridge : Node
         finally { lobbyBusy = false; EmitSignal(SignalName.LobbyUpdated); }
     }
 
-    public async void CreateCharacter(string name)
+    public async void CreateCharacter(string name, DefinitionId traditionId)
     {
         if (lobbyBusy || connection is null || !connection.IsAuthenticated || InWorld) return;
+        if (!CanonicalTraditions.IsSelectable(traditionId))
+        {
+            FailLobby("Elige una Tradición válida antes de crear el personaje.");
+            EmitSignal(SignalName.LobbyUpdated);
+            return;
+        }
         var current = connection;
         try
         {
             lobbyBusy = true;
             SetStatus("Creando personaje…");
-            var created = await current.CreateCharacterAsync(name);
+            var created = await current.CreateCharacterAsync(name, traditionId);
             Characters = Characters
                 .Where(character => character.Id != created.Character.Id)
                 .Append(created.Character)
