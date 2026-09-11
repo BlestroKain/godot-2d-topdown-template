@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <ProjectReference Include="../../Core/NuevoMMO.Core/NuevoMMO.Core.csproj" />
+    <ProjectReference Include="$(NuevoMMOCoreProject)" />
     <PackageReference Include="ENet-CSharp" Version="2.4.8" />
   </ItemGroup>
 </Project>
