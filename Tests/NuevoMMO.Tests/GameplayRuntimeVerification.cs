@@ -11,6 +11,8 @@ internal static class GameplayRuntimeVerification
     {
         VerifyMobAiUsesAuthoritativeMovementAndCombat();
         VerifyProjectilePayloadUsesTechniquePipeline();
+        VerifySemanticCombatGeometry();
+        VerifyTechniqueDamageUsesDofusScaling();
         VerifyEventRuntimeUsesProgressionSystem();
     }
 
@@ -78,6 +80,48 @@ internal static class GameplayRuntimeVerification
         systems.Techniques.ExecuteEffectActions(source, target, projectile.ImpactActions, 1000);
         Check(target.Health == healthBefore - 25,
             "Projectile: payload de impacto usa TechniqueSystem sin daño hardcodeado");
+    }
+
+    private static void VerifySemanticCombatGeometry()
+    {
+        var source = CreatePlayer(new EntityId(30), new MapInstanceId(4), new Vector2Data(20, 20));
+        var rangedTarget = CreatePlayer(new EntityId(31), new MapInstanceId(4), new Vector2Data(80, 20));
+        rangedTarget.ConfigureCollision(new EntityCollisionProfile(
+            hurtboxes: [new CircleCollisionShape(10, new Vector2Data(-25, 0))]));
+        Check(SemanticCollisionService.IsWithinRange(source.Position, rangedTarget, 50),
+            "Combat geometry: alcance consulta Hurtbox y no centro del sprite");
+
+        var projectileTarget = CreatePlayer(new EntityId(32), new MapInstanceId(4), new Vector2Data(40, 20));
+        projectileTarget.ConfigureCollision(new EntityCollisionProfile(
+            hurtboxes: [new CircleCollisionShape(3, new Vector2Data(-16, 0))]));
+        var projectile = new Projectile(
+            new EntityId(33), null, source.Id, null, new MapInstanceId(4),
+            new Vector2Data(20, 20), Vector2Data.Right, 100, 100, 1000, 1,
+            new ContentKey("visual.projectile.semantic"), "Semantic projectile");
+        projectile.ConfigureCollision(new EntityCollisionProfile(
+            movementCollider: new CircleCollisionShape(3),
+            hitboxes: [new CircleCollisionShape(3)]));
+        Check(new ProjectileSystem().TryRegisterImpact(projectile, projectileTarget, 1),
+            "Combat geometry: Hitbox del proyectil impacta Hurtbox aunque el centro quede fuera del fallback");
+    }
+
+    private static void VerifyTechniqueDamageUsesDofusScaling()
+    {
+        var registry = new DefinitionRegistry();
+        var systems = new GameSystems(registry);
+        var source = CreatePlayer(new EntityId(40), new MapInstanceId(5), new Vector2Data(20, 20));
+        var target = CreatePlayer(new EntityId(41), new MapInstanceId(5), new Vector2Data(30, 20));
+        var damage = new TechniqueActionDefinition(
+            TechniqueActionKind.Damage,
+            amount: 100,
+            element: Element.Earth,
+            scaling: new Dictionary<StatId, float> { [StatId.Strength] = 100 });
+        var before = target.Health;
+        var executions = systems.Techniques.ExecuteEffectActions(source, target, [damage], 1000);
+        var resolved = executions.Single().Damage;
+        Check(resolved is not null && resolved.Breakdown is not null &&
+              resolved.Breakdown.EffectiveOffense == 10 && resolved.AppliedDamage == 110 && target.Health == before - 110,
+            "Technique: Damage usa base × característica efectiva por DamagePipeline");
     }
 
     private static void VerifyEventRuntimeUsesProgressionSystem()
