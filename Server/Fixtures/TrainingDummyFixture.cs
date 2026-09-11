@@ -71,6 +71,10 @@ public static class TrainingDummyFixture
         return mob;
     }
 
+    /// <summary>Básico técnico: no define la futura fórmula canónica del ataque básico.</summary>
+    public static AttributeDamageFormula BasicTestAttack()
+        => new(Element.Neutral, PrimaryAttributeId.Strength, 50f, 0.5f);
+
     public static AttributeDamageFormula EarthTechnique(float scaling = 1f)
         => new(Element.Earth, PrimaryAttributeId.Strength, 100f, scaling);
 
