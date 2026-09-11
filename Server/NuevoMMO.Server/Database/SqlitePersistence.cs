@@ -101,7 +101,8 @@ public static class SqliteMigrator
             spirit INTEGER NOT NULL DEFAULT 10,
             vitality INTEGER NOT NULL DEFAULT 10,
             current_health INTEGER NULL,
-            current_mana INTEGER NULL
+            current_mana INTEGER NULL,
+            tradition_id TEXT NOT NULL DEFAULT ''
         );
         CREATE INDEX IF NOT EXISTS ix_characters_account_id ON characters(account_id);
         """;
@@ -247,7 +248,7 @@ public sealed class SqliteCharacterRepository(string databasePath) : ICharacterR
     private readonly string connectionString = SqliteMigrator.ConnectionString(databasePath);
     private const string CharacterColumns =
         "id, account_id, name, map_definition, position_x, position_y, level, experience, " +
-        "available_attribute_points, strength, intelligence, agility, spirit, vitality, current_health, current_mana";
+        "available_attribute_points, strength, intelligence, agility, spirit, vitality, current_health, current_mana, tradition_id";
 
     public async Task<IReadOnlyList<CharacterRecord>> ListByAccountAsync(AccountId account, CancellationToken cancellationToken = default)
     {
@@ -273,11 +274,18 @@ public sealed class SqliteCharacterRepository(string databasePath) : ICharacterR
         return await reader.ReadAsync(cancellationToken) ? ReadCharacter(reader) : null;
     }
 
-    public async Task<CharacterRecord> CreateAsync(AccountId account, string name, DefinitionId map, Vector2Data position, CancellationToken cancellationToken = default)
+    public async Task<CharacterRecord> CreateAsync(
+        AccountId account,
+        string name,
+        DefinitionId map,
+        Vector2Data position,
+        DefinitionId traditionId,
+        CancellationToken cancellationToken = default)
     {
         var record = new CharacterRecord
         {
-            Id = new(Guid.NewGuid()), AccountId = account, Name = name, MapDefinition = map, Position = position
+            Id = new(Guid.NewGuid()), AccountId = account, Name = name, MapDefinition = map,
+            Position = position, TraditionId = traditionId
         };
         record.ApplyProgression(ProgressionRules.CreateInitial());
         await using var connection = new SqliteConnection(connectionString);
@@ -287,11 +295,11 @@ public sealed class SqliteCharacterRepository(string databasePath) : ICharacterR
             INSERT INTO characters(
                 id, account_id, name, map_definition, position_x, position_y,
                 level, experience, available_attribute_points,
-                strength, intelligence, agility, spirit, vitality, current_health, current_mana)
+                strength, intelligence, agility, spirit, vitality, current_health, current_mana, tradition_id)
             VALUES(
                 $id, $account, $name, $map, $x, $y,
                 $level, $experience, $points,
-                $str, $int, $agi, $spi, $vit, NULL, NULL)
+                $str, $int, $agi, $spi, $vit, NULL, NULL, $tradition)
             """;
         AddIdentityParameters(command, record);
         AddProgressionParameters(command, record.ToProgressionState());
@@ -357,6 +365,7 @@ public sealed class SqliteCharacterRepository(string databasePath) : ICharacterR
         command.Parameters.AddWithValue("$map", record.MapDefinition.Value.ToString("D"));
         command.Parameters.AddWithValue("$x", record.Position.X);
         command.Parameters.AddWithValue("$y", record.Position.Y);
+        command.Parameters.AddWithValue("$tradition", record.TraditionId.Value.ToString("D"));
     }
 
     private static void AddProgressionParameters(SqliteCommand command, PlayerProgressionState progression)
@@ -371,14 +380,19 @@ public sealed class SqliteCharacterRepository(string databasePath) : ICharacterR
         command.Parameters.AddWithValue("$vit", progression.NaturalAttributes.Vitality);
     }
 
-    private static CharacterRecord ReadCharacter(SqliteDataReader reader) => new()
+    private static CharacterRecord ReadCharacter(SqliteDataReader reader)
     {
-        Id = new(Guid.Parse(reader.GetString(0))), AccountId = new(Guid.Parse(reader.GetString(1))), Name = reader.GetString(2),
-        MapDefinition = new(Guid.Parse(reader.GetString(3))), Position = new(reader.GetFloat(4), reader.GetFloat(5)),
-        Level = reader.GetInt32(6), Experience = reader.GetInt64(7), AvailableAttributePoints = reader.GetInt32(8),
-        Strength = reader.GetInt32(9), Intelligence = reader.GetInt32(10), Agility = reader.GetInt32(11),
-        Spirit = reader.GetInt32(12), Vitality = reader.GetInt32(13),
-        CurrentHealth = reader.IsDBNull(14) ? null : reader.GetInt32(14),
-        CurrentMana = reader.IsDBNull(15) ? null : reader.GetInt32(15)
-    };
+        var traditionText = reader.IsDBNull(16) ? string.Empty : reader.GetString(16);
+        return new CharacterRecord
+        {
+            Id = new(Guid.Parse(reader.GetString(0))), AccountId = new(Guid.Parse(reader.GetString(1))), Name = reader.GetString(2),
+            MapDefinition = new(Guid.Parse(reader.GetString(3))), Position = new(reader.GetFloat(4), reader.GetFloat(5)),
+            Level = reader.GetInt32(6), Experience = reader.GetInt64(7), AvailableAttributePoints = reader.GetInt32(8),
+            Strength = reader.GetInt32(9), Intelligence = reader.GetInt32(10), Agility = reader.GetInt32(11),
+            Spirit = reader.GetInt32(12), Vitality = reader.GetInt32(13),
+            CurrentHealth = reader.IsDBNull(14) ? null : reader.GetInt32(14),
+            CurrentMana = reader.IsDBNull(15) ? null : reader.GetInt32(15),
+            TraditionId = DefinitionId.TryParse(traditionText, out var traditionId) ? traditionId : DefinitionId.Empty
+        };
+    }
 }
