@@ -20,7 +20,7 @@ public interface ICharacterRepository
 {
     Task<IReadOnlyList<CharacterRecord>> ListByAccountAsync(AccountId account, CancellationToken cancellationToken = default);
     Task<CharacterRecord?> GetAsync(CharacterId id, CancellationToken cancellationToken = default);
-    Task<CharacterRecord> CreateAsync(AccountId account, string name, DefinitionId map, Vector2Data position, DefinitionId traditionId, CancellationToken cancellationToken = default);
+    Task<CharacterRecord> CreateAsync(AccountId account, string name, DefinitionId map, Vector2Data position, DefinitionId traditionId, CharacterAppearance appearance, CancellationToken cancellationToken = default);
     Task SavePositionAsync(CharacterId id, DefinitionId map, Vector2Data position, CancellationToken cancellationToken = default);
     Task SaveCheckpointAsync(
         CharacterId id,
@@ -93,23 +93,33 @@ public sealed class InMemoryCharacterRepository : ICharacterRepository
     public Task<CharacterRecord?> GetAsync(CharacterId id, CancellationToken cancellationToken = default)
         => Task.FromResult(characters.TryGetValue(id, out var character) ? character : null);
 
-    /// <summary>Compatibilidad para fixtures anteriores a Tradición-en-creación.</summary>
+    /// <summary>Compatibilidad para fixtures anteriores a Tradición/apariencia-en-creación.</summary>
     public Task<CharacterRecord> CreateAsync(
         AccountId account,
         string name,
         DefinitionId map,
         Vector2Data position,
         CancellationToken cancellationToken = default)
-        => CreateAsync(account, name, map, position, CanonicalTraditions.Veyrkan.Id, cancellationToken);
+        => CreateAsync(account, name, map, position, CanonicalTraditions.Veyrkan.Id, CanonicalCharacterAppearance.Default, cancellationToken);
 
-    public Task<CharacterRecord> CreateAsync(AccountId account, string name, DefinitionId map, Vector2Data position, DefinitionId traditionId, CancellationToken cancellationToken = default)
+    public Task<CharacterRecord> CreateAsync(
+        AccountId account,
+        string name,
+        DefinitionId map,
+        Vector2Data position,
+        DefinitionId traditionId,
+        CancellationToken cancellationToken = default)
+        => CreateAsync(account, name, map, position, traditionId, CanonicalCharacterAppearance.Default, cancellationToken);
+
+    public Task<CharacterRecord> CreateAsync(AccountId account, string name, DefinitionId map, Vector2Data position, DefinitionId traditionId, CharacterAppearance appearance, CancellationToken cancellationToken = default)
     {
         if (characters.Values.Any(character => character.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
             throw new InvalidOperationException("Nombre de personaje duplicado.");
         var record = new CharacterRecord
         {
             Id = new(Guid.NewGuid()), AccountId = account, Name = name, MapDefinition = map,
-            Position = position, TraditionId = traditionId
+            Position = position, TraditionId = traditionId,
+            Appearance = appearance ?? throw new ArgumentNullException(nameof(appearance))
         };
         record.ApplyProgression(ProgressionRules.CreateInitial());
         characters.Add(record.Id, record);
