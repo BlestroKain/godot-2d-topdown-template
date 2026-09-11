@@ -340,6 +340,13 @@ public sealed partial class MapEditorDocument : DockContent
                 if (pendingCellStart is { } start)
                 {
                     var end = viewport.WorldToCell(world);
+                    if (!editor.Maps.Palette.HasSelection)
+                    {
+                        EditorNotice?.Invoke("Seleccione un tile antes de pintar.");
+                        viewport.RubberBand = null;
+                        pendingCellStart = null;
+                        break;
+                    }
                     editor.Maps.PaintRect(start, end);
                     viewport.RefreshMap();
                     MapChanged?.Invoke();
@@ -376,6 +383,14 @@ public sealed partial class MapEditorDocument : DockContent
     {
         var editor = application;
         if (editor?.Maps.Document is null || strokeCells.Count == 0) return;
+
+        if (ActiveTool != MapEditorTool.EraseTile && !editor.Maps.Palette.HasSelection)
+        {
+            strokeCells.Clear();
+            viewport.SelectedCells = selectedCells;
+            EditorNotice?.Invoke("Seleccione un tile antes de pintar.");
+            return;
+        }
 
         var cells = strokeCells.ToArray();
         var changed = ActiveTool == MapEditorTool.EraseTile
