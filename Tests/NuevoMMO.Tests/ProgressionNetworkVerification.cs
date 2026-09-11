@@ -22,7 +22,7 @@ internal static class ProgressionNetworkVerification
     private static void RoundtripPackets()
     {
         var allocate = new AllocateAttributeRequest(PrimaryAttributeId.Vitality, 2);
-        Check(PacketCodec.Decode(PacketCodec.Encode(allocate)) == allocate,
+        Check(PacketCodec.Decode(PacketCodec.Encode(allocate)) is AllocateAttributeRequest decodedAllocate && decodedAllocate == allocate,
             "Network progression: AllocateAttribute roundtrip");
 
         var stats = new PlayerStatsPacket(new PlayerStatsSnapshot(
@@ -30,17 +30,17 @@ internal static class ProgressionNetworkVerification
             new(10, 12, 1), new(10, 10, 1), new(10, 10, 1), new(10, 10, 1), new(11, 13, 1),
             440, 452, 144, 164, 3.25f, 1.2f, 3.6f, 4,
             5, 6, 7, 8, 9));
-        Check(PacketCodec.Decode(PacketCodec.Encode(stats)) == stats,
+        Check(PacketCodec.Decode(PacketCodec.Encode(stats)) is PlayerStatsPacket decodedStats && decodedStats == stats,
             "Network progression: PlayerStats roundtrip");
 
         var attack = new DevelopmentAttackRequest(new EntityId(77), DevelopmentAttackKind.Fire);
-        Check(PacketCodec.Decode(PacketCodec.Encode(attack)) == attack,
+        Check(PacketCodec.Decode(PacketCodec.Encode(attack)) is DevelopmentAttackRequest decodedAttack && decodedAttack == attack,
             "Network combat: DevelopmentAttack roundtrip");
 
         var combat = new CombatDebugPacket(
             new EntityId(77), DevelopmentAttackKind.Fire, Element.Fire, PrimaryAttributeId.Intelligence,
             110, 20, 88, false, 412, 500, 17.6f, 8.8f, 88, 1, 0);
-        Check(PacketCodec.Decode(PacketCodec.Encode(combat)) == combat,
+        Check(PacketCodec.Decode(PacketCodec.Encode(combat)) is CombatDebugPacket decodedCombat && decodedCombat == combat,
             "Network combat: CombatDebug roundtrip");
     }
 
