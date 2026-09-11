@@ -93,6 +93,21 @@ internal static class ProgressionCombatVerification
 
     private static void VerifyDamagePipeline()
     {
+        var guideLow = DamagePipeline.Resolve(new DamageCalculationInput(
+            Element.Earth,
+            BaseDamage: 6,
+            Characteristic: 566,
+            Power: 104,
+            FlatDamage: 34));
+        var guideHigh = DamagePipeline.Resolve(new DamageCalculationInput(
+            Element.Earth,
+            BaseDamage: 50,
+            Characteristic: 566,
+            Power: 104,
+            FlatDamage: 34));
+        Check(guideLow.AfterFlatDamage == 80 && guideHigh.AfterFlatDamage == 419,
+            "Combat pipeline: ejemplo Dofus 6-50, stat566, Potencia104, +34 produce 80-419");
+
         var breakdown = DamagePipeline.Resolve(new DamageCalculationInput(
             Element.Fire,
             BaseDamage: 100,
@@ -100,23 +115,21 @@ internal static class ProgressionCombatVerification
             CharacteristicScale: 1,
             Power: 50,
             FlatDamage: 25,
-            CriticalMultiplier: 1.5f,
-            HardDefense: 100,
-            SoftDefense: 30,
-            FlatReduction: 10,
+            FlatReduction: 30,
             ResistancePercent: 25,
+            CriticalMultiplier: 1.5f,
             FinalMultiplier: 1.2f));
 
         Check(breakdown.AfterCharacteristicAndPower == 350,
-            "Combat pipeline: característica + Power escalan la base estilo Dofus");
-        Check(breakdown.AfterFlatDamage == 375 && breakdown.AfterCritical == 562,
-            "Combat pipeline: daño plano y crítico son etapas explícitas");
-        Check(Math.Abs(breakdown.HardDefenseMultiplier - .82f) < .0001f && breakdown.AfterHardDefense == 460,
-            "Combat pipeline: Hard DEF usa curva multiplicativa estilo RO");
-        Check(breakdown.AfterSoftDefense == 430 && breakdown.AfterFlatReduction == 420,
-            "Combat pipeline: Soft DEF y reducción plana son sustractivas");
-        Check(breakdown.AfterResistance == 315 && breakdown.FinalDamage == 378,
-            "Combat pipeline: resistencia y multiplicador final cierran el cálculo");
+            "Combat pipeline: característica + Potencia escalan solo el daño base");
+        Check(breakdown.AfterFlatDamage == 375,
+            "Combat pipeline: daños fijos se suman después del escalado de la base");
+        Check(breakdown.AfterFlatReduction == 345,
+            "Combat pipeline: reducción fija se resta antes de resistencia");
+        Check(breakdown.AfterResistance == 258,
+            "Combat pipeline: resistencia porcentual se aplica después de reducción fija");
+        Check(breakdown.AfterCritical == 387 && breakdown.FinalDamage == 464,
+            "Combat pipeline: crítico y modificadores situacionales cierran el cálculo");
 
         var capped = DamagePipeline.Resolve(new DamageCalculationInput(
             Element.Earth, 100, 0, ResistancePercent: 95, UsePositivePveResistanceCap: true));
