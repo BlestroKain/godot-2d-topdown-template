@@ -13,6 +13,7 @@ public sealed class Player : LivingEntity
         if (character.Value == Guid.Empty) throw new ArgumentException("CharacterId inválido.", nameof(character));
         AccountId = account;
         CharacterId = character;
+        ConfigureCollision(CanonicalCollisionProfiles.Player.ToRuntime());
         Progression = ProgressionRules.CreateInitial();
         ApplyInitialProgressionInvariant();
     }
@@ -34,10 +35,6 @@ public sealed class Player : LivingEntity
     public HashSet<EntityId> Interest { get; } = [];
     public bool DirtyPosition { get; private set; }
 
-    /// <summary>
-    /// Solo los sistemas autoritativos deben reemplazar el estado de progresión.
-    /// La entidad lo conserva; no calcula XP ni costes de distribución.
-    /// </summary>
     public void SetProgression(PlayerProgressionState progression)
     {
         ProgressionRules.Validate(progression);
@@ -50,10 +47,6 @@ public sealed class Player : LivingEntity
         if (velocity.LengthSquared > 0) DirtyPosition = true;
     }
 
-    /// <summary>
-    /// Traslada el mismo jugador runtime a otra instancia. Limpia estado que no puede sobrevivir
-    /// al cambio de mapa y reinicia la secuencia de inputs para el predictor creado por MapLoad.
-    /// </summary>
     public void TransferTo(MapInstanceId mapInstance, Vector2Data position, Direction facing = Direction.Down)
     {
         if (mapInstance.Value <= 0) throw new ArgumentException("MapInstanceId inválido.", nameof(mapInstance));
