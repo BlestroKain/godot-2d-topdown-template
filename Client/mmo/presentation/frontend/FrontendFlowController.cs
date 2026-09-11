@@ -51,6 +51,8 @@ public partial class FrontendFlowController : CanvasLayer
     private GridContainer traditionGrid = null!;
     private Label selectedTraditionName = null!;
     private Label selectedTraditionDescription = null!;
+    private CharacterPreview createPreview = null!;
+    private CharacterPreview selectPreview = null!;
     private CheckButton fullscreen = null!;
     private HSlider masterVolume = null!;
     private HSlider uiScale = null!;
@@ -76,6 +78,7 @@ public partial class FrontendFlowController : CanvasLayer
         masterVolume = GetNode<HSlider>("Root/ScreenStack/SettingsScreen/Panel/Margin/Content/MasterVolume");
         uiScale = GetNode<HSlider>("Root/ScreenStack/SettingsScreen/Panel/Margin/Content/UiScale");
 
+        BuildCharacterPreviews();
         BuildTraditionPicker();
         WireButtons();
         settings.Load();
@@ -119,11 +122,40 @@ public partial class FrontendFlowController : CanvasLayer
         network.ConnectionChanged += OnConnectionChanged;
         network.LobbyUpdated += OnLobbyUpdated;
 
-        // Retira la antigua consola visual de login/debug. El HUD ingame real
-        // permanece intacto y vuelve a ser visible al ocultarse este shell.
         var legacy = game.GetNodeOrNull<CanvasLayer>("CanvasLayer");
         legacy?.Hide();
         OnLobbyUpdated();
+    }
+
+    private void BuildCharacterPreviews()
+    {
+        var selectStage = GetNode<VBoxContainer>("Root/ScreenStack/CharacterSelectScreen/Panel/Margin/Content/Body/Stage/StageContent");
+        var oldSelectPreview = selectStage.GetNodeOrNull<Label>("Preview");
+        if (oldSelectPreview is not null)
+        {
+            selectStage.RemoveChild(oldSelectPreview);
+            oldSelectPreview.QueueFree();
+        }
+        selectPreview = new CharacterPreview
+        {
+            Name = "CharacterPreview",
+            CustomMinimumSize = new Vector2(0, 250),
+            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill
+        };
+        selectStage.AddChild(selectPreview);
+        selectStage.MoveChild(selectPreview, 1);
+        selectPreview.Present(CanonicalCharacterAppearance.Default);
+
+        var createContent = GetNode<VBoxContainer>("Root/ScreenStack/CharacterCreateScreen/Panel/Margin/Content");
+        createPreview = new CharacterPreview
+        {
+            Name = "CharacterPreview",
+            CustomMinimumSize = new Vector2(0, 170),
+            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill
+        };
+        createContent.AddChild(createPreview);
+        createContent.MoveChild(createPreview, 3);
+        createPreview.Present(CanonicalCharacterAppearance.Default);
     }
 
     private void BuildTraditionPicker()
@@ -139,7 +171,7 @@ public partial class FrontendFlowController : CanvasLayer
         GetNode<Label>("Root/ScreenStack/CharacterCreateScreen/Panel/Margin/Content/Rule").Text =
             "Elige nombre y Tradición al crear el personaje. No hay selector de raza y el arma no define la clase.";
         GetNode<Label>("Root/ScreenStack/CharacterCreateScreen/Panel/Margin/Content/AppearanceNotice").Text =
-            "La personalización anatómica/visual se conectará después sin alterar la Tradición elegida.";
+            "El preview usa el renderer real. Cuerpo, rostro, cabello, ojos, orejas, cuernos, pigmentos y marcas ya tienen contrato persistente; se habilitan al publicar sus sprites.";
 
         var picker = GD.Load<PackedScene>("res://mmo/presentation/frontend/tradition_picker.tscn").Instantiate<Control>();
         preview.AddChild(picker);
@@ -375,6 +407,7 @@ public partial class FrontendFlowController : CanvasLayer
             selectedCharacter = null;
             selectedName.Text = "Sin personaje seleccionado";
             selectedLocation.Text = "";
+            selectPreview.Present(CanonicalCharacterAppearance.Default);
             enterWorldButton.Disabled = true;
             return;
         }
@@ -404,6 +437,7 @@ public partial class FrontendFlowController : CanvasLayer
         selectedName.Text = character.Name;
         selectedLocation.Text =
             $"Tradición: {CanonicalTraditions.DisplayName(character.TraditionId)}\nUbicación: {character.MapDefinition.Value}";
+        selectPreview.Present(character.Appearance);
         enterWorldButton.Disabled = false;
     }
 
@@ -427,6 +461,7 @@ public partial class FrontendFlowController : CanvasLayer
         if (next == FrontendStage.CharacterCreate && stage != FrontendStage.CharacterCreate)
         {
             ResetTraditionSelection();
+            createPreview.Present(CanonicalCharacterAppearance.Default);
             GetNode<LineEdit>("Root/ScreenStack/CharacterCreateScreen/Panel/Margin/Content/Name").Text = string.Empty;
         }
 
