@@ -50,6 +50,23 @@ public sealed class Player : LivingEntity
         if (velocity.LengthSquared > 0) DirtyPosition = true;
     }
 
+    /// <summary>
+    /// Traslada el mismo jugador runtime a otra instancia. Limpia estado que no puede sobrevivir
+    /// al cambio de mapa y reinicia la secuencia de inputs para el predictor creado por MapLoad.
+    /// </summary>
+    public void TransferTo(MapInstanceId mapInstance, Vector2Data position, Direction facing = Direction.Down)
+    {
+        if (mapInstance.Value <= 0) throw new ArgumentException("MapInstanceId inválido.", nameof(mapInstance));
+        if (!position.IsFinite) throw new ArgumentException("Posición inválida.", nameof(position));
+        SetMapInstance(mapInstance);
+        MoveTo(position, Vector2Data.Zero, facing);
+        TargetId = null;
+        Interest.Clear();
+        Inputs.Reset();
+        LeaveCombat();
+        DirtyPosition = true;
+    }
+
     public void MarkSaved() => DirtyPosition = false;
 
     public override EntityState ToState() => new PlayerState(Id, CharacterId, MapInstanceId, Position, Velocity,
