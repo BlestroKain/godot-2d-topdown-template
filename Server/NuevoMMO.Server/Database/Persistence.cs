@@ -4,16 +4,42 @@ using NuevoMMO.Server.World;
 
 namespace NuevoMMO.Server.Database;
 
+public sealed record LoadedCharacter(
+    CharacterSpawn Spawn,
+    PlayerProgressionState Progression,
+    int? CurrentHealth,
+    int? CurrentMana);
+
 public sealed class PersistenceService(ICharacterRepository characters, MapDefinition map)
 {
-    public async Task<CharacterSpawn> LoadCharacterAsync(AccountId account, CharacterRecord record, CancellationToken cancellationToken = default)
+    public async Task<LoadedCharacter> LoadCharacterAsync(AccountId account, CharacterRecord record, CancellationToken cancellationToken = default)
     {
         var stored = await characters.GetAsync(record.Id, cancellationToken) ?? record;
-        return new(account, stored.Id, stored.Name, stored.MapDefinition.Value == Guid.Empty ? map.Id : stored.MapDefinition, stored.Position);
+        var spawn = new CharacterSpawn(
+            account,
+            stored.Id,
+            stored.Name,
+            stored.MapDefinition.Value == Guid.Empty ? map.Id : stored.MapDefinition,
+            stored.Position);
+        return new LoadedCharacter(
+            spawn,
+            stored.ToProgressionState(),
+            stored.CurrentHealth,
+            stored.CurrentMana);
     }
 
     public Task SaveCharacterAsync(Player player, CancellationToken cancellationToken = default)
-        => characters.SavePositionAsync(player.CharacterId, map.Id, player.Position, cancellationToken);
+    {
+        ArgumentNullException.ThrowIfNull(player);
+        return characters.SaveCheckpointAsync(
+            player.CharacterId,
+            map.Id,
+            player.Position,
+            player.Progression,
+            player.Health,
+            player.Mana,
+            cancellationToken);
+    }
 
     public async Task SaveDirtyAsync(IEnumerable<Player> players, CancellationToken cancellationToken = default)
     {
