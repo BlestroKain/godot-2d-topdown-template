@@ -17,6 +17,7 @@ public partial class MmoWindow : PanelContainer
 
     public override void _Ready()
     {
+        ThemeTypeVariation = "UiWindowPanel";
         header = GetNodeOrNull<Control>("%HeaderDrag");
         closeButton = GetNodeOrNull<Button>("%CloseButton");
 
@@ -75,6 +76,7 @@ public partial class MmoWindow : PanelContainer
         {
             button.ToggleMode = true;
             button.ButtonGroup = group;
+            button.ThemeTypeVariation = "UiTabButton";
             anySelected |= button.ButtonPressed;
         }
 
