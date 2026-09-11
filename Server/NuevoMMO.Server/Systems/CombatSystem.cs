@@ -11,7 +11,8 @@ public sealed record DamageResult(
     float ResistancePercent,
     bool Critical,
     int AppliedDamage,
-    bool Killed);
+    bool Killed,
+    DamageBreakdown? Breakdown = null);
 
 public sealed record HealingResult(
     EntityId? Source,
@@ -20,8 +21,8 @@ public sealed record HealingResult(
     int Applied);
 
 /// <summary>
-/// Núcleo autoritativo de combate. Resuelve escalado, crítico, resistencia y aplicación de daño.
-/// Targeting, alcance, LoS y relaciones son responsabilidades de los sistemas de técnica/IA.
+/// Núcleo autoritativo de combate. Toda mitigación de daño termina en DamagePipeline.
+/// Targeting, alcance, LoS y relaciones son responsabilidades de los sistemas de intención/técnica/IA.
 /// </summary>
 public sealed class CombatSystem
 {
@@ -55,8 +56,8 @@ public sealed class CombatSystem
     }
 
     /// <summary>
-    /// Ataque de prueba/data-driven donde DamageType y ScalingAttribute son independientes.
-    /// Útil para técnicas elementales y neutral sin convertir Neutral en STR implícitamente.
+    /// Ataque data-driven donde DamageType y ScalingAttribute son independientes.
+    /// Usa la fórmula canónica completa y aplica exactamente el FinalDamage calculado.
     /// </summary>
     public DamageResult ExecuteAttributeDamage(
         LivingEntity attacker,
@@ -72,18 +73,18 @@ public sealed class CombatSystem
         if (attacker.MapInstanceId != target.MapInstanceId)
             throw new InvalidOperationException("Atacante y objetivo no están en la misma instancia.");
 
-        var resistance = Resistance(target, formula.DamageType);
-        var resolved = CanonicalDamageRules.Resolve(formula, attacker.Stats.Primary, resistance);
-        return ApplyDamage(
-            attacker,
-            target,
-            resolved.RawDamage,
-            formula.DamageType,
-            resolved.Critical,
-            nowMilliseconds,
+        var breakdown = CanonicalDamageRules.ResolvePipeline(
+            formula,
+            attacker.Stats.Primary,
+            Resistance(target, formula.DamageType),
             usePveResistanceCap: true);
+        return ApplyResolvedDamage(attacker, target, breakdown, formula.CriticalMultiplier > 1f, nowMilliseconds);
     }
 
+    /// <summary>
+    /// Aplica una cantidad ya resuelta ofensivamente (por ejemplo payload de técnica o mob),
+    /// pero obliga a pasar por las etapas defensivas/resistencia del pipeline canónico.
+    /// </summary>
     public DamageResult ApplyDamage(
         LivingEntity? attacker,
         LivingEntity target,
@@ -95,21 +96,52 @@ public sealed class CombatSystem
     {
         ArgumentNullException.ThrowIfNull(target);
         if (!float.IsFinite(rawDamage) || rawDamage < 0) throw new ArgumentOutOfRangeException(nameof(rawDamage));
-        if (!target.IsAlive)
-            return new DamageResult(attacker?.Id, target.Id, element, rawDamage, Resistance(target, element), critical, 0, false);
+        if (!Enum.IsDefined(element)) throw new ArgumentOutOfRangeException(nameof(element));
         if (attacker is not null && attacker.MapInstanceId != target.MapInstanceId)
             throw new InvalidOperationException("Atacante y objetivo no están en la misma instancia.");
 
         var resistance = Resistance(target, element);
-        var effectiveResistance = usePveResistanceCap
-            ? Math.Min(resistance, CanonicalDamageRules.PositivePveResistanceCap)
-            : resistance;
-        var multiplier = Math.Max(0f, 1f - effectiveResistance / 100f);
-        var afterResistance = rawDamage * multiplier;
-        if (!float.IsFinite(afterResistance) || afterResistance > int.MaxValue)
-            throw new OverflowException("El daño resultante excede el rango soportado.");
+        var breakdown = DamagePipeline.Resolve(new DamageCalculationInput(
+            element,
+            rawDamage,
+            Characteristic: 0,
+            ResistancePercent: resistance,
+            UsePositivePveResistanceCap: usePveResistanceCap));
+        return ApplyResolvedDamage(attacker, target, breakdown, critical, nowMilliseconds);
+    }
 
-        var requested = Math.Max(0, (int)MathF.Round(afterResistance, MidpointRounding.AwayFromZero));
+    /// <summary>
+    /// Punto único que modifica HP, amenaza, estado de combate y telemetría después de resolver la fórmula.
+    /// </summary>
+    public DamageResult ApplyResolvedDamage(
+        LivingEntity? attacker,
+        LivingEntity target,
+        DamageBreakdown breakdown,
+        bool? critical = null,
+        long? nowMilliseconds = null)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(breakdown);
+        if (attacker is not null && attacker.MapInstanceId != target.MapInstanceId)
+            throw new InvalidOperationException("Atacante y objetivo no están en la misma instancia.");
+
+        var isCritical = critical ?? breakdown.Critical;
+        if (!target.IsAlive)
+            return new DamageResult(
+                attacker?.Id,
+                target.Id,
+                breakdown.Element,
+                breakdown.AfterCritical,
+                breakdown.EffectiveResistancePercent,
+                isCritical,
+                0,
+                false,
+                breakdown);
+
+        if (!float.IsFinite(breakdown.FinalDamage) || breakdown.FinalDamage < 0 || breakdown.FinalDamage > int.MaxValue)
+            throw new OverflowException("El daño final excede el rango soportado.");
+
+        var requested = (int)breakdown.FinalDamage;
         var wasAlive = target.IsAlive;
         var applied = target.TakeDamage(requested);
         var killed = wasAlive && !target.IsAlive;
@@ -125,7 +157,16 @@ public sealed class CombatSystem
             }
         }
 
-        var result = new DamageResult(attacker?.Id, target.Id, element, rawDamage, effectiveResistance, critical, applied, killed);
+        var result = new DamageResult(
+            attacker?.Id,
+            target.Id,
+            breakdown.Element,
+            breakdown.AfterCritical,
+            breakdown.EffectiveResistancePercent,
+            isCritical,
+            applied,
+            killed,
+            breakdown);
         if (target is Mob targetMob &&
             targetMob.Combat.Parameters.GetValueOrDefault("track_damage_telemetry") > 0)
         {
@@ -145,8 +186,9 @@ public sealed class CombatSystem
     }
 
     /// <summary>
-    /// Interpreta los valores de Scaling como porcentajes del stat: 100 = 100% del stat,
-    /// 4000 = 4000%, igual al lenguaje de diseño usado por las técnicas del proyecto.
+    /// Escalado aditivo legado para perfiles de criatura y curaciones existentes.
+    /// El daño de jugador/técnica debe migrar a DamagePipeline en vez de ampliar esta función.
+    /// Los valores de Scaling se interpretan como porcentaje del stat: 100 = 100% del stat.
     /// </summary>
     public static float CalculateScaledAmount(
         float baseAmount,
@@ -162,6 +204,28 @@ public sealed class CombatSystem
             result += ReadStat(stats, pair.Key) * (pair.Value / 100f);
         if (!float.IsFinite(result)) throw new OverflowException("El escalado produjo un valor no finito.");
         return Math.Max(0, result);
+    }
+
+    /// <summary>
+    /// Convierte el diccionario de Scaling de una acción en una característica efectiva para la
+    /// etapa estilo Dofus. 100 = aporta el 100% del stat, 50 = aporta la mitad, etc.
+    /// </summary>
+    public static float CalculateEffectiveCharacteristic(
+        IReadOnlyDictionary<StatId, float> scaling,
+        StatBlock stats)
+    {
+        ArgumentNullException.ThrowIfNull(scaling);
+        ArgumentNullException.ThrowIfNull(stats);
+        var result = 0f;
+        foreach (var pair in scaling)
+        {
+            if (!float.IsFinite(pair.Value) || pair.Value < 0)
+                throw new ArgumentOutOfRangeException(nameof(scaling), "El peso de escalado debe ser finito y no negativo.");
+            result += ReadStat(stats, pair.Key) * (pair.Value / 100f);
+        }
+        if (!float.IsFinite(result) || result < 0)
+            throw new OverflowException("La característica efectiva produjo un valor inválido.");
+        return result;
     }
 
     public static float Resistance(LivingEntity target, Element element)
