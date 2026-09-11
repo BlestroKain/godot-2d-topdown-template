@@ -14,12 +14,21 @@ public sealed class ServerPacketContext
     public required Action<IPacket> Send { get; init; }
 }
 
+internal static class ServerAuthorizationGuard
+{
+    public static void Demand(ServerPacketContext context, ServerAction action, AuthorizationService authorization)
+    {
+        var decision = authorization.Authorize(context.Session, action);
+        if (!decision.Allowed) throw new InvalidOperationException(decision.Reason);
+    }
+}
+
 public sealed class ConnectHandler(WorldRuntime world, AuthorizationService authorization)
     : IPacketHandler<ServerPacketContext, ConnectRequest>
 {
     public ValueTask HandleAsync(ServerPacketContext context, ConnectRequest packet, CancellationToken cancellationToken)
     {
-        Demand(context, ServerAction.AcceptProtocol, authorization);
+        ServerAuthorizationGuard.Demand(context, ServerAction.AcceptProtocol, authorization);
         if (!HandshakeRules.IsCompatible(packet.ProtocolVersion)) throw new InvalidDataException("Protocolo incompatible.");
         world.AcceptProtocol(context.Session);
         context.Send(new ConnectionAccepted(context.Connection, NetworkClock.Timestamp, ProtocolVersion.Current));
@@ -35,7 +44,7 @@ public sealed class RegisterHandler(
 {
     public async ValueTask HandleAsync(ServerPacketContext context, RegisterRequest packet, CancellationToken cancellationToken)
     {
-        Demand(context, ServerAction.Register, authorization);
+        ServerAuthorizationGuard.Demand(context, ServerAction.Register, authorization);
         var rate = abuse.Check($"register:{context.Connection}", Environment.TickCount64,
             settings.RegistrationAttemptsPerWindow, settings.RegistrationWindowMilliseconds);
         if (!rate.Allowed)
@@ -72,9 +81,9 @@ public sealed class LoginHandler(
 {
     public async ValueTask HandleAsync(ServerPacketContext context, LoginRequest packet, CancellationToken cancellationToken)
     {
-        Demand(context, ServerAction.Login, authorization);
+        ServerAuthorizationGuard.Demand(context, ServerAction.Login, authorization);
         var rate = abuse.Check($"login:{context.Connection}", Environment.TickCount64,
-            settings.LoginAttemptsPerWindow, settings.LoginWindowMilliseconds);
+            settings.LoginAttemptsPerWindow, settings.RegistrationWindowMilliseconds);
         if (!rate.Allowed)
         {
             context.Send(new LoginResult(false, "Demasiados intentos de inicio de sesión. Intenta nuevamente más tarde.",
@@ -121,7 +130,7 @@ public sealed class CharacterListHandler(CharacterService characters, Authorizat
 {
     public async ValueTask HandleAsync(ServerPacketContext context, CharacterListRequest packet, CancellationToken cancellationToken)
     {
-        Demand(context, ServerAction.ListCharacters, authorization);
+        ServerAuthorizationGuard.Demand(context, ServerAction.ListCharacters, authorization);
         AuthService.EnsureSession(context.Session, packet.Session, packet.SessionToken);
         var list = await characters.ListAsync(context.Session.Account, cancellationToken);
         context.Send(new CharacterListResult(list.Select(CharacterService.ToSummary).ToArray()));
@@ -133,7 +142,7 @@ public sealed class CharacterCreateHandler(CharacterService characters, Authoriz
 {
     public async ValueTask HandleAsync(ServerPacketContext context, CreateCharacterRequest packet, CancellationToken cancellationToken)
     {
-        Demand(context, ServerAction.CreateCharacter, authorization);
+        ServerAuthorizationGuard.Demand(context, ServerAction.CreateCharacter, authorization);
         AuthService.EnsureSession(context.Session, packet.Session, packet.SessionToken);
         if (!InputValidator.IsSafeName(packet.Name)) throw new ArgumentException("Nombre de personaje inválido.");
         var created = await characters.CreateAsync(context.Session.Account, packet.Name, cancellationToken);
@@ -149,7 +158,7 @@ public sealed class CharacterSelectHandler(
 {
     public async ValueTask HandleAsync(ServerPacketContext context, CharacterSelectRequest packet, CancellationToken cancellationToken)
     {
-        Demand(context, ServerAction.SelectCharacter, authorization);
+        ServerAuthorizationGuard.Demand(context, ServerAction.SelectCharacter, authorization);
         AuthService.EnsureSession(context.Session, packet.Session, packet.SessionToken);
         var list = await characters.ListAsync(context.Session.Account, cancellationToken);
         var record = list.FirstOrDefault(character => character.Id == packet.Character)
@@ -166,7 +175,7 @@ public sealed class MapReadyHandler(WorldRuntime world, AuthorizationService aut
 {
     public ValueTask HandleAsync(ServerPacketContext context, MapReadyRequest packet, CancellationToken cancellationToken)
     {
-        Demand(context, ServerAction.EnterWorld, authorization);
+        ServerAuthorizationGuard.Demand(context, ServerAction.EnterWorld, authorization);
         world.Activate(context.Session, packet.Instance);
         return ValueTask.CompletedTask;
     }
@@ -177,7 +186,7 @@ public sealed class MoveRequestHandler(WorldRuntime world, AuthorizationService 
 {
     public ValueTask HandleAsync(ServerPacketContext context, MoveRequest packet, CancellationToken cancellationToken)
     {
-        Demand(context, ServerAction.Move, authorization);
+        ServerAuthorizationGuard.Demand(context, ServerAction.Move, authorization);
         var input = packet.Input ?? throw new InvalidDataException("Input de movimiento ausente.");
         var player = context.Session.Player ?? throw new InvalidOperationException("Jugador fuera del mundo.");
         if (!InputValidator.IsFiniteDirection(input.X, input.Y) || input.ClientTick < 0 ||
@@ -234,11 +243,5 @@ public static class ServerHandlerRegistry
         registry.Register(new PingHandler());
         registry.Register(new DisconnectHandler());
         return registry;
-    }
-
-    private static void Demand(ServerPacketContext context, ServerAction action, AuthorizationService authorization)
-    {
-        var decision = authorization.Authorize(context.Session, action);
-        if (!decision.Allowed) throw new InvalidOperationException(decision.Reason);
     }
 }
