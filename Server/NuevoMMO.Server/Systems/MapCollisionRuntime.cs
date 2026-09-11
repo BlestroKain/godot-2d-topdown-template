@@ -54,6 +54,22 @@ public sealed class MapCollisionRuntime
     public bool BlocksVision(CollisionShape? probe, Vector2Data origin)
         => OverlapsFlag(probe, origin, static collision => collision.BlocksVision);
 
+    /// <summary>
+    /// Consulta LoS contra la geometría exacta marcada BlocksVision. Usa una cápsula muy fina en vez de
+    /// muestrear celdas, por lo que paredes delgadas y polígonos conservan la misma semántica que el resto.
+    /// </summary>
+    public bool BlocksVisionSegment(Vector2Data from, Vector2Data to, float radius = .001f)
+    {
+        if (!from.IsFinite || !to.IsFinite) return true;
+        if (!float.IsFinite(radius) || radius <= 0) throw new ArgumentOutOfRangeException(nameof(radius));
+        if (from == to) return BlocksVision(PointProbe, from);
+        var segment = new CapsuleCollisionShape(Vector2Data.Zero, to - from, radius);
+        return OverlapsFlag(segment, from, static collision => collision.BlocksVision);
+    }
+
+    public bool HasLineOfSight(Vector2Data from, Vector2Data to, float radius = .001f)
+        => !BlocksVisionSegment(from, to, radius);
+
     public bool IsNavigationObstacle(CollisionShape? probe, Vector2Data origin)
         => OverlapsFlag(probe, origin, static collision => collision.NavigationObstacle);
 
