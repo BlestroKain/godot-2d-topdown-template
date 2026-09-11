@@ -1,8 +1,9 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://mmo/presentation/MmoGame.cs" id="1"]
 [ext_resource type="Script" path="res://mmo/presentation/WorldPresentation.cs" id="2"]
 [ext_resource type="PackedScene" path="res://mmo/presentation/hud/game_hud.tscn" id="3"]
+[ext_resource type="PackedScene" path="res://mmo/presentation/frontend/frontend_root.tscn" id="4"]
 
 [node name="MmoGame" type="Node2D"]
 script = ExtResource("1")
@@ -12,3 +13,5 @@ y_sort_enabled = true
 script = ExtResource("2")
 
 [node name="GameHud" parent="." instance=ExtResource("3")]
+
+[node name="FrontendRoot" parent="." instance=ExtResource("4")]
