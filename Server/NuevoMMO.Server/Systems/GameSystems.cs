@@ -46,7 +46,7 @@ public sealed class GameSystems
             techniqueResources,
             requirementsEvaluator ?? ((player, group) => Conditions.Evaluate(player, group)),
             lineOfSight);
-        Events = new EventRuntime(definitions, Conditions);
+        Events = new EventRuntime(definitions, Conditions, Progression, Inventory, Loot, Effects);
     }
 
     public DefinitionRegistry Definitions { get; }
