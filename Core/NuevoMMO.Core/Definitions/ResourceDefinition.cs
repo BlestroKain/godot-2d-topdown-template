@@ -20,7 +20,8 @@ public sealed record ResourceDefinition : GameDefinition
         ResourceHarvestDefinition? harvest = null,
         Dictionary<DefinitionId, NumericRange>? propertyRanges = null,
         Dictionary<string, DefinitionId>? eventHooks = null,
-        Dictionary<string, string>? metadata = null)
+        Dictionary<string, string>? metadata = null,
+        EntityCollisionProfileDefinition? collision = null)
         : base(id, key, name, description, enabled, version, tags)
     {
         if (visualKey.IsEmpty) throw new ArgumentException("VisualKey vacío.", nameof(visualKey));
@@ -38,23 +39,15 @@ public sealed record ResourceDefinition : GameDefinition
             ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             : new Dictionary<string, string>(metadata, StringComparer.OrdinalIgnoreCase);
         PropertyIds = ids.Concat(PropertyRanges.Keys).Distinct().ToArray();
+        Collision = collision;
     }
 
     public ContentKey VisualKey { get; }
     public ContentKey? ExhaustedVisualKey { get; }
-
-    /// <summary>
-    /// Configuración de recolección: loot, profesión/herramienta, salud, respawn y bloqueo de movimiento.
-    /// </summary>
     public ResourceHarvestDefinition Harvest { get; }
-
     public DefinitionId[] PropertyIds { get; }
     public Dictionary<DefinitionId, NumericRange> PropertyRanges { get; }
-
-    /// <summary>
-    /// Hooks editables como onHarvest, onExhausted u otros futuros eventos de contenido.
-    /// Las claves son semánticas y el valor es la Definition objetivo.
-    /// </summary>
     public Dictionary<string, DefinitionId> EventHooks { get; }
     public Dictionary<string, string> Metadata { get; }
+    public EntityCollisionProfileDefinition? Collision { get; }
 }
