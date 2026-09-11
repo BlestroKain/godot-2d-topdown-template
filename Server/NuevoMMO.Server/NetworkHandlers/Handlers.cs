@@ -176,6 +176,7 @@ public sealed class CharacterSelectHandler(
         }
         context.Send(new CharacterSelected(player.CharacterId));
         context.Send(new MapLoadPacket(world.Projection("dev-1"), player.Id, player.CharacterId));
+        context.Send(PlayerStatsProjection.Create(player, progression));
     }
 }
 
@@ -203,6 +204,32 @@ public sealed class MoveRequestHandler(WorldRuntime world, AuthorizationService 
             throw new InvalidDataException("Input de movimiento inválido o fuera de orden.");
         world.SubmitMovement(context.Session, input);
         return ValueTask.CompletedTask;
+    }
+}
+
+public sealed class AllocateAttributeHandler(
+    ProgressionSystem progression,
+    PersistenceService persistence,
+    AuthorizationService authorization) : IPacketHandler<ServerPacketContext, AllocateAttributeRequest>
+{
+    public async ValueTask HandleAsync(ServerPacketContext context, AllocateAttributeRequest packet, CancellationToken cancellationToken)
+    {
+        ServerAuthorizationGuard.Demand(context, ServerAction.AllocateAttribute, authorization);
+        var player = context.Session.Player ?? throw new InvalidOperationException("Jugador fuera del mundo.");
+        if (!Enum.IsDefined(packet.Attribute) || packet.Increments is < 1 or > 100)
+            throw new InvalidDataException("Solicitud de atributo inválida.");
+
+        try
+        {
+            progression.Allocate(player, packet.Attribute, packet.Increments);
+            await persistence.SaveCharacterAsync(player, cancellationToken);
+            context.Send(PlayerStatsProjection.Create(player, progression));
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or OverflowException)
+        {
+            context.Send(new ErrorPacket("attribute_allocation", exception.Message, false));
+            context.Send(PlayerStatsProjection.Create(player, progression));
+        }
     }
 }
 
@@ -251,6 +278,7 @@ public static class ServerHandlerRegistry
         registry.Register(new CharacterSelectHandler(world, characters, persistence, progression, authorization));
         registry.Register(new MapReadyHandler(world, authorization));
         registry.Register(new MoveRequestHandler(world, authorization));
+        registry.Register(new AllocateAttributeHandler(progression, persistence, authorization));
         registry.Register(new PingHandler());
         registry.Register(new DisconnectHandler());
         return registry;
