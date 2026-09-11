@@ -2,10 +2,6 @@ using NuevoMMO.Core;
 
 namespace NuevoMMO.Server.Entities;
 
-/// <summary>
-/// Estado runtime de un nodo recolectable. ResourceDefinition describe el recurso;
-/// esta entidad conserva salud rodada, propiedades, agotamiento y respawn.
-/// </summary>
 public sealed class ResourceEntity : Entity
 {
     private readonly ContentKey availableVisualKey;
@@ -42,6 +38,7 @@ public sealed class ResourceEntity : Entity
         Properties = properties?.ToArray() ?? [];
         if (Properties.Any(static value => value.PropertyId.IsEmpty || !float.IsFinite(value.Value)))
             throw new ArgumentException("Propiedades runtime inválidas.", nameof(properties));
+        if (definition.Collision is { } collision) ConfigureCollision(collision.ToRuntime());
     }
 
     public DefinitionId DefinitionId { get; }
@@ -58,15 +55,12 @@ public sealed class ResourceEntity : Entity
         if (!float.IsFinite(amount) || amount <= 0) throw new ArgumentOutOfRangeException(nameof(amount));
         if (nowMilliseconds < 0) throw new ArgumentOutOfRangeException(nameof(nowMilliseconds));
         if (!IsAvailable) return 0;
-
         var applied = Math.Min(Health, amount);
         Health -= applied;
         if (Health <= 0)
         {
             Health = 0;
-            RespawnAtMilliseconds = Harvest.RespawnMilliseconds <= 0
-                ? 0
-                : checked(nowMilliseconds + Harvest.RespawnMilliseconds);
+            RespawnAtMilliseconds = Harvest.RespawnMilliseconds <= 0 ? 0 : checked(nowMilliseconds + Harvest.RespawnMilliseconds);
             if (exhaustedVisualKey is { } exhausted) SetVisualKey(exhausted);
         }
         return applied;
@@ -76,22 +70,10 @@ public sealed class ResourceEntity : Entity
     {
         if (nowMilliseconds < 0) throw new ArgumentOutOfRangeException(nameof(nowMilliseconds));
         if (IsAvailable || RespawnAtMilliseconds == 0 || nowMilliseconds < RespawnAtMilliseconds) return false;
-        Health = MaxHealth;
-        RespawnAtMilliseconds = 0;
-        SetVisualKey(availableVisualKey);
-        return true;
+        Health = MaxHealth; RespawnAtMilliseconds = 0; SetVisualKey(availableVisualKey); return true;
     }
 
-    public void ForceRespawn()
-    {
-        Health = MaxHealth;
-        RespawnAtMilliseconds = 0;
-        SetVisualKey(availableVisualKey);
-    }
-
-    public override EntityState ToState() => new ResourceState(Id, DefinitionId, MapInstanceId, Position, Direction,
-        VisualKey, DisplayName);
-
-    private static ResourceDefinition RequireDefinition(ResourceDefinition? definition)
-        => definition ?? throw new ArgumentNullException(nameof(definition));
+    public void ForceRespawn() { Health = MaxHealth; RespawnAtMilliseconds = 0; SetVisualKey(availableVisualKey); }
+    public override EntityState ToState() => new ResourceState(Id, DefinitionId, MapInstanceId, Position, Direction, VisualKey, DisplayName);
+    private static ResourceDefinition RequireDefinition(ResourceDefinition? definition) => definition ?? throw new ArgumentNullException(nameof(definition));
 }
