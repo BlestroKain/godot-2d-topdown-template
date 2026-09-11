@@ -7,9 +7,13 @@ public sealed record CharacterSummary(
     string Name,
     DefinitionId MapDefinition,
     Vector2Data Position,
-    DefinitionId TraditionId)
+    DefinitionId TraditionId,
+    CharacterAppearance Appearance)
 {
-    /// <summary>Compatibilidad con snapshots/fixtures anteriores a Tradición-en-creación.</summary>
+    /// <summary>Compatibilidad con snapshots/fixtures anteriores a Tradición/apariencia persistentes.</summary>
     public CharacterSummary(CharacterId id, string name, DefinitionId mapDefinition, Vector2Data position)
-        : this(id, name, mapDefinition, position, DefinitionId.Empty) { }
+        : this(id, name, mapDefinition, position, DefinitionId.Empty, CanonicalCharacterAppearance.Default) { }
+
+    public CharacterSummary(CharacterId id, string name, DefinitionId mapDefinition, Vector2Data position, DefinitionId traditionId)
+        : this(id, name, mapDefinition, position, traditionId, CanonicalCharacterAppearance.Default) { }
 }
