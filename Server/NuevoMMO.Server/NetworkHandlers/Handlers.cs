@@ -3,6 +3,7 @@ using NuevoMMO.Network;
 using NuevoMMO.Server.Database;
 using NuevoMMO.Server.Security;
 using NuevoMMO.Server.Services;
+using NuevoMMO.Server.Systems;
 using NuevoMMO.Server.World;
 
 namespace NuevoMMO.Server.NetworkHandlers;
@@ -154,6 +155,7 @@ public sealed class CharacterSelectHandler(
     WorldRuntime world,
     CharacterService characters,
     PersistenceService persistence,
+    ProgressionSystem progression,
     AuthorizationService authorization) : IPacketHandler<ServerPacketContext, CharacterSelectRequest>
 {
     public async ValueTask HandleAsync(ServerPacketContext context, CharacterSelectRequest packet, CancellationToken cancellationToken)
@@ -163,8 +165,15 @@ public sealed class CharacterSelectHandler(
         var list = await characters.ListAsync(context.Session.Account, cancellationToken);
         var record = list.FirstOrDefault(character => character.Id == packet.Character)
             ?? throw new InvalidOperationException("Personaje inexistente.");
-        var spawn = await persistence.LoadCharacterAsync(context.Session.Account, record, cancellationToken);
-        var player = world.Join(context.Session, spawn);
+        var loaded = await persistence.LoadCharacterAsync(context.Session.Account, record, cancellationToken);
+        var player = world.Join(context.Session, loaded.Spawn);
+        progression.Initialize(player, loaded.Progression, preserveVitals: false);
+        if (loaded.CurrentHealth is not null || loaded.CurrentMana is not null)
+        {
+            var health = Math.Clamp(loaded.CurrentHealth ?? player.MaxHealth, 0, player.MaxHealth);
+            var mana = Math.Clamp(loaded.CurrentMana ?? player.MaxMana, 0, player.MaxMana);
+            player.SetVitals(health, mana);
+        }
         context.Send(new CharacterSelected(player.CharacterId));
         context.Send(new MapLoadPacket(world.Projection("dev-1"), player.Id, player.CharacterId));
     }
@@ -223,12 +232,14 @@ public static class ServerHandlerRegistry
         AuthorizationService? authorization = null,
         AbuseDetector? abuse = null,
         AuthenticationSettings? settings = null,
-        BanList? bans = null)
+        BanList? bans = null,
+        ProgressionSystem? progression = null)
     {
         authorization ??= new AuthorizationService();
         abuse ??= new AbuseDetector();
         settings ??= new AuthenticationSettings();
         bans ??= new BanList();
+        progression ??= new ProgressionSystem();
         settings.Validate();
 
         var registry = new HandlerRegistry<ServerPacketContext>();
@@ -237,7 +248,7 @@ public static class ServerHandlerRegistry
         registry.Register(new LoginHandler(auth, authorization, abuse, settings, bans));
         registry.Register(new CharacterListHandler(characters, authorization));
         registry.Register(new CharacterCreateHandler(characters, authorization));
-        registry.Register(new CharacterSelectHandler(world, characters, persistence, authorization));
+        registry.Register(new CharacterSelectHandler(world, characters, persistence, progression, authorization));
         registry.Register(new MapReadyHandler(world, authorization));
         registry.Register(new MoveRequestHandler(world, authorization));
         registry.Register(new PingHandler());
