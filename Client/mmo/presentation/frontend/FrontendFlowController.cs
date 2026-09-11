@@ -28,6 +28,7 @@ public partial class FrontendFlowController : CanvasLayer
     private FrontendStage returnFromSettings = FrontendStage.Login;
     private CharacterSummary? selectedCharacter;
     private bool waitingForCreatedCharacter;
+    private bool settingsOverWorld;
 
     private Control root = null!;
     private Control loginScreen = null!;
@@ -84,12 +85,21 @@ public partial class FrontendFlowController : CanvasLayer
         }
 
         globalStatus.Text = network.Status;
-        if (network.InWorld)
+        if (network.InWorld && !settingsOverWorld)
         {
             root.Hide();
             return;
         }
 
+        root.Show();
+    }
+
+    /// <summary>Abre exactamente el mismo panel de preferencias encima del mundo.</summary>
+    public void OpenInGameSettings()
+    {
+        if (network is null || !network.InWorld) return;
+        settingsOverWorld = true;
+        ShowStage(FrontendStage.Settings);
         root.Show();
     }
 
@@ -203,6 +213,7 @@ public partial class FrontendFlowController : CanvasLayer
 
     private void Logout()
     {
+        settingsOverWorld = false;
         network?.DisconnectFromServer();
         selectedCharacter = null;
         ClearCharacterList();
@@ -211,11 +222,21 @@ public partial class FrontendFlowController : CanvasLayer
 
     private void OpenSettings(FrontendStage returnStage)
     {
+        settingsOverWorld = false;
         returnFromSettings = returnStage;
         ShowStage(FrontendStage.Settings);
     }
 
-    private void CloseSettings() => ShowStage(returnFromSettings);
+    private void CloseSettings()
+    {
+        if (settingsOverWorld)
+        {
+            settingsOverWorld = false;
+            root.Hide();
+            return;
+        }
+        ShowStage(returnFromSettings);
+    }
 
     private void OnConnectionChanged(string state) => globalStatus.Text = state;
 
@@ -224,9 +245,18 @@ public partial class FrontendFlowController : CanvasLayer
         if (network is null) return;
         globalStatus.Text = network.Status;
 
+        if (!network.Connected && !network.Authenticated)
+        {
+            settingsOverWorld = false;
+            selectedCharacter = null;
+            ShowStage(FrontendStage.Login);
+            root.Show();
+            return;
+        }
+
         if (network.InWorld)
         {
-            root.Hide();
+            if (!settingsOverWorld) root.Hide();
             return;
         }
 
