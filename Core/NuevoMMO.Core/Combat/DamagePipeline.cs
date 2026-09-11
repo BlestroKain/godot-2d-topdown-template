@@ -75,24 +75,24 @@ public static class DamagePipeline
         ArgumentNullException.ThrowIfNull(input);
         Validate(input);
 
-        var effectiveOffense = input.Characteristic * input.CharacteristicScale + input.Power;
-        var offenseFactor = MathF.Max(0f, 1f + effectiveOffense / 100f);
-        var afterCharacteristic = FloorNonNegative(input.BaseDamage * offenseFactor);
+        var effectiveOffense = (double)input.Characteristic * input.CharacteristicScale + input.Power;
+        var offenseFactor = Math.Max(0d, (100d + effectiveOffense) / 100d);
+        var afterCharacteristic = FloorNonNegative((double)input.BaseDamage * offenseFactor);
 
-        var afterFlat = FloorNonNegative(afterCharacteristic + input.FlatDamage);
-        var afterCritical = FloorNonNegative(afterFlat * input.CriticalMultiplier);
+        var afterFlat = FloorNonNegative((double)afterCharacteristic + input.FlatDamage);
+        var afterCritical = FloorNonNegative((double)afterFlat * input.CriticalMultiplier);
 
         var hardMultiplier = HardDefenseMultiplier(input.HardDefense);
-        var afterHard = FloorNonNegative(afterCritical * hardMultiplier);
-        var afterSoft = FloorNonNegative(afterHard - input.SoftDefense);
-        var afterFlatReduction = FloorNonNegative(afterSoft - input.FlatReduction);
+        var afterHard = FloorNonNegative((double)afterCritical * hardMultiplier);
+        var afterSoft = FloorNonNegative((double)afterHard - input.SoftDefense);
+        var afterFlatReduction = FloorNonNegative((double)afterSoft - input.FlatReduction);
 
         var effectiveResistance = input.UsePositivePveResistanceCap
             ? Math.Min(input.ResistancePercent, CanonicalDamageRules.PositivePveResistanceCap)
             : input.ResistancePercent;
-        var resistanceMultiplier = MathF.Max(0f, 1f - effectiveResistance / 100f);
-        var afterResistance = FloorNonNegative(afterFlatReduction * resistanceMultiplier);
-        var final = FloorNonNegative(afterResistance * input.FinalMultiplier);
+        var resistanceMultiplier = Math.Max(0d, (100d - effectiveResistance) / 100d);
+        var afterResistance = FloorNonNegative((double)afterFlatReduction * resistanceMultiplier);
+        var final = FloorNonNegative((double)afterResistance * input.FinalMultiplier);
 
         return new DamageBreakdown(
             input.Element,
@@ -100,7 +100,7 @@ public static class DamagePipeline
             input.Characteristic,
             input.CharacteristicScale,
             input.Power,
-            effectiveOffense,
+            (float)effectiveOffense,
             afterCharacteristic,
             input.FlatDamage,
             afterFlat,
@@ -124,17 +124,21 @@ public static class DamagePipeline
     {
         if (!float.IsFinite(hardDefense) || hardDefense < 0f)
             throw new ArgumentOutOfRangeException(nameof(hardDefense));
-        var denominator = HardDefenseCurve + 10f * hardDefense;
-        var multiplier = (HardDefenseCurve + hardDefense) / denominator;
-        if (!float.IsFinite(multiplier) || multiplier < 0f || multiplier > 1f)
+        var defense = (double)hardDefense;
+        var denominator = HardDefenseCurve + 10d * defense;
+        var multiplier = (HardDefenseCurve + defense) / denominator;
+        if (!double.IsFinite(multiplier) || multiplier < 0d || multiplier > 1d)
             throw new OverflowException("La defensa dura produjo un multiplicador inválido.");
-        return multiplier;
+        return (float)multiplier;
     }
 
-    private static float FloorNonNegative(float value)
+    internal static float FloorNonNegative(double value)
     {
-        if (!float.IsFinite(value)) throw new OverflowException("El daño produjo un valor no finito.");
-        return MathF.Floor(MathF.Max(0f, value));
+        if (!double.IsFinite(value)) throw new OverflowException("El daño produjo un valor no finito.");
+        var clamped = Math.Max(0d, value);
+        var floored = Math.Floor(clamped);
+        if (floored > float.MaxValue) throw new OverflowException("El daño excede el rango soportado.");
+        return (float)floored;
     }
 
     private static void Validate(DamageCalculationInput input)
