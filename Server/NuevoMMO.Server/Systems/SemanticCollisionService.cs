@@ -6,6 +6,8 @@ namespace NuevoMMO.Server.Systems;
 /// <summary>Consultas geométricas puras entre roles semánticos; no aplica daño ni reglas de facción.</summary>
 public static class SemanticCollisionService
 {
+    private static readonly CircleCollisionShape PointProbe = new(.001f);
+
     public static bool MovementBodiesOverlap(Entity mover, Vector2Data prospectivePosition, Entity obstacle)
     {
         ArgumentNullException.ThrowIfNull(mover); ArgumentNullException.ThrowIfNull(obstacle);
@@ -20,22 +22,48 @@ public static class SemanticCollisionService
         ArgumentNullException.ThrowIfNull(actor); ArgumentNullException.ThrowIfNull(target);
         if (!float.IsFinite(fallbackRange) || fallbackRange < 0) throw new ArgumentOutOfRangeException(nameof(fallbackRange));
         var interaction = actor.CollisionProfile.InteractionShape;
-        if (interaction is null) return actor.Position.DistanceSquaredTo(target.Position) <= fallbackRange * fallbackRange;
-        var targetShapes = target.CollisionProfile.Hurtboxes.Length > 0
-            ? target.CollisionProfile.Hurtboxes
-            : target.CollisionProfile.MovementCollider is { } movement ? [movement] : [];
-        return targetShapes.Length == 0
-            ? CollisionGeometry.Overlaps(interaction, actor.Position, new CircleCollisionShape(.001f), target.Position)
-            : targetShapes.Any(shape => CollisionGeometry.Overlaps(interaction, actor.Position, shape, target.Position));
+        if (interaction is null) return IsWithinRange(actor.Position, target, fallbackRange);
+        return ShapeTouchesTarget(interaction, actor.Position, target);
     }
 
     public static bool AnyHitboxTouchesAnyHurtbox(Entity source, Entity target)
     {
         ArgumentNullException.ThrowIfNull(source); ArgumentNullException.ThrowIfNull(target);
         foreach (var hitbox in source.CollisionProfile.Hitboxes)
-            foreach (var hurtbox in target.CollisionProfile.Hurtboxes)
-                if (CollisionGeometry.Overlaps(hitbox, source.Position, hurtbox, target.Position)) return true;
+            if (ShapeTouchesTarget(hitbox, source.Position, target)) return true;
         return false;
+    }
+
+    /// <summary>
+    /// Comprueba una geometría ofensiva/área contra las Hurtboxes del objetivo. Durante la migración,
+    /// entidades sin Hurtbox explícita usan MovementCollider; si tampoco existe se usa un punto mínimo.
+    /// El sprite nunca participa en la consulta.
+    /// </summary>
+    public static bool ShapeTouchesTarget(CollisionShape shape, Vector2Data origin, Entity target)
+    {
+        ArgumentNullException.ThrowIfNull(shape);
+        ArgumentNullException.ThrowIfNull(target);
+        if (!origin.IsFinite) throw new ArgumentException("Origen no finito.", nameof(origin));
+        foreach (var targetShape in CombatTargetShapes(target))
+            if (CollisionGeometry.Overlaps(shape, origin, targetShape, target.Position)) return true;
+        return false;
+    }
+
+    public static bool IsWithinRange(Vector2Data origin, Entity target, float range)
+    {
+        if (!origin.IsFinite) throw new ArgumentException("Origen no finito.", nameof(origin));
+        ArgumentNullException.ThrowIfNull(target);
+        if (!float.IsFinite(range) || range < 0) throw new ArgumentOutOfRangeException(nameof(range));
+        if (range == 0) return target.Position == origin;
+        return ShapeTouchesTarget(new CircleCollisionShape(range), origin, target);
+    }
+
+    public static IReadOnlyList<CollisionShape> CombatTargetShapes(Entity target)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        if (target.CollisionProfile.Hurtboxes.Length > 0) return target.CollisionProfile.Hurtboxes;
+        if (target.CollisionProfile.MovementCollider is { } movement) return [movement];
+        return [PointProbe];
     }
 
     public static float NavigationClearance(Entity entity)
