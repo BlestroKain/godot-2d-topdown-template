@@ -26,6 +26,18 @@ public sealed class MovementInputBuffer
         if (!pending.TryDequeue(out input)) return false;
         LastProcessed = input.Sequence; return true;
     }
+
+    /// <summary>
+    /// Reinicia la secuencia autoritativa cuando el cliente empieza una nueva sesión de mapa.
+    /// El MapLoad crea un predictor nuevo que vuelve a numerar desde 1, por lo que conservar
+    /// LastAccepted haría que el primer input posterior a un portal fuese rechazado.
+    /// </summary>
+    public void Reset()
+    {
+        pending.Clear();
+        LastAccepted = 0;
+        LastProcessed = 0;
+    }
 }
 
 public sealed class MovementSystem(float speed, int tickMilliseconds)
