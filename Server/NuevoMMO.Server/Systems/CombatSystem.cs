@@ -83,7 +83,7 @@ public sealed class CombatSystem
 
     /// <summary>
     /// Aplica una cantidad ya resuelta ofensivamente (por ejemplo payload de técnica o mob),
-    /// pero obliga a pasar por las etapas defensivas/resistencia del pipeline canónico.
+    /// pero obliga a pasar por reducción/resistencia del pipeline canónico.
     /// </summary>
     public DamageResult ApplyDamage(
         LivingEntity? attacker,
@@ -102,8 +102,8 @@ public sealed class CombatSystem
 
         var resistance = Resistance(target, element);
         var breakdown = DamagePipeline.Resolve(new DamageCalculationInput(
-            element,
-            rawDamage,
+            Element: element,
+            BaseDamage: rawDamage,
             Characteristic: 0,
             ResistancePercent: resistance,
             UsePositivePveResistanceCap: usePveResistanceCap));
@@ -112,6 +112,7 @@ public sealed class CombatSystem
 
     /// <summary>
     /// Punto único que modifica HP, amenaza, estado de combate y telemetría después de resolver la fórmula.
+    /// RawDamage representa el daño ofensivo tras característica/Potencia/daño fijo y antes de defensa.
     /// </summary>
     public DamageResult ApplyResolvedDamage(
         LivingEntity? attacker,
@@ -131,7 +132,7 @@ public sealed class CombatSystem
                 attacker?.Id,
                 target.Id,
                 breakdown.Element,
-                breakdown.AfterCritical,
+                breakdown.AfterFlatDamage,
                 breakdown.EffectiveResistancePercent,
                 isCritical,
                 0,
@@ -161,7 +162,7 @@ public sealed class CombatSystem
             attacker?.Id,
             target.Id,
             breakdown.Element,
-            breakdown.AfterCritical,
+            breakdown.AfterFlatDamage,
             breakdown.EffectiveResistancePercent,
             isCritical,
             applied,
