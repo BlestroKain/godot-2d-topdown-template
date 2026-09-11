@@ -7,7 +7,7 @@ public readonly record struct ProjectileStepResult(bool Moved, bool Expired, boo
 
 /// <summary>
 /// Movimiento y validación espacial de proyectiles. No decide daño ni efectos: al registrar un impacto
-/// el ejecutor de técnicas puede aplicar las acciones correspondientes sin acoplar proyectil y combate.
+/// el ejecutor de técnicas aplica las acciones correspondientes sin acoplar proyectil y combate.
 /// Usa la misma geometría continua de mapa que movimiento, respetando BlocksProjectiles por separado.
 /// </summary>
 public sealed class ProjectileSystem
@@ -43,13 +43,24 @@ public sealed class ProjectileSystem
         return new(projectile.Position != before, projectile.IsExpired, !desiredInside);
     }
 
+    /// <summary>
+    /// Compatibilidad del API temprano: radius solo se usa cuando el proyectil todavía no tiene Hitbox.
+    /// Si existe una Hitbox data-driven, esa geometría manda y el objetivo se consulta por Hurtbox.
+    /// </summary>
     public bool IsWithinImpactRadius(Projectile projectile, Entity target, float radius)
     {
         ArgumentNullException.ThrowIfNull(projectile);
         ArgumentNullException.ThrowIfNull(target);
         if (!float.IsFinite(radius) || radius < 0) throw new ArgumentOutOfRangeException(nameof(radius));
         if (!projectile.CanImpact(target)) return false;
-        return projectile.Position.DistanceSquaredTo(target.Position) <= radius * radius;
+
+        if (projectile.CollisionProfile.Hitboxes.Length > 0)
+            return projectile.CollisionProfile.Hitboxes.Any(hitbox =>
+                SemanticCollisionService.ShapeTouchesTarget(hitbox, projectile.Position, target));
+
+        return radius == 0
+            ? SemanticCollisionService.IsWithinRange(projectile.Position, target, 0)
+            : SemanticCollisionService.ShapeTouchesTarget(new CircleCollisionShape(radius), projectile.Position, target);
     }
 
     public bool TryRegisterImpact(Projectile projectile, Entity target, float radius)
