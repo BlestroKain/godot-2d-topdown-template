@@ -70,11 +70,27 @@ public sealed class MobMovementSystem(float speed, int tickMilliseconds, IMobMov
 {
     public void Step(Mob mob, MapDefinition map, long tick)
     {
-        var seconds = tickMilliseconds / 1000f; var direction = policy.NextVelocity(mob, tick, seconds);
-        var length = MathF.Sqrt(direction.LengthSquared); var scale = length > 1 ? 1 / length : 1;
-        var desired = map.Bounds.Clamp(new(mob.Position.X + direction.X * scale * speed * seconds,
-            mob.Position.Y + direction.Y * scale * speed * seconds));
-        var after = MovementSystem.IsBlocked(map, desired) ? mob.Position : desired;
-        mob.MoveTo(after, new((after.X - mob.Position.X) / seconds, (after.Y - mob.Position.Y) / seconds));
+        var seconds = tickMilliseconds / 1000f;
+        StepDirection(mob, map, policy.NextVelocity(mob, tick, seconds));
+    }
+
+    /// <summary>
+    /// Ejecuta una intención de movimiento ya resuelta por IA. La dirección se normaliza y el
+    /// desplazamiento continúa usando el mismo pipeline autoritativo de límites/colisión.
+    /// </summary>
+    public void StepDirection(Mob mob, MapDefinition map, Vector2Data direction)
+    {
+        ArgumentNullException.ThrowIfNull(mob);
+        ArgumentNullException.ThrowIfNull(map);
+        if (!direction.IsFinite) throw new ArgumentException("Dirección de mob no finita.", nameof(direction));
+
+        var seconds = tickMilliseconds / 1000f;
+        var length = MathF.Sqrt(direction.LengthSquared);
+        var scale = length > 1 ? 1 / length : 1;
+        var before = mob.Position;
+        var desired = map.Bounds.Clamp(new(before.X + direction.X * scale * speed * seconds,
+            before.Y + direction.Y * scale * speed * seconds));
+        var after = MovementSystem.IsBlocked(map, desired) ? before : desired;
+        mob.MoveTo(after, new((after.X - before.X) / seconds, (after.Y - before.Y) / seconds));
     }
 }
