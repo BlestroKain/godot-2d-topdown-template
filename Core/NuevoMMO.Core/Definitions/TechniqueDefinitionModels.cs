@@ -50,6 +50,94 @@ public enum TechniqueActionMoment : byte
     Expire
 }
 
+/// <summary>
+/// Comportamiento físico/lógico de un proyectil creado por una acción. CollisionRadius controla
+/// colisión con el mapa; HitRadius controla impacto contra Hurtboxes y puede ser mayor o menor.
+/// </summary>
+public sealed record TechniqueProjectileDefinition
+{
+    public TechniqueProjectileDefinition(
+        float speed = 220f,
+        float maxDistance = 320f,
+        int lifetimeMilliseconds = 2500,
+        int maxImpacts = 1,
+        float collisionRadius = 0f,
+        float hitRadius = 16f,
+        bool canImpactSource = false)
+    {
+        if (!float.IsFinite(speed) || speed <= 0) throw new ArgumentOutOfRangeException(nameof(speed));
+        if (!float.IsFinite(maxDistance) || maxDistance < 0) throw new ArgumentOutOfRangeException(nameof(maxDistance));
+        if (lifetimeMilliseconds < 1) throw new ArgumentOutOfRangeException(nameof(lifetimeMilliseconds));
+        if (maxImpacts < 1) throw new ArgumentOutOfRangeException(nameof(maxImpacts));
+        if (!float.IsFinite(collisionRadius) || collisionRadius < 0) throw new ArgumentOutOfRangeException(nameof(collisionRadius));
+        if (!float.IsFinite(hitRadius) || hitRadius <= 0) throw new ArgumentOutOfRangeException(nameof(hitRadius));
+        Speed = speed;
+        MaxDistance = maxDistance;
+        LifetimeMilliseconds = lifetimeMilliseconds;
+        MaxImpacts = maxImpacts;
+        CollisionRadius = collisionRadius;
+        HitRadius = hitRadius;
+        CanImpactSource = canImpactSource;
+    }
+
+    public float Speed { get; }
+    public float MaxDistance { get; }
+    public int LifetimeMilliseconds { get; }
+    public int MaxImpacts { get; }
+    public float CollisionRadius { get; }
+    public float HitRadius { get; }
+    public bool CanImpactSource { get; }
+}
+
+/// <summary>
+/// Cuándo una zona persistente dispara su payload. El AoE instantáneo no necesita SpawnZone:
+/// se expresa con TargetMode.Area + acciones Impact. Periodic cubre campos persistentes;
+/// OnEnter/OnExit son la base común para glifos y trampas.
+/// </summary>
+public enum TechniqueZoneTriggerMode : byte
+{
+    Periodic,
+    OnEnter,
+    OnExit
+}
+
+public sealed record TechniqueZoneDefinition
+{
+    public TechniqueZoneDefinition(
+        float radius = 48f,
+        int lifetimeMilliseconds = 2000,
+        int tickIntervalMilliseconds = 500,
+        TechniqueZoneTriggerMode triggerMode = TechniqueZoneTriggerMode.Periodic,
+        int maxActivations = 0,
+        bool oncePerTarget = false,
+        bool includeSource = false)
+    {
+        if (!float.IsFinite(radius) || radius <= 0) throw new ArgumentOutOfRangeException(nameof(radius));
+        if (lifetimeMilliseconds < 1) throw new ArgumentOutOfRangeException(nameof(lifetimeMilliseconds));
+        if (tickIntervalMilliseconds < 0) throw new ArgumentOutOfRangeException(nameof(tickIntervalMilliseconds));
+        if (triggerMode == TechniqueZoneTriggerMode.Periodic && tickIntervalMilliseconds < 1)
+            throw new ArgumentException("Una zona Periodic requiere TickIntervalMilliseconds mayor que cero.", nameof(tickIntervalMilliseconds));
+        if (maxActivations < 0) throw new ArgumentOutOfRangeException(nameof(maxActivations));
+        Radius = radius;
+        LifetimeMilliseconds = lifetimeMilliseconds;
+        TickIntervalMilliseconds = tickIntervalMilliseconds;
+        TriggerMode = triggerMode;
+        MaxActivations = maxActivations;
+        OncePerTarget = oncePerTarget;
+        IncludeSource = includeSource;
+    }
+
+    public float Radius { get; }
+    public int LifetimeMilliseconds { get; }
+    public int TickIntervalMilliseconds { get; }
+    public TechniqueZoneTriggerMode TriggerMode { get; }
+
+    /// <summary>0 = sin límite global de activaciones durante la vida de la zona.</summary>
+    public int MaxActivations { get; }
+    public bool OncePerTarget { get; }
+    public bool IncludeSource { get; }
+}
+
 public sealed record TechniqueTargetingDefinition
 {
     public TechniqueTargetingDefinition(
@@ -149,7 +237,9 @@ public sealed record TechniqueActionDefinition
         Dictionary<StatId, float>? scaling = null,
         Dictionary<string, float>? parameters = null,
         Dictionary<string, string>? metadata = null,
-        TechniqueActionDefinition[]? payloadActions = null)
+        TechniqueActionDefinition[]? payloadActions = null,
+        TechniqueProjectileDefinition? projectile = null,
+        TechniqueZoneDefinition? zone = null)
     {
         if (!float.IsFinite(amount)) throw new ArgumentOutOfRangeException(nameof(amount));
         if (!float.IsFinite(distance) || distance < 0) throw new ArgumentOutOfRangeException(nameof(distance));
@@ -165,6 +255,10 @@ public sealed record TechniqueActionDefinition
             throw new ArgumentException("TriggerEvent requiere EventId.", nameof(eventId));
         if (kind == TechniqueActionKind.Teleport && destinationMapId is null && destination is null)
             throw new ArgumentException("Teleport requiere DestinationMapId y/o Destination.");
+        if (projectile is not null && kind != TechniqueActionKind.SpawnProjectile)
+            throw new ArgumentException("Projectile solo es válido para SpawnProjectile.", nameof(projectile));
+        if (zone is not null && kind != TechniqueActionKind.SpawnZone)
+            throw new ArgumentException("Zone solo es válido para SpawnZone.", nameof(zone));
 
         var payload = payloadActions?.ToArray() ?? [];
         if (payload.Any(static action => action is null))
@@ -187,6 +281,8 @@ public sealed record TechniqueActionDefinition
         Parameters = DefinitionModelGuards.CopyFinite(parameters, nameof(parameters));
         Metadata = DefinitionCollectionGuards.CopyText(metadata, nameof(metadata));
         PayloadActions = payload;
+        Projectile = projectile;
+        Zone = zone;
     }
 
     public TechniqueActionKind Kind { get; }
@@ -206,8 +302,10 @@ public sealed record TechniqueActionDefinition
 
     /// <summary>
     /// Acciones que pertenecen a la entidad/efecto creado por esta acción. Un proyectil las ejecuta
-    /// al impactar; una zona puede ejecutarlas en sus pulsos. Permite combinar daño, efectos,
+    /// al impactar; una zona las ejecuta según su TriggerMode. Permite combinar daño, efectos,
     /// desplazamiento y otras mecánicas sin hardcodear comportamiento en Projectile/WorldRuntime.
     /// </summary>
     public TechniqueActionDefinition[] PayloadActions { get; }
+    public TechniqueProjectileDefinition? Projectile { get; }
+    public TechniqueZoneDefinition? Zone { get; }
 }
