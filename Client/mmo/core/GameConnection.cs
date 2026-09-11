@@ -89,6 +89,15 @@ public sealed class GameConnection : IDisposable
                     if (!lifetime.IsCancellationRequested) Closed?.Invoke("disconnected");
                     break;
                 }
+
+                if (packet is MapLoadPacket map)
+                {
+                    Map = map;
+                    Message?.Invoke(map);
+                    await SendAsync(new MapReadyRequest(map.Map.Instance));
+                    continue;
+                }
+
                 Message?.Invoke(packet);
             }
         }
@@ -108,9 +117,7 @@ public sealed class GameConnection : IDisposable
             while (await timer.WaitForNextTickAsync(lifetime.Token))
                 await SendAsync(new PingPacket(Environment.TickCount64, NetworkClock.Timestamp));
         }
-        catch (Exception exception) when (exception is OperationCanceledException or IOException or ObjectDisposedException)
-        {
-        }
+        catch (Exception exception) when (exception is OperationCanceledException or IOException or ObjectDisposedException) { }
     }
 
     public void Dispose()
