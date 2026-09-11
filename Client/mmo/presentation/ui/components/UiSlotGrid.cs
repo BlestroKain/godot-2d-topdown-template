@@ -18,8 +18,12 @@ public partial class UiSlotGrid : GridContainer
 
     public void Rebuild()
     {
-        foreach (var child in GetChildren()) child.QueueFree();
-        if (SlotScene is null) return;
+        foreach (var child in GetChildren())
+            child.QueueFree();
+
+        if (SlotScene is null)
+            return;
+
         for (var i = 0; i < SlotCount; i++)
         {
             var slot = SlotScene.Instantiate<UiSlot>();
@@ -28,5 +32,11 @@ public partial class UiSlotGrid : GridContainer
         }
     }
 
-    public UiSlot? GetSlot(int index) => index >= 0 && index < GetChildCount() ? GetChild<UiSlot>(index) : null;
+    public UiSlot? GetSlot(int index)
+    {
+        if (index < 0 || index >= GetChildCount())
+            return null;
+
+        return GetChild(index) as UiSlot;
+    }
 }
