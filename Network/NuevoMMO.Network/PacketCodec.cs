@@ -5,7 +5,7 @@ namespace NuevoMMO.Network;
 
 public static class PacketCodec
 {
-    public const ushort Version = 2;
+    public const ushort Version = 3;
     public const int MaxPacketBytes = 64 * 1024;
     public const int MaxEntities = 256;
     private static ReadOnlySpan<byte> Magic => "NMMO"u8;
@@ -64,7 +64,9 @@ public static class PacketCodec
             case LoginRequest value: writer.Write(value.Username, 128); writer.Write(value.Password, 256); break;
             case RegisterRequest value: writer.Write(value.Username, 128); writer.Write(value.Password, 256); break;
             case CharacterListRequest value: WriteSession(writer, value.Session, value.SessionToken); break;
-            case CreateCharacterRequest value: WriteSession(writer, value.Session, value.SessionToken); writer.Write(value.Name, 128); break;
+            case CreateCharacterRequest value:
+                if (value.TraditionId.IsEmpty) throw new InvalidDataException("Tradición requerida para crear personaje.");
+                WriteSession(writer, value.Session, value.SessionToken); writer.Write(value.Name, 128); writer.Write(value.TraditionId.Value); break;
             case CharacterSelectRequest value: WriteSession(writer, value.Session, value.SessionToken); writer.Write(value.Character.Value); break;
             case MapReadyRequest value: writer.Write(value.Instance.Value); break;
             case MoveRequest value: writer.Write(value.Input.Sequence); writer.Write(value.Input.ClientTick); writer.Write(value.Input.X); writer.Write(value.Input.Y); break;
@@ -121,7 +123,7 @@ public static class PacketCodec
         PacketId.LoginRequest => new LoginRequest(reader.ReadString(128), reader.ReadString(256)),
         PacketId.RegisterRequest => new RegisterRequest(reader.ReadString(128), reader.ReadString(256)),
         PacketId.CharacterListRequest => new CharacterListRequest(new(reader.ReadGuid()), reader.ReadString(256)),
-        PacketId.CreateCharacterRequest => new CreateCharacterRequest(new(reader.ReadGuid()), reader.ReadString(256), reader.ReadString(128)),
+        PacketId.CreateCharacterRequest => new CreateCharacterRequest(new(reader.ReadGuid()), reader.ReadString(256), reader.ReadString(128), new(reader.ReadGuid())),
         PacketId.CharacterSelectRequest => new CharacterSelectRequest(new(reader.ReadGuid()), reader.ReadString(256), new(reader.ReadGuid())),
         PacketId.MapReadyRequest => new MapReadyRequest(new(reader.ReadInt64())),
         PacketId.MoveRequest => new MoveRequest(new(reader.ReadInt64(), reader.ReadInt64(), reader.ReadSingle(), reader.ReadSingle())),
@@ -182,8 +184,12 @@ public static class PacketCodec
 
     private static void WriteSession(PacketWriter writer, SessionId session, string token) { writer.Write(session.Value); writer.Write(token, 256); }
     private static void WriteCharacter(PacketWriter writer, CharacterSummary character)
-    { writer.Write(character.Id.Value); writer.Write(character.Name, 128); writer.Write(character.MapDefinition.Value); writer.Write(character.Position); }
-    private static CharacterSummary ReadCharacter(PacketReader reader) => new(new(reader.ReadGuid()), reader.ReadString(128), new(reader.ReadGuid()), reader.ReadVector2());
+    {
+        writer.Write(character.Id.Value); writer.Write(character.Name, 128); writer.Write(character.MapDefinition.Value);
+        writer.Write(character.Position); writer.Write(character.TraditionId.Value);
+    }
+    private static CharacterSummary ReadCharacter(PacketReader reader)
+        => new(new(reader.ReadGuid()), reader.ReadString(128), new(reader.ReadGuid()), reader.ReadVector2(), new(reader.ReadGuid()));
     private static void WriteMap(PacketWriter writer, MapProjection map)
     {
         writer.Write(map.Definition.Value); writer.Write(map.Instance.Value); writer.Write(map.VisualKey);
