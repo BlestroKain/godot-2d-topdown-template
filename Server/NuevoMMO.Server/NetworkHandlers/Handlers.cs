@@ -54,14 +54,12 @@ public sealed class RegisterHandler(
             context.Send(new RegisterResult(false, "Demasiados intentos de registro. Intenta nuevamente más tarde.", default));
             return;
         }
-
         if (!InputValidator.IsSafeName(packet.Username, settings.MinimumUsernameLength, settings.MaximumUsernameLength) ||
             !InputValidator.IsBoundedText(packet.Password, settings.MinimumPasswordLength, settings.MaximumPasswordLength))
         {
             context.Send(new RegisterResult(false, "Usuario o contraseña no cumplen los requisitos.", default));
             return;
         }
-
         try
         {
             var account = await auth.RegisterAsync(packet.Username, packet.Password, cancellationToken);
@@ -92,37 +90,29 @@ public sealed class LoginHandler(
                 default, default, ""));
             return;
         }
-
         if (!InputValidator.IsSafeName(packet.Username, settings.MinimumUsernameLength, settings.MaximumUsernameLength) ||
             !InputValidator.IsBoundedText(packet.Password, settings.MinimumPasswordLength, settings.MaximumPasswordLength))
         {
             context.Send(new LoginResult(false, "Credenciales inválidas.", default, default, ""));
             return;
         }
-
         if (bans.IsBanned(packet.Username, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), out _))
         {
             context.Send(new LoginResult(false, "Cuenta suspendida.", default, default, ""));
             return;
         }
-
         try
         {
             var (account, session) = await auth.LoginAsync(packet.Username, packet.Password, cancellationToken);
-            worldAuthenticate(context, account.Id, session.Id, session.Token);
+            context.Session.Account = account.Id;
+            context.Session.Session = session.Id;
+            context.Session.SessionToken = session.Token;
+            context.Session.State = PlayerSessionState.Authenticated;
             context.Send(new LoginResult(true, "", account.Id, session.Id, session.Token));
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
         {
             context.Send(new LoginResult(false, exception.Message, default, default, ""));
-        }
-
-        void worldAuthenticate(ServerPacketContext packetContext, AccountId accountId, SessionId sessionId, string token)
-        {
-            packetContext.Session.Account = accountId;
-            packetContext.Session.Session = sessionId;
-            packetContext.Session.SessionToken = token;
-            packetContext.Session.State = PlayerSessionState.Authenticated;
         }
     }
 }
@@ -176,7 +166,7 @@ public sealed class CharacterSelectHandler(
             player.SetVitals(health, mana);
         }
         context.Send(new CharacterSelected(player.CharacterId));
-        context.Send(new MapLoadPacket(world.Projection("dev-1"), player.Id, player.CharacterId));
+        context.Send(world.PrepareMapLoad(context.Session, "dev-1"));
         context.Send(PlayerStatsProjection.Create(player, progression));
     }
 }
@@ -219,7 +209,6 @@ public sealed class AllocateAttributeHandler(
         var player = context.Session.Player ?? throw new InvalidOperationException("Jugador fuera del mundo.");
         if (!Enum.IsDefined(packet.Attribute) || packet.Increments is < 1 or > 100)
             throw new InvalidDataException("Solicitud de atributo inválida.");
-
         try
         {
             progression.Allocate(player, packet.Attribute, packet.Increments);
@@ -249,15 +238,14 @@ public sealed class DevelopmentAttackHandler(
     {
         ServerAuthorizationGuard.Demand(context, ServerAction.UseTechnique, authorization);
         var player = context.Session.Player ?? throw new InvalidOperationException("Jugador fuera del mundo.");
-
         try
         {
             if (!Enum.IsDefined(packet.Attack) || packet.Target.Value <= 0)
                 throw new InvalidDataException("Ataque de desarrollo inválido.");
-            if (!world.MapInstance.Entities.TryGet(packet.Target, out var entity) || entity is not Mob target)
+            var currentMap = world.GetMap(player.MapInstanceId);
+            if (!currentMap.Entities.TryGet(packet.Target, out var entity) || entity is not Mob target)
                 throw new InvalidOperationException("El objetivo de prueba no es un mob disponible.");
-            if (!target.IsAlive)
-                throw new InvalidOperationException("El objetivo de prueba ya está derrotado.");
+            if (!target.IsAlive) throw new InvalidOperationException("El objetivo de prueba ya está derrotado.");
 
             var formula = packet.Attack switch
             {
@@ -275,23 +263,11 @@ public sealed class DevelopmentAttackHandler(
             var meter = combat.Telemetry.Snapshot(target.Id, now) ?? new DamageMeterSnapshot(
                 result.RawDamage, result.AppliedDamage, result.Element, result.Critical, 0, 0,
                 result.AppliedDamage, result.AppliedDamage > 0 ? 1 : 0, result.Critical ? 1 : 0);
-
             context.Send(new CombatDebugPacket(
-                target.Id,
-                packet.Attack,
-                formula.DamageType,
-                formula.ScalingAttribute,
-                result.RawDamage,
-                result.ResistancePercent,
-                result.AppliedDamage,
-                result.Critical,
-                target.Health,
-                target.MaxHealth,
-                meter.Dps5Seconds,
-                meter.Dps10Seconds,
-                meter.TotalDamage,
-                meter.Hits,
-                meter.CriticalHits));
+                target.Id, packet.Attack, formula.DamageType, formula.ScalingAttribute,
+                result.RawDamage, result.ResistancePercent, result.AppliedDamage, result.Critical,
+                target.Health, target.MaxHealth, meter.Dps5Seconds, meter.Dps10Seconds,
+                meter.TotalDamage, meter.Hits, meter.CriticalHits));
 
             if (result.Killed && target.ExperienceReward > 0)
             {
@@ -314,10 +290,8 @@ public sealed class BasicAttackHandler(WorldRuntime world, AuthorizationService 
     {
         ServerAuthorizationGuard.Demand(context, ServerAction.UseTechnique, authorization);
         var result = world.BasicAttack(context.Session, packet.Target);
-        if (!result.Success)
-            context.Send(new ErrorPacket("basic_attack", result.Message, false));
-        else
-            TechniqueFeedback.Send(context, world, packet.Target, result);
+        if (!result.Success) context.Send(new ErrorPacket("basic_attack", result.Message, false));
+        else TechniqueFeedback.Send(context, world, packet.Target, result);
         return ValueTask.CompletedTask;
     }
 }
@@ -329,10 +303,8 @@ public sealed class UseTechniqueHandler(WorldRuntime world, AuthorizationService
     {
         ServerAuthorizationGuard.Demand(context, ServerAction.UseTechnique, authorization);
         var result = world.UseTechnique(context.Session, packet.TechniqueId, packet.Target, packet.Point);
-        if (!result.Success)
-            context.Send(new ErrorPacket("use_technique", result.Message, false));
-        else
-            TechniqueFeedback.Send(context, world, packet.Target, result);
+        if (!result.Success) context.Send(new ErrorPacket("use_technique", result.Message, false));
+        else TechniqueFeedback.Send(context, world, packet.Target, result);
         return ValueTask.CompletedTask;
     }
 }
@@ -344,10 +316,8 @@ public sealed class InteractHandler(WorldRuntime world, AuthorizationService aut
     {
         ServerAuthorizationGuard.Demand(context, ServerAction.Interact, authorization);
         var result = world.Interact(context.Session, packet.Target);
-        if (!result.Success)
-            context.Send(new ErrorPacket("interact", result.Message, false));
-        else if (!string.IsNullOrWhiteSpace(result.Message))
-            context.Send(new ErrorPacket("interact_ok", result.Message, false));
+        if (!result.Success) context.Send(new ErrorPacket("interact", result.Message, false));
+        else if (!string.IsNullOrWhiteSpace(result.Message)) context.Send(new ErrorPacket("interact_ok", result.Message, false));
         return ValueTask.CompletedTask;
     }
 }
@@ -369,38 +339,25 @@ public sealed class SetTargetHandler(WorldRuntime world, AuthorizationService au
 
 file static class TechniqueFeedback
 {
-    public static void Send(
-        ServerPacketContext context,
-        WorldRuntime world,
-        EntityId targetId,
-        TechniqueUseResult result)
+    public static void Send(ServerPacketContext context, WorldRuntime world, EntityId targetId, TechniqueUseResult result)
     {
         var damage = result.Actions.Select(static action => action.Damage).FirstOrDefault(static value => value is not null);
         if (damage is null) return;
         var health = 0;
         var maxHealth = 0;
-        if (world.MapInstance.Entities.TryGet(targetId, out var entity) && entity is LivingEntity living)
+        if (context.Session.Player is { } player)
         {
-            health = living.Health;
-            maxHealth = living.MaxHealth;
+            var currentMap = world.GetMap(player.MapInstanceId);
+            if (currentMap.Entities.TryGet(targetId, out var entity) && entity is LivingEntity living)
+            {
+                health = living.Health;
+                maxHealth = living.MaxHealth;
+            }
         }
-
         context.Send(new CombatDebugPacket(
-            targetId,
-            DevelopmentAttackKind.Basic,
-            damage.Element,
-            PrimaryAttributeId.Strength,
-            damage.RawDamage,
-            damage.ResistancePercent,
-            damage.AppliedDamage,
-            damage.Critical,
-            health,
-            maxHealth,
-            0,
-            0,
-            damage.AppliedDamage,
-            1,
-            damage.Critical ? 1 : 0));
+            targetId, DevelopmentAttackKind.Basic, damage.Element, PrimaryAttributeId.Strength,
+            damage.RawDamage, damage.ResistancePercent, damage.AppliedDamage, damage.Critical,
+            health, maxHealth, 0, 0, damage.AppliedDamage, 1, damage.Critical ? 1 : 0));
     }
 }
 
