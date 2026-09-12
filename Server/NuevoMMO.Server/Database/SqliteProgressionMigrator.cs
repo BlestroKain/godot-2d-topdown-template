@@ -16,7 +16,8 @@ public static class SqliteProgressionMigrator
         ("current_mana", "INTEGER NULL"),
         ("tradition_id", "TEXT NOT NULL DEFAULT ''"),
         ("appearance_data", "TEXT NOT NULL DEFAULT 'v1|template.player||||||||'"),
-        ("inventory_data", "TEXT NOT NULL DEFAULT '{\"items\":[],\"equipment\":[]}'")
+        ("inventory_data", "TEXT NOT NULL DEFAULT '{\"items\":[],\"equipment\":[]}'"),
+        ("quest_data", "TEXT NOT NULL DEFAULT '{\"quests\":[]}'")
     ];
 
     public static async Task ApplyAsync(string playersDatabasePath, CancellationToken cancellationToken = default)
