@@ -60,6 +60,10 @@ public sealed class PersistenceService
             player.CharacterId,
             CharacterInventoryStorage.FromPlayer(player).ToJson(),
             cancellationToken);
+        await characters.SaveQuestDataAsync(
+            player.CharacterId,
+            CharacterQuestStorage.FromPlayer(player).ToJson(),
+            cancellationToken);
     }
 
     public void RestoreInventory(Player player, CharacterRecord record)
@@ -67,6 +71,13 @@ public sealed class PersistenceService
         ArgumentNullException.ThrowIfNull(player);
         ArgumentNullException.ThrowIfNull(record);
         CharacterInventoryStorage.Parse(record.InventoryData).ApplyTo(player);
+    }
+
+    public void RestoreQuests(Player player, CharacterRecord record)
+    {
+        ArgumentNullException.ThrowIfNull(player);
+        ArgumentNullException.ThrowIfNull(record);
+        CharacterQuestStorage.Parse(record.QuestData).ApplyTo(player);
     }
 
     public async Task SaveDirtyAsync(IEnumerable<Player> players, CancellationToken cancellationToken = default)
