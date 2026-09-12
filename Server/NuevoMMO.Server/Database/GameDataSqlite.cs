@@ -6,7 +6,8 @@ namespace NuevoMMO.Server.Database;
 
 /// <summary>
 /// Lectura de GameData (game.db) en el servidor. El esquema coincide con el del Editor:
-/// tablas <c>definitions</c> + <c>content_meta</c>. El servidor no referencia al Editor.
+/// tablas tipadas (Items, Maps, Events…) más <c>definitions</c> legacy y <c>content_meta</c>.
+/// El servidor no referencia al Editor.
 /// </summary>
 public static class GameDataSqlite
 {
@@ -65,29 +66,7 @@ public static class GameDataSqlite
         var formatText = ReadMeta(connection, "format_version");
         var formatVersion = int.TryParse(formatText, out var parsed) ? parsed : ContentPackage.CurrentFormatVersion;
 
-        var loaded = new Dictionary<Type, List<GameDefinition>>();
-        using (var command = connection.CreateCommand())
-        {
-            command.CommandText = "SELECT type, json FROM definitions ORDER BY type, name;";
-            using var reader = command.ExecuteReader();
-            while (reader.Read())
-            {
-                var typeName = reader.GetString(0);
-                var json = reader.GetString(1);
-                if (!DefinitionTypes.TryGetValue(typeName, out var type))
-                    throw new InvalidDataException($"Tipo de Definition desconocido en game.db: {typeName}.");
-
-                var definition = JsonSerializer.Deserialize(json, type, ContentPackage.JsonOptions) as GameDefinition
-                    ?? throw new InvalidDataException($"No se pudo leer {typeName} desde game.db.");
-                if (!loaded.TryGetValue(type, out var list))
-                {
-                    list = [];
-                    loaded[type] = list;
-                }
-
-                list.Add(definition);
-            }
-        }
+        var loaded = LoadAll(connection);
 
         var package = new ContentPackage(
             formatVersion,
@@ -124,10 +103,88 @@ public static class GameDataSqlite
         return HasDefinitionSchema(connection);
     }
 
+    private static readonly Dictionary<Type, string> Tables = new()
+    {
+        [typeof(MapDefinition)] = "Maps",
+        [typeof(MobDefinition)] = "Mobs",
+        [typeof(ItemDefinition)] = "Items",
+        [typeof(EffectDefinition)] = "Effects",
+        [typeof(TechniqueDefinition)] = "Techniques",
+        [typeof(NpcDefinition)] = "Npcs",
+        [typeof(ResourceDefinition)] = "Resources",
+        [typeof(TraditionDefinition)] = "Traditions",
+        [typeof(ProfessionDefinition)] = "Professions",
+        [typeof(RecipeDefinition)] = "Recipes",
+        [typeof(LootTableDefinition)] = "LootTables",
+        [typeof(SpawnTableDefinition)] = "SpawnTables",
+        [typeof(DungeonDefinition)] = "Dungeons",
+        [typeof(QuestDefinition)] = "Quests",
+        [typeof(ItemPropertyDefinition)] = "ItemProperties",
+        [typeof(EventDefinition)] = "Events",
+        [typeof(TilesetDefinition)] = "Tilesets"
+    };
+
     private static bool HasDefinitionSchema(SqliteConnection connection)
     {
         using var command = connection.CreateCommand();
-        command.CommandText = "SELECT 1 FROM sqlite_master WHERE type='table' AND name='definitions' LIMIT 1;";
+        command.CommandText = "SELECT 1 FROM sqlite_master WHERE type='table' AND name IN ('definitions','Items','Maps') LIMIT 1;";
+        return command.ExecuteScalar() is not null;
+    }
+
+    private static Dictionary<Type, List<GameDefinition>> LoadAll(SqliteConnection connection)
+    {
+        var loaded = new Dictionary<Type, List<GameDefinition>>();
+        var fromTyped = false;
+        foreach (var (type, table) in Tables)
+        {
+            if (!TableExists(connection, table)) continue;
+            using var command = connection.CreateCommand();
+            command.CommandText = $"SELECT json FROM \"{table}\" ORDER BY name;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                fromTyped = true;
+                Add(loaded, type, reader.GetString(0));
+            }
+        }
+
+        if (fromTyped || !TableExists(connection, "definitions")) return loaded;
+
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT type, json FROM definitions ORDER BY type, name;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var typeName = reader.GetString(0);
+                if (!DefinitionTypes.TryGetValue(typeName, out var type))
+                    throw new InvalidDataException($"Tipo de Definition desconocido en game.db: {typeName}.");
+                Add(loaded, type, reader.GetString(1));
+            }
+        }
+
+        return loaded;
+    }
+
+    private static void Add(Dictionary<Type, List<GameDefinition>> loaded, Type type, string json)
+    {
+        var definition = JsonSerializer.Deserialize(json, type, ContentPackage.JsonOptions) as GameDefinition
+            ?? throw new InvalidDataException($"No se pudo leer {type.Name} desde game.db.");
+        if (!loaded.TryGetValue(type, out var list))
+        {
+            list = [];
+            loaded[type] = list;
+        }
+
+        if (list.Any(existing => existing.Id == definition.Id)) return;
+        list.Add(definition);
+    }
+
+    private static bool TableExists(SqliteConnection connection, string name)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT 1 FROM sqlite_master WHERE type='table' AND name=$name LIMIT 1;";
+        command.Parameters.AddWithValue("$name", name);
         return command.ExecuteScalar() is not null;
     }
 

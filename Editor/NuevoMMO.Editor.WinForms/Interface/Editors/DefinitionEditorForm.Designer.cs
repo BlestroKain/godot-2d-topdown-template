@@ -192,6 +192,7 @@ partial class DefinitionEditorForm
         {
             AutoSize = true,
             Dock = DockStyle.Fill,
+            ForeColor = EditorTheme.Text,
             Padding = new Padding(0, 7, 0, 0),
             Text = label,
             TextAlign = ContentAlignment.TopLeft
@@ -217,6 +218,7 @@ partial class DefinitionEditorForm
         {
             AutoSize = true,
             Dock = DockStyle.Fill,
+            ForeColor = EditorTheme.Text,
             Padding = new Padding(0, 7, 0, 0),
             Text = label,
             TextAlign = ContentAlignment.TopLeft

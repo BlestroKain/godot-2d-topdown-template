@@ -83,8 +83,12 @@ public sealed partial class MainForm : Form
         mapDocument.EditorNotice += SetStatus;
 
         WireDesignerEvents();
-
-        Load += (_, _) => InitializeDockLayout();
+        EditorTheme.ApplyWindow(this);
+        Load += (_, _) =>
+        {
+            InitializeDockLayout();
+            EditorTheme.ApplyWindow(this);
+        };
         FormClosing += OnFormClosing;
     }
 
@@ -214,13 +218,13 @@ public sealed partial class MainForm : Form
             var validation = ValidateProject(showMessage: false);
             if (validation.Count > 0)
             {
-                MessageBox.Show(
+                var proceed = MessageBox.Show(
                     this,
-                    "El proyecto contiene errores. Revise el panel Problemas antes de guardar.",
-                    "Contenido inválido",
-                    MessageBoxButtons.OK,
+                    "El proyecto contiene problemas. ¿Guardar game.db de todos modos?",
+                    "Contenido con avisos",
+                    MessageBoxButtons.YesNo,
                     MessageBoxIcon.Warning);
-                return;
+                if (proceed != DialogResult.Yes) return;
             }
 
             string? path = saveAs ? null : application.Content.CurrentPath;
@@ -292,6 +296,8 @@ public sealed partial class MainForm : Form
     {
         if (application.Maps.Document is null) return;
         mapDocument.SaveMap();
+        var map = application.Maps.Document.ToDefinition();
+        application.Content.Persist(map);
         contentExplorer.RefreshTree();
         RefreshMapLayers();
     }

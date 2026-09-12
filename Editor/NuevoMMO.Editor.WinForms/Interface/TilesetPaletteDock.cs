@@ -17,6 +17,7 @@ public sealed partial class TilesetPaletteDock : DockContent
     public TilesetPaletteDock()
     {
         InitializeComponent();
+        EditorTheme.ApplyWindow(this);
         autotile.DataSource = Enum.GetValues<MapAutotileMode>();
         tilesets.SelectedIndexChanged += (_, _) => SelectTileset();
         autotile.SelectedIndexChanged += (_, _) =>

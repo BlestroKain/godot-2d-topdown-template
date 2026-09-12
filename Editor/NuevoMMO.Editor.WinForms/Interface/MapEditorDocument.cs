@@ -26,6 +26,7 @@ public sealed partial class MapEditorDocument : DockContent
     public MapEditorDocument()
     {
         InitializeComponent();
+        EditorTheme.ApplyWindow(this);
         viewport.TabStop = true;
         viewport.WorldClicked += OnWorldClicked;
         viewport.WorldDragged += OnWorldDragged;

@@ -3,7 +3,7 @@ namespace NuevoMMO.Editor;
 public sealed class EditorConfiguration
 {
     public EditorMode Mode { get; init; } = EditorMode.Offline;
-    public string ContentPath { get; init; } = "gamedata";
+    public string ContentPath { get; init; } = "Data/game.db";
 
     /// <summary>
     /// Ruta relativa o absoluta a los recursos visuales del cliente. El Editor la resuelve

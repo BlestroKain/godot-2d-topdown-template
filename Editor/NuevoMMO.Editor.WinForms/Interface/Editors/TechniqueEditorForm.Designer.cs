@@ -19,6 +19,8 @@ partial class TechniqueEditorForm
     private NumericUpDown castNumeric = null!;
     private NumericUpDown cooldownNumeric = null!;
     private TextBox cooldownGroupTextBox = null!;
+    private NumericUpDown manaCostNumeric = null!;
+    private TextBox actionsTextBox = null!;
 
     protected override void Dispose(bool disposing)
     {
@@ -39,6 +41,8 @@ partial class TechniqueEditorForm
         castNumeric = new NumericUpDown { Maximum = 600_000, Increment = 50 };
         cooldownNumeric = new NumericUpDown { Maximum = 600_000, Increment = 50 };
         cooldownGroupTextBox = new TextBox();
+        manaCostNumeric = new NumericUpDown { Maximum = 100000 };
+        actionsTextBox = new TextBox { AcceptsReturn = true, Multiline = true, ScrollBars = ScrollBars.Vertical };
         SuspendLayout();
         Name = "TechniqueEditorForm";
         Text = "Técnicas / Spells";
@@ -55,6 +59,8 @@ partial class TechniqueEditorForm
         AddSpecificRow(7, "Casteo ms", castNumeric);
         AddSpecificRow(8, "Cooldown ms", cooldownNumeric);
         AddSpecificRow(9, "Grupo cooldown", cooldownGroupTextBox);
+        AddSpecificRow(10, "Coste PM", manaCostNumeric);
+        AddSpecificRow(11, "Acciones (Kind, Amount, Element, Moment)", actionsTextBox, 90);
         ResumeLayout(false);
     }
 }

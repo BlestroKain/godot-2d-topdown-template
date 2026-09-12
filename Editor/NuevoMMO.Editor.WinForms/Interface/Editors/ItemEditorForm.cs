@@ -37,6 +37,9 @@ public partial class ItemEditorForm : DefinitionEditorForm
         SelectEnum(weaponFamilyCombo, item.Equipment?.WeaponFamily ?? WeaponFamily.None);
         twoHandedCheck.Checked = item.Equipment?.TwoHanded == true;
         SetNumeric(durabilityNumeric, item.Equipment?.MaxDurability ?? 0);
+        SetNumeric(restoreHealthNumeric, (decimal)(item.Consumable?.FlatVitals.GetValueOrDefault(VitalId.Health) ?? 0));
+        SetNumeric(restoreManaNumeric, (decimal)(item.Consumable?.FlatVitals.GetValueOrDefault(VitalId.Mana) ?? 0));
+        SetNumeric(strengthNumeric, (decimal)(item.Equipment?.FlatStats.GetValueOrDefault(StatId.Strength) ?? 0));
         UpdateEquipmentEnabled();
     }
 
@@ -65,14 +68,29 @@ public partial class ItemEditorForm : DefinitionEditorForm
             if (slot == EquipmentSlot.None)
                 throw new InvalidOperationException("Un objeto de equipo requiere slot.");
             var durability = durabilityNumeric.Value > 0 ? (int?)durabilityNumeric.Value : null;
+            var stats = new Dictionary<StatId, float>(item.Equipment?.FlatStats ?? []);
+            if (strengthNumeric.Value != 0) stats[StatId.Strength] = (float)strengthNumeric.Value;
+            else stats.Remove(StatId.Strength);
             equipment = new ItemEquipmentDefinition(
                 slot,
                 ReadEnum(weaponFamilyCombo, WeaponFamily.None),
                 twoHandedCheck.Checked,
                 durability,
-                item.Equipment?.FlatStats,
+                stats.Count == 0 ? null : stats,
                 item.Equipment?.PercentStats,
                 item.Equipment?.CombatModifiers);
+        }
+
+        ItemConsumableDefinition? consumable = item.Consumable;
+        if (kind == ItemKind.Consumable || restoreHealthNumeric.Value > 0 || restoreManaNumeric.Value > 0)
+        {
+            var vitals = new Dictionary<VitalId, float>(item.Consumable?.FlatVitals ?? []);
+            if (restoreHealthNumeric.Value > 0) vitals[VitalId.Health] = (float)restoreHealthNumeric.Value;
+            else vitals.Remove(VitalId.Health);
+            if (restoreManaNumeric.Value > 0) vitals[VitalId.Mana] = (float)restoreManaNumeric.Value;
+            else vitals.Remove(VitalId.Mana);
+            consumable = new ItemConsumableDefinition(vitals, item.Consumable?.PercentVitals, item.Consumable?.VitalRegeneration,
+                item.Consumable?.EffectIds, item.Consumable?.Parameters);
         }
 
         return new ItemDefinition(
@@ -90,7 +108,7 @@ public partial class ItemEditorForm : DefinitionEditorForm
             (long)groundDespawnNumeric.Value,
             item.Metadata,
             item.Combat,
-            item.Consumable,
+            consumable,
             item.Requirements,
             (float)dropChanceNumeric.Value,
             item.ToolKey,

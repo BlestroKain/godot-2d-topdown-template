@@ -10,6 +10,7 @@ public sealed partial class ProblemsDock : DockContent
     public ProblemsDock()
     {
         InitializeComponent();
+        EditorTheme.ApplyWindow(this);
     }
 
     public void SetProblems(IEnumerable<string> problems)

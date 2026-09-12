@@ -26,6 +26,9 @@ partial class ItemEditorForm
     private ComboBox weaponFamilyCombo = null!;
     private CheckBox twoHandedCheck = null!;
     private NumericUpDown durabilityNumeric = null!;
+    private NumericUpDown restoreHealthNumeric = null!;
+    private NumericUpDown restoreManaNumeric = null!;
+    private NumericUpDown strengthNumeric = null!;
 
     protected override void Dispose(bool disposing)
     {
@@ -53,6 +56,9 @@ partial class ItemEditorForm
         weaponFamilyCombo = new ComboBox();
         twoHandedCheck = new CheckBox { AutoSize = true, Text = "A dos manos" };
         durabilityNumeric = new NumericUpDown { Maximum = 100000 };
+        restoreHealthNumeric = new NumericUpDown { Maximum = 100000 };
+        restoreManaNumeric = new NumericUpDown { Maximum = 100000 };
+        strengthNumeric = new NumericUpDown { Minimum = -1000, Maximum = 1000 };
 
         SuspendLayout();
         Name = "ItemEditorForm";
@@ -80,6 +86,9 @@ partial class ItemEditorForm
         AddSpecificRow(14, "Familia arma", weaponFamilyCombo);
         AddSpecificRow(15, "Dos manos", twoHandedCheck);
         AddSpecificRow(16, "Durabilidad máx", durabilityNumeric);
+        AddSpecificRow(17, "Restaura HP", restoreHealthNumeric);
+        AddSpecificRow(18, "Restaura PM", restoreManaNumeric);
+        AddSpecificRow(19, "STR equipo", strengthNumeric);
         ResumeLayout(false);
     }
 }

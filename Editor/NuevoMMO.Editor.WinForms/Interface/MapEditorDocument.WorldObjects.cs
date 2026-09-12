@@ -232,7 +232,7 @@ public sealed partial class MapEditorDocument
             () =>
             {
                 if (!editor.Definitions.Contains(evt.Id)) editor.Definitions.Register(evt);
-                editor.Dirty.Mark();
+                editor.Content.Persist(evt);
             },
             () =>
             {

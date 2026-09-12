@@ -38,6 +38,7 @@ public sealed partial class MapToolsDock : DockContent
     public MapToolsDock()
     {
         InitializeComponent();
+        EditorTheme.ApplyWindow(this);
         BuildDefinitionPicker();
 
         tools.Items.AddRange(Enum.GetNames<MapEditorTool>());

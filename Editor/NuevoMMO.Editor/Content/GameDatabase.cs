@@ -5,34 +5,38 @@ using NuevoMMO.Core;
 namespace NuevoMMO.Editor;
 
 /// <summary>
-/// Persistencia de GameData en SQLite (game.db). El Editor y el servidor cargan Definitions
-/// a RAM; este archivo es la fuente de verdad, no un JSON suelto.
+/// Persistencia de GameData en SQLite (game.db), al patrón Intersect/Broken Reborn:
+/// una tabla por tipo de contenido (Items, Maps, Events…) con identidad en columnas
+/// y el grafo anidado en JSON. El Editor y el servidor cargan a RAM; no hay SQL por tick.
 /// </summary>
 public static class GameDatabase
 {
     public const string FileFilter = "NuevoMMO GameData (*.db)|*.db|Todos los archivos (*.*)|*.*";
     public const string DefaultFileName = "game.db";
 
-    private static readonly Dictionary<string, Type> DefinitionTypes = new(StringComparer.OrdinalIgnoreCase)
+    internal static readonly Dictionary<Type, string> Tables = new()
     {
-        [nameof(MapDefinition)] = typeof(MapDefinition),
-        [nameof(MobDefinition)] = typeof(MobDefinition),
-        [nameof(ItemDefinition)] = typeof(ItemDefinition),
-        [nameof(EffectDefinition)] = typeof(EffectDefinition),
-        [nameof(TechniqueDefinition)] = typeof(TechniqueDefinition),
-        [nameof(NpcDefinition)] = typeof(NpcDefinition),
-        [nameof(ResourceDefinition)] = typeof(ResourceDefinition),
-        [nameof(TraditionDefinition)] = typeof(TraditionDefinition),
-        [nameof(ProfessionDefinition)] = typeof(ProfessionDefinition),
-        [nameof(RecipeDefinition)] = typeof(RecipeDefinition),
-        [nameof(LootTableDefinition)] = typeof(LootTableDefinition),
-        [nameof(SpawnTableDefinition)] = typeof(SpawnTableDefinition),
-        [nameof(DungeonDefinition)] = typeof(DungeonDefinition),
-        [nameof(QuestDefinition)] = typeof(QuestDefinition),
-        [nameof(ItemPropertyDefinition)] = typeof(ItemPropertyDefinition),
-        [nameof(EventDefinition)] = typeof(EventDefinition),
-        [nameof(TilesetDefinition)] = typeof(TilesetDefinition)
+        [typeof(MapDefinition)] = "Maps",
+        [typeof(MobDefinition)] = "Mobs",
+        [typeof(ItemDefinition)] = "Items",
+        [typeof(EffectDefinition)] = "Effects",
+        [typeof(TechniqueDefinition)] = "Techniques",
+        [typeof(NpcDefinition)] = "Npcs",
+        [typeof(ResourceDefinition)] = "Resources",
+        [typeof(TraditionDefinition)] = "Traditions",
+        [typeof(ProfessionDefinition)] = "Professions",
+        [typeof(RecipeDefinition)] = "Recipes",
+        [typeof(LootTableDefinition)] = "LootTables",
+        [typeof(SpawnTableDefinition)] = "SpawnTables",
+        [typeof(DungeonDefinition)] = "Dungeons",
+        [typeof(QuestDefinition)] = "Quests",
+        [typeof(ItemPropertyDefinition)] = "ItemProperties",
+        [typeof(EventDefinition)] = "Events",
+        [typeof(TilesetDefinition)] = "Tilesets"
     };
+
+    private static readonly Dictionary<string, Type> DefinitionTypes =
+        Tables.ToDictionary(static pair => pair.Key.Name, static pair => pair.Key, StringComparer.OrdinalIgnoreCase);
 
     public static bool IsDatabasePath(string path)
         => Path.GetExtension(path).Equals(".db", StringComparison.OrdinalIgnoreCase);
@@ -50,29 +54,7 @@ public static class GameDatabase
         var formatText = ReadMeta(connection, "format_version");
         var formatVersion = int.TryParse(formatText, out var parsed) ? parsed : ContentPackage.CurrentFormatVersion;
 
-        var loaded = new Dictionary<Type, List<GameDefinition>>();
-        using (var command = connection.CreateCommand())
-        {
-            command.CommandText = "SELECT type, json FROM definitions ORDER BY type, name;";
-            using var reader = command.ExecuteReader();
-            while (reader.Read())
-            {
-                var typeName = reader.GetString(0);
-                var json = reader.GetString(1);
-                if (!DefinitionTypes.TryGetValue(typeName, out var type))
-                    throw new InvalidDataException($"Tipo de Definition desconocido en game.db: {typeName}.");
-
-                var definition = JsonSerializer.Deserialize(json, type, ContentPackage.JsonOptions) as GameDefinition
-                    ?? throw new InvalidDataException($"No se pudo leer {typeName} desde game.db.");
-                if (!loaded.TryGetValue(type, out var list))
-                {
-                    list = [];
-                    loaded[type] = list;
-                }
-
-                list.Add(definition);
-            }
-        }
+        var loaded = LoadAll(connection);
 
         return new ContentPackage(
             formatVersion,
@@ -124,27 +106,32 @@ public static class GameDatabase
         WriteMeta(connection, transaction, "format_version", package.FormatVersion.ToString());
         WriteMeta(connection, transaction, "package_version", package.PackageVersion);
 
-        using (var insert = connection.CreateCommand())
+        foreach (var table in Tables.Values)
         {
-            insert.Transaction = transaction;
-            insert.CommandText = "INSERT INTO definitions(id, type, key, name, json) VALUES ($id, $type, $key, $name, $json);";
-            var id = insert.CreateParameter(); id.ParameterName = "$id"; insert.Parameters.Add(id);
-            var type = insert.CreateParameter(); type.ParameterName = "$type"; insert.Parameters.Add(type);
-            var key = insert.CreateParameter(); key.ParameterName = "$key"; insert.Parameters.Add(key);
-            var name = insert.CreateParameter(); name.ParameterName = "$name"; insert.Parameters.Add(name);
-            var json = insert.CreateParameter(); json.ParameterName = "$json"; insert.Parameters.Add(json);
-
-            foreach (var definition in package.All())
-            {
-                id.Value = definition.Id.ToString();
-                type.Value = definition.GetType().Name;
-                key.Value = definition.Key.Value;
-                name.Value = definition.Name;
-                json.Value = JsonSerializer.Serialize(definition, definition.GetType(), ContentPackage.JsonOptions);
-                insert.ExecuteNonQuery();
-            }
+            using var clearType = connection.CreateCommand();
+            clearType.Transaction = transaction;
+            clearType.CommandText = $"DELETE FROM \"{table}\";";
+            clearType.ExecuteNonQuery();
         }
 
+        foreach (var definition in package.All())
+            Insert(connection, transaction, definition);
+
+        transaction.Commit();
+    }
+
+    /// <summary>Guarda una sola definición, como el Save de un FrmItem de Intersect.</summary>
+    public static void Upsert(string path, GameDefinition definition)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentNullException.ThrowIfNull(definition);
+        var fullPath = Path.GetFullPath(path);
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath) ?? Directory.GetCurrentDirectory());
+        using var connection = Open(fullPath, create: true);
+        EnsureSchema(connection);
+        using var transaction = connection.BeginTransaction();
+        Delete(connection, transaction, definition);
+        Insert(connection, transaction, definition);
         transaction.Commit();
     }
 
@@ -181,6 +168,128 @@ public static class GameDatabase
             CREATE INDEX IF NOT EXISTS ix_definitions_type ON definitions(type);
             """;
         command.ExecuteNonQuery();
+
+        foreach (var table in Tables.Values)
+        {
+            using var typed = connection.CreateCommand();
+            typed.CommandText = $"""
+                CREATE TABLE IF NOT EXISTS "{table}" (
+                    id TEXT PRIMARY KEY,
+                    key TEXT NOT NULL UNIQUE,
+                    name TEXT NOT NULL,
+                    enabled INTEGER NOT NULL DEFAULT 1,
+                    version INTEGER NOT NULL DEFAULT 1,
+                    json TEXT NOT NULL
+                );
+                """;
+            typed.ExecuteNonQuery();
+        }
+    }
+
+    private static Dictionary<Type, List<GameDefinition>> LoadAll(SqliteConnection connection)
+    {
+        var loaded = new Dictionary<Type, List<GameDefinition>>();
+        var fromTyped = false;
+        foreach (var (type, table) in Tables)
+        {
+            if (!TableExists(connection, table)) continue;
+            using var command = connection.CreateCommand();
+            command.CommandText = $"SELECT json FROM \"{table}\" ORDER BY name;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                fromTyped = true;
+                Add(loaded, type, reader.GetString(0));
+            }
+        }
+
+        if (fromTyped || !TableExists(connection, "definitions")) return loaded;
+
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT type, json FROM definitions ORDER BY type, name;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var typeName = reader.GetString(0);
+                if (!DefinitionTypes.TryGetValue(typeName, out var type))
+                    throw new InvalidDataException($"Tipo de Definition desconocido en game.db: {typeName}.");
+                Add(loaded, type, reader.GetString(1));
+            }
+        }
+
+        return loaded;
+    }
+
+    private static void Add(Dictionary<Type, List<GameDefinition>> loaded, Type type, string json)
+    {
+        var definition = JsonSerializer.Deserialize(json, type, ContentPackage.JsonOptions) as GameDefinition
+            ?? throw new InvalidDataException($"No se pudo leer {type.Name} desde game.db.");
+        if (!loaded.TryGetValue(type, out var list))
+        {
+            list = [];
+            loaded[type] = list;
+        }
+
+        if (list.Any(existing => existing.Id == definition.Id)) return;
+        list.Add(definition);
+    }
+
+    private static void Insert(SqliteConnection connection, SqliteTransaction transaction, GameDefinition definition)
+    {
+        var json = JsonSerializer.Serialize(definition, definition.GetType(), ContentPackage.JsonOptions);
+        using (var legacy = connection.CreateCommand())
+        {
+            legacy.Transaction = transaction;
+            legacy.CommandText = "INSERT INTO definitions(id, type, key, name, json) VALUES ($id, $type, $key, $name, $json);";
+            legacy.Parameters.AddWithValue("$id", definition.Id.ToString());
+            legacy.Parameters.AddWithValue("$type", definition.GetType().Name);
+            legacy.Parameters.AddWithValue("$key", definition.Key.Value);
+            legacy.Parameters.AddWithValue("$name", definition.Name);
+            legacy.Parameters.AddWithValue("$json", json);
+            legacy.ExecuteNonQuery();
+        }
+
+        if (!Tables.TryGetValue(definition.GetType(), out var table)) return;
+        using var typed = connection.CreateCommand();
+        typed.Transaction = transaction;
+        typed.CommandText = $"""
+            INSERT INTO "{table}"(id, key, name, enabled, version, json)
+            VALUES ($id, $key, $name, $enabled, $version, $json);
+            """;
+        typed.Parameters.AddWithValue("$id", definition.Id.ToString());
+        typed.Parameters.AddWithValue("$key", definition.Key.Value);
+        typed.Parameters.AddWithValue("$name", definition.Name);
+        typed.Parameters.AddWithValue("$enabled", definition.Enabled ? 1 : 0);
+        typed.Parameters.AddWithValue("$version", definition.Version);
+        typed.Parameters.AddWithValue("$json", json);
+        typed.ExecuteNonQuery();
+    }
+
+    private static void Delete(SqliteConnection connection, SqliteTransaction transaction, GameDefinition definition)
+    {
+        using (var legacy = connection.CreateCommand())
+        {
+            legacy.Transaction = transaction;
+            legacy.CommandText = "DELETE FROM definitions WHERE id = $id;";
+            legacy.Parameters.AddWithValue("$id", definition.Id.ToString());
+            legacy.ExecuteNonQuery();
+        }
+
+        if (!Tables.TryGetValue(definition.GetType(), out var table)) return;
+        using var typed = connection.CreateCommand();
+        typed.Transaction = transaction;
+        typed.CommandText = $"DELETE FROM \"{table}\" WHERE id = $id;";
+        typed.Parameters.AddWithValue("$id", definition.Id.ToString());
+        typed.ExecuteNonQuery();
+    }
+
+    private static bool TableExists(SqliteConnection connection, string name)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT 1 FROM sqlite_master WHERE type='table' AND name=$name LIMIT 1;";
+        command.Parameters.AddWithValue("$name", name);
+        return command.ExecuteScalar() is not null;
     }
 
     private static string? ReadMeta(SqliteConnection connection, string key)

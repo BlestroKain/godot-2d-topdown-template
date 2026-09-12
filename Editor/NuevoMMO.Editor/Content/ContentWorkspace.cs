@@ -65,6 +65,18 @@ public sealed class ContentWorkspace
         return package;
     }
 
+    /// <summary>
+    /// Persistencia inmediata de un objeto, como el Save de Intersect (escribe esa fila en game.db).
+    /// Si todavía no hay archivo, solo marca Dirty y espera Archivo → Guardar.
+    /// </summary>
+    public void Persist(GameDefinition definition)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        dirty.Mark();
+        if (string.IsNullOrWhiteSpace(CurrentPath)) return;
+        GameDatabase.Upsert(CurrentPath, definition);
+    }
+
     public void SetPackageVersion(string version)
     {
         if (string.IsNullOrWhiteSpace(version)) throw new ArgumentException("PackageVersion requerido.", nameof(version));

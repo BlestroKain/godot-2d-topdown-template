@@ -31,6 +31,7 @@ public partial class DefinitionEditorForm : DockContent
         if (application is null || descriptor is null) return;
         Text = descriptor.Title;
         TabText = descriptor.Title;
+        EditorTheme.ApplyWindow(this);
         RefreshDefinitions();
     }
 
@@ -147,7 +148,7 @@ public partial class DefinitionEditorForm : DockContent
         {
             var definition = descriptor.Create(application);
             application.Definitions.Register(definition);
-            application.Dirty.Mark();
+            application.Content.Persist(definition);
             RefreshDefinitions(definition.Id);
             ContentChanged?.Invoke(definition);
             editorStatusLabel.Text = $"Creado: {definition.Name}. Complete sus datos y guarde.";
@@ -170,7 +171,7 @@ public partial class DefinitionEditorForm : DockContent
             node["name"] = $"{selectedDefinition.Name} (copia)";
             var duplicate = DeserializeNode(node);
             application.Definitions.Register(duplicate);
-            application.Dirty.Mark();
+            application.Content.Persist(duplicate);
             RefreshDefinitions(duplicate.Id);
             ContentChanged?.Invoke(duplicate);
             editorStatusLabel.Text = $"Duplicado: {duplicate.Name}.";
@@ -223,11 +224,13 @@ public partial class DefinitionEditorForm : DockContent
                 throw new InvalidOperationException("El ID de una definición existente no puede cambiarse.");
 
             application.Definitions.Replace(replacement);
-            application.Dirty.Mark();
+            application.Content.Persist(replacement);
             selectedDefinition = replacement;
             RefreshDefinitions(replacement.Id);
             ContentChanged?.Invoke(replacement);
-            editorStatusLabel.Text = $"Guardado en el proyecto: {replacement.Name}.";
+            editorStatusLabel.Text = application.Content.CurrentPath is null
+                ? $"En memoria: {replacement.Name}. Use Archivo → Guardar para crear game.db."
+                : $"Guardado en game.db: {replacement.Name}.";
         }
         catch (Exception exception)
         {

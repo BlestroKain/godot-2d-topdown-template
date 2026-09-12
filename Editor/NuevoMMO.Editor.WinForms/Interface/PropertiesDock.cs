@@ -10,6 +10,7 @@ public sealed partial class PropertiesDock : DockContent
     public PropertiesDock()
     {
         InitializeComponent();
+        EditorTheme.ApplyWindow(this);
     }
 
     public object? SelectedObject

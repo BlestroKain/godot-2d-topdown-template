@@ -29,6 +29,7 @@ public sealed partial class ContentExplorerDock : DockContent
         : this()
     {
         this.application = application ?? throw new ArgumentNullException(nameof(application));
+        EditorTheme.ApplyWindow(this);
         RefreshTree();
     }
 
