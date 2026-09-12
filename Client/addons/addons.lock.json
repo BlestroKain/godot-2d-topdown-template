@@ -20,7 +20,8 @@
       "license": "MIT",
       "mode": "client-projection-only",
       "localPatches": [
-        "ctrl_inventory_grid.gd: align inventory_item_clicked signature with emitted arguments"
+        "ctrl_inventory_grid.gd: align inventory_item_clicked signature with emitted arguments",
+        "images/icon_item.svg: restore icon path referenced by InventoryItem in this upstream revision"
       ]
     },
     {
