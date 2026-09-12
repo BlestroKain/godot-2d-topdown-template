@@ -1,27 +1,38 @@
 using System.ComponentModel;
 using System.Drawing;
-using System.Drawing.Drawing2D;
 using NuevoMMO.Core;
 using WeifenLuo.WinFormsUI.Docking;
 
 namespace NuevoMMO.Editor;
 
 /// <summary>
-/// Cuadrícula mundial de mapas. Celdas ocupadas se abren; las vacías adyacentes crean un mapa vecino.
+/// Explorador de mundo al estilo de un editor MMO clásico. Mantiene la topología en
+/// coordenadas del modelo, pero presenta los mapas como un árbol compacto para no
+/// desperdiciar espacio de edición con una cuadrícula de navegación permanente.
 /// </summary>
 [DesignerCategory("Form")]
 public sealed class MapGridDock : DockContent
 {
     private readonly EditorApplication application;
-    private readonly GridSurface surface = new();
-    private readonly Panel scroller = new() { AutoScroll = true, Dock = DockStyle.Fill };
-    private readonly Label hint = new()
+    private readonly TreeView worldTree = new()
+    {
+        Dock = DockStyle.Fill,
+        BorderStyle = BorderStyle.None,
+        FullRowSelect = true,
+        HideSelection = false,
+        HotTracking = true,
+        ShowLines = true,
+        ShowNodeToolTips = true
+    };
+    private readonly ToolStrip worldToolbar = new()
     {
         Dock = DockStyle.Top,
-        Height = 28,
-        Padding = new Padding(8, 6, 8, 0),
-        Text = "Clic en un mapa para abrirlo. Clic en + para crear un mapa vecino."
+        GripStyle = ToolStripGripStyle.Hidden,
+        Padding = new Padding(2, 1, 2, 1)
     };
+    private readonly ToolStripButton refreshButton = new("Recargar") { DisplayStyle = ToolStripItemDisplayStyle.Text };
+    private readonly ToolStripButton openButton = new("Abrir") { DisplayStyle = ToolStripItemDisplayStyle.Text };
+    private readonly ContextMenuStrip mapMenu = new();
 
     public MapGridDock(EditorApplication application)
     {
@@ -29,118 +40,166 @@ public sealed class MapGridDock : DockContent
         Text = "Mundo";
         TabText = "Mundo";
         HideOnClose = true;
-        ShowHint = DockState.DockLeft;
-        ClientSize = new Size(280, 420);
+        ShowHint = DockState.DockRight;
+        ClientSize = new Size(270, 480);
 
-        scroller.BackColor = Color.FromArgb(24, 26, 30);
-        scroller.Controls.Add(surface);
-        Controls.Add(scroller);
-        Controls.Add(hint);
-        EditorTheme.ApplyWindow(this);
+        worldToolbar.Items.AddRange([refreshButton, openButton]);
+        Controls.Add(worldTree);
+        Controls.Add(worldToolbar);
 
-        surface.CellActivated += cell =>
+        refreshButton.Click += (_, _) => RefreshGrid();
+        openButton.Click += (_, _) => ActivateSelected();
+        worldTree.NodeMouseDoubleClick += (_, e) => ActivateNode(e.Node);
+        worldTree.KeyDown += (_, e) =>
         {
-            var map = MapWorldGrid.At(this.application.Definitions, cell.X, cell.Y);
-            if (map is not null)
-            {
-                MapActivated?.Invoke(map);
-                return;
-            }
-
-            if (!MapWorldGrid.CanCreate(this.application.Definitions, cell.X, cell.Y)) return;
-            CreateRequested?.Invoke(cell.X, cell.Y);
+            if (e.KeyCode != Keys.Enter) return;
+            ActivateSelected();
+            e.Handled = true;
         };
+        worldTree.AfterSelect += (_, e) =>
+        {
+            if (e.Node.Tag is MapDefinition map)
+                MapSelected?.Invoke(map);
+        };
+        worldTree.NodeMouseClick += OnNodeMouseClick;
 
+        BuildContextMenu();
+        EditorTheme.ApplyWindow(this);
         RefreshGrid();
     }
 
     public event Action<MapDefinition>? MapActivated;
+    public event Action<MapDefinition>? MapSelected;
     public event Action<int, int>? CreateRequested;
 
     public void RefreshGrid()
     {
-        var bounds = MapWorldGrid.VisibleBounds(application.Definitions);
-        var occupied = application.Definitions.GetAll<MapDefinition>()
-            .ToDictionary(map => (map.GridX, map.GridY));
-        surface.Bind(bounds, occupied, application.Maps.Document?.Id);
-        var width = (bounds.MaxX - bounds.MinX + 1) * GridSurface.CellSize + 16;
-        var height = (bounds.MaxY - bounds.MinY + 1) * GridSurface.CellSize + 16;
-        surface.Size = new Size(Math.Max(width, scroller.ClientSize.Width), Math.Max(height, scroller.ClientSize.Height));
-        surface.Invalidate();
+        var maps = application.Definitions.GetAll<MapDefinition>()
+            .OrderBy(static map => map.GridY)
+            .ThenBy(static map => map.GridX)
+            .ThenBy(static map => map.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var activeId = application.Maps.Document?.Id;
+
+        worldTree.BeginUpdate();
+        worldTree.Nodes.Clear();
+
+        var root = new TreeNode("Mundo")
+        {
+            Name = "world-root",
+            ToolTipText = $"{maps.Length} mapa(s)"
+        };
+        var mapsFolder = new TreeNode("Mapas")
+        {
+            Name = "maps-root",
+            ToolTipText = "Mapas del mundo"
+        };
+        root.Nodes.Add(mapsFolder);
+
+        foreach (var map in maps)
+        {
+            var node = new TreeNode(map.Name)
+            {
+                Name = map.Id.ToString(),
+                Tag = map,
+                ToolTipText = $"{map.Name} · ({map.GridX},{map.GridY})"
+            };
+            if (map.Id == activeId)
+            {
+                node.BackColor = EditorTheme.Accent;
+                node.ForeColor = Color.White;
+                worldTree.SelectedNode = node;
+            }
+            mapsFolder.Nodes.Add(node);
+        }
+
+        worldTree.Nodes.Add(root);
+        root.Expand();
+        mapsFolder.Expand();
+        worldTree.EndUpdate();
+
+        openButton.Enabled = worldTree.SelectedNode?.Tag is MapDefinition;
     }
 
-    [DesignerCategory("Code")]
-    private sealed class GridSurface : Control
+    private void BuildContextMenu()
     {
-        public const int CellSize = 88;
-        private (int MinX, int MinY, int MaxX, int MaxY) bounds;
-        private Dictionary<(int X, int Y), MapDefinition> occupied = [];
-        private DefinitionId? activeId;
+        var open = new ToolStripMenuItem("Abrir mapa");
+        var properties = new ToolStripMenuItem("Propiedades");
+        var createNorth = new ToolStripMenuItem("Nuevo mapa al norte");
+        var createSouth = new ToolStripMenuItem("Nuevo mapa al sur");
+        var createWest = new ToolStripMenuItem("Nuevo mapa al oeste");
+        var createEast = new ToolStripMenuItem("Nuevo mapa al este");
+        var createInitial = new ToolStripMenuItem("Crear mapa inicial");
 
-        public GridSurface()
+        open.Click += (_, _) => ActivateSelected();
+        properties.Click += (_, _) =>
         {
-            DoubleBuffered = true;
-            BackColor = Color.FromArgb(24, 26, 30);
-            MouseDown += (_, e) =>
-            {
-                if (e.Button != MouseButtons.Left) return;
-                var x = bounds.MinX + e.X / CellSize;
-                var y = bounds.MinY + e.Y / CellSize;
-                if (x < bounds.MinX || y < bounds.MinY || x > bounds.MaxX || y > bounds.MaxY) return;
-                CellActivated?.Invoke(new Vector2IntData(x, y));
-            };
-        }
+            if (worldTree.SelectedNode?.Tag is MapDefinition map)
+                MapSelected?.Invoke(map);
+        };
+        createNorth.Click += (_, _) => CreateRelative(0, -1);
+        createSouth.Click += (_, _) => CreateRelative(0, 1);
+        createWest.Click += (_, _) => CreateRelative(-1, 0);
+        createEast.Click += (_, _) => CreateRelative(1, 0);
+        createInitial.Click += (_, _) => CreateRequested?.Invoke(0, 0);
 
-        public event Action<Vector2IntData>? CellActivated;
-
-        public void Bind(
-            (int MinX, int MinY, int MaxX, int MaxY) visible,
-            Dictionary<(int X, int Y), MapDefinition> maps,
-            DefinitionId? current)
+        mapMenu.Items.AddRange([
+            open,
+            properties,
+            new ToolStripSeparator(),
+            createNorth,
+            createSouth,
+            createWest,
+            createEast,
+            new ToolStripSeparator(),
+            createInitial
+        ]);
+        mapMenu.Opening += (_, _) =>
         {
-            bounds = visible;
-            occupied = maps;
-            activeId = current;
-        }
+            var selected = worldTree.SelectedNode?.Tag as MapDefinition;
+            open.Enabled = selected is not null;
+            properties.Enabled = selected is not null;
+            createNorth.Enabled = CanCreateRelative(selected, 0, -1);
+            createSouth.Enabled = CanCreateRelative(selected, 0, 1);
+            createWest.Enabled = CanCreateRelative(selected, -1, 0);
+            createEast.Enabled = CanCreateRelative(selected, 1, 0);
+            createInitial.Enabled = application.Definitions.GetAll<MapDefinition>().Count == 0;
+        };
+        EditorTheme.Apply(mapMenu);
+    }
 
-        protected override void OnPaint(PaintEventArgs e)
-        {
-            base.OnPaint(e);
-            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            using var emptyPen = new Pen(Color.FromArgb(90, 90, 90)) { DashStyle = DashStyle.Dash };
-            using var fill = new SolidBrush(Color.FromArgb(45, 58, 72));
-            using var activeFill = new SolidBrush(Color.FromArgb(0, 90, 150));
-            var font = Font;
+    private void OnNodeMouseClick(object? sender, TreeNodeMouseClickEventArgs e)
+    {
+        worldTree.SelectedNode = e.Node;
+        openButton.Enabled = e.Node.Tag is MapDefinition;
+        if (e.Button == MouseButtons.Right)
+            mapMenu.Show(worldTree, e.Location);
+    }
 
-            for (var y = bounds.MinY; y <= bounds.MaxY; y++)
-            for (var x = bounds.MinX; x <= bounds.MaxX; x++)
-            {
-                var rect = new Rectangle((x - bounds.MinX) * CellSize + 4, (y - bounds.MinY) * CellSize + 4, CellSize - 8, CellSize - 8);
-                if (occupied.TryGetValue((x, y), out var map))
-                {
-                    e.Graphics.FillRectangle(map.Id == activeId ? activeFill : fill, rect);
-                    e.Graphics.DrawRectangle(Pens.SteelBlue, rect);
-                    var name = map.Name;
-                    if (name.Length > 14) name = name[..13] + "…";
-                    TextRenderer.DrawText(
-                        e.Graphics,
-                        name,
-                        font,
-                        rect,
-                        EditorTheme.Text,
-                        TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.WordBreak);
-                }
-                else
-                {
-                    e.Graphics.DrawRectangle(emptyPen, rect);
-                    var canCreate = occupied.Count == 0
-                        ? x == 0 && y == 0
-                        : occupied.Keys.Any(cell => Math.Abs(cell.X - x) + Math.Abs(cell.Y - y) == 1);
-                    if (canCreate)
-                        TextRenderer.DrawText(e.Graphics, "+", font, rect, Color.FromArgb(160, 200, 160),
-                            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
-                }
-            }
-        }
+    private void ActivateSelected()
+    {
+        if (worldTree.SelectedNode is { } node)
+            ActivateNode(node);
+    }
+
+    private void ActivateNode(TreeNode node)
+    {
+        if (node.Tag is MapDefinition map)
+            MapActivated?.Invoke(map);
+    }
+
+    private bool CanCreateRelative(MapDefinition? map, int dx, int dy)
+    {
+        if (map is null) return false;
+        return MapWorldGrid.CanCreate(application.Definitions, map.GridX + dx, map.GridY + dy);
+    }
+
+    private void CreateRelative(int dx, int dy)
+    {
+        if (worldTree.SelectedNode?.Tag is not MapDefinition map) return;
+        var x = map.GridX + dx;
+        var y = map.GridY + dy;
+        if (!MapWorldGrid.CanCreate(application.Definitions, x, y)) return;
+        CreateRequested?.Invoke(x, y);
     }
 }
