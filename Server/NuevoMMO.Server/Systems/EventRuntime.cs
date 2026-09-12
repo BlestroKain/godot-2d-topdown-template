@@ -12,8 +12,8 @@ public sealed record EventExecutionResult(bool Success, string Message, IReadOnl
 
 /// <summary>
 /// Ejecutor autoritativo de EventDefinition. Elige la página activa por prioridad/condiciones
-/// y ejecuta directamente los comandos cuyo sistema dueño ya existe. Los módulos que todavía no
-/// tienen runtime (shops, bank, quests, etc.) se conservan explícitamente como deferred.
+/// y delega cada mutación al sistema propietario cuando existe. Los módulos aún no implementados
+/// permanecen explícitamente como deferred.
 /// </summary>
 public sealed class EventRuntime
 {
@@ -24,6 +24,7 @@ public sealed class EventRuntime
     private readonly InventorySystem? inventory;
     private readonly LootSystem? loot;
     private readonly EffectSystem? effects;
+    private readonly QuestSystem? quests;
 
     public EventRuntime(
         DefinitionRegistry definitions,
@@ -31,7 +32,8 @@ public sealed class EventRuntime
         ProgressionSystem? progression = null,
         InventorySystem? inventory = null,
         LootSystem? loot = null,
-        EffectSystem? effects = null)
+        EffectSystem? effects = null,
+        QuestSystem? quests = null)
     {
         this.definitions = definitions ?? throw new ArgumentNullException(nameof(definitions));
         this.conditions = conditions ?? new ConditionSystem();
@@ -39,6 +41,7 @@ public sealed class EventRuntime
         this.inventory = inventory;
         this.loot = loot;
         this.effects = effects;
+        this.quests = quests;
     }
 
     public EventPageDefinition? ActivePage(EventDefinition definition, Player player)
@@ -270,6 +273,60 @@ public sealed class EventRuntime
                 break;
             }
 
+            case EventCommandKind.StartQuest:
+            {
+                if (quests is null)
+                {
+                    log.Add("deferred:StartQuest");
+                    break;
+                }
+                var questId = RequiredCommandReference(command, "quest");
+                quests.Start(player, questId, Context(player));
+                log.Add($"quest_started:{questId.Value:N}");
+                break;
+            }
+
+            case EventCommandKind.AdvanceQuest:
+            {
+                if (quests is null)
+                {
+                    log.Add("deferred:AdvanceQuest");
+                    break;
+                }
+                var questId = RequiredCommandReference(command, "quest");
+                var taskId = ReadOptionalTaskId(command);
+                var amount = ReadPositiveInt(command, "amount", 1);
+                quests.Advance(player, questId, taskId, amount, Context(player));
+                log.Add($"quest_advanced:{questId.Value:N}:{amount}");
+                break;
+            }
+
+            case EventCommandKind.CompleteQuest:
+            {
+                if (quests is null)
+                {
+                    log.Add("deferred:CompleteQuest");
+                    break;
+                }
+                var questId = RequiredCommandReference(command, "quest");
+                quests.Complete(player, questId, Context(player));
+                log.Add($"quest_completed:{questId.Value:N}");
+                break;
+            }
+
+            case EventCommandKind.FailQuest:
+            {
+                if (quests is null)
+                {
+                    log.Add("deferred:FailQuest");
+                    break;
+                }
+                var questId = RequiredCommandReference(command, "quest");
+                quests.Fail(player, questId);
+                log.Add($"quest_failed:{questId.Value:N}");
+                break;
+            }
+
             case EventCommandKind.TriggerEvent:
             {
                 if (!command.References.TryGetValue("event", out var eventId) ||
@@ -291,7 +348,7 @@ public sealed class EventRuntime
 
             case EventCommandKind.Teleport:
                 // El teletransporte dentro del mapa actual ya es seguro. Cambiar de MapDefinition/instancia
-                // pertenece al bloque multi-map y se mantiene diferido hasta que WorldManager sea autoridad.
+                // pertenece al WorldRuntime y se conserva diferido hasta exponer una operación propietaria al EventRuntime.
                 if (command.References.ContainsKey("map"))
                 {
                     log.Add("deferred:Teleport");
@@ -309,10 +366,6 @@ public sealed class EventRuntime
             case EventCommandKind.MoveEntity:
             case EventCommandKind.SpawnEntity:
             case EventCommandKind.DespawnEntity:
-            case EventCommandKind.StartQuest:
-            case EventCommandKind.AdvanceQuest:
-            case EventCommandKind.CompleteQuest:
-            case EventCommandKind.FailQuest:
             case EventCommandKind.OpenShop:
             case EventCommandKind.OpenBank:
             case EventCommandKind.SetCheckpoint:
@@ -328,6 +381,19 @@ public sealed class EventRuntime
                 log.Add($"deferred:{command.Kind}");
                 break;
         }
+    }
+
+    private static DefinitionId RequiredCommandReference(EventCommandDefinition command, string key)
+        => command.References.TryGetValue(key, out var value) && !value.IsEmpty
+            ? value
+            : throw new InvalidDataException($"{command.Kind} requiere reference '{key}'.");
+
+    private static Guid? ReadOptionalTaskId(EventCommandDefinition command)
+    {
+        if (!command.Text.TryGetValue("task", out var raw) || string.IsNullOrWhiteSpace(raw)) return null;
+        return Guid.TryParse(raw, out var taskId) && taskId != Guid.Empty
+            ? taskId
+            : throw new InvalidDataException("AdvanceQuest.task debe ser un Guid válido.");
     }
 
     private static int ReadPositiveInt(EventCommandDefinition command, string key, int fallback)
