@@ -33,6 +33,7 @@ public sealed class GameSystems
         Equipment = new EquipmentSystem(definitions);
         Progression = new ProgressionSystem(levelProgression, Equipment);
         Loot = new LootSystem(definitions, lootRandom);
+        Defeats = new DefeatSystem(definitions, Progression, Loot);
         Professions = new ProfessionSystem(definitions);
         Knowledge = new KnowledgeSystem();
         Projectiles = new ProjectileSystem();
@@ -47,6 +48,7 @@ public sealed class GameSystems
             requirementsEvaluator ?? ((player, group) => Conditions.Evaluate(player, group)),
             lineOfSight);
         Events = new EventRuntime(definitions, Conditions, Progression, Inventory, Loot, Effects);
+        Combat.EntityDefeated += ResolveDefeat;
     }
 
     public DefinitionRegistry Definitions { get; }
@@ -57,6 +59,7 @@ public sealed class GameSystems
     public EquipmentSystem Equipment { get; }
     public ProgressionSystem Progression { get; }
     public LootSystem Loot { get; }
+    public DefeatSystem Defeats { get; }
     public ProfessionSystem Professions { get; }
     public KnowledgeSystem Knowledge { get; }
     public ProjectileSystem Projectiles { get; }
@@ -65,6 +68,7 @@ public sealed class GameSystems
     public AiSystem Ai { get; }
     public TechniqueSystem Techniques { get; }
     public EventRuntime Events { get; }
+    public event Action<DefeatResolution>? DefeatResolved;
 
     /// <summary>
     /// Avanza IA, efectos y casts/channels. Proyectiles y respawn de recursos continúan
@@ -123,6 +127,9 @@ public sealed class GameSystems
             }
         }
     }
+
+    private void ResolveDefeat(CombatDefeatEvent defeat)
+        => DefeatResolved?.Invoke(Defeats.Resolve(defeat));
 
     public void OnEntityRemoved(Entity entity)
     {

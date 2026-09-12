@@ -21,6 +21,17 @@ public sealed record HealingResult(
     int Applied);
 
 /// <summary>
+/// Evento autoritativo emitido exactamente una vez cuando una aplicación de daño viva->muerta
+/// derrota a una entidad. Conserva referencias runtime para que el sistema dueño de recompensas
+/// pueda resolver XP/loot sin duplicar lógica entre ataque básico, técnica, DoT, proyectil o zona.
+/// </summary>
+public sealed record CombatDefeatEvent(
+    LivingEntity? Attacker,
+    LivingEntity Target,
+    DamageResult Result,
+    long OccurredAtMilliseconds);
+
+/// <summary>
 /// Núcleo autoritativo de combate. Toda mitigación de daño termina en DamagePipeline.
 /// Targeting, alcance, LoS y relaciones son responsabilidades de los sistemas de intención/técnica/IA.
 /// </summary>
@@ -30,6 +41,7 @@ public sealed class CombatSystem
         => Telemetry = telemetry ?? new CombatTelemetry();
 
     public CombatTelemetry Telemetry { get; }
+    public event Action<CombatDefeatEvent>? EntityDefeated;
 
     public DamageResult ExecuteMobBasicAttack(
         Mob attacker,
@@ -56,8 +68,8 @@ public sealed class CombatSystem
     }
 
     /// <summary>
-    /// Ataque data-driven donde DamageType y ScalingAttribute son independientes.
-    /// Usa la fórmula canónica completa y aplica exactamente el FinalDamage calculado.
+    /// Ruta diagnóstica/data-driven usada por el harness de combate. Calcula con la fórmula canónica,
+    /// pero no despacha recompensas de derrota: el runtime de producción entra por TechniqueSystem.
     /// </summary>
     public DamageResult ExecuteAttributeDamage(
         LivingEntity attacker,
@@ -78,7 +90,8 @@ public sealed class CombatSystem
             attacker.Stats.Primary,
             Resistance(target, formula.DamageType),
             usePveResistanceCap: true);
-        return ApplyResolvedDamage(attacker, target, breakdown, formula.CriticalMultiplier > 1f, nowMilliseconds);
+        return ApplyResolvedDamage(attacker, target, breakdown, formula.CriticalMultiplier > 1f,
+            nowMilliseconds, dispatchDefeat: false);
     }
 
     /// <summary>
@@ -119,7 +132,8 @@ public sealed class CombatSystem
         LivingEntity target,
         DamageBreakdown breakdown,
         bool? critical = null,
-        long? nowMilliseconds = null)
+        long? nowMilliseconds = null,
+        bool dispatchDefeat = true)
     {
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(breakdown);
@@ -147,6 +161,8 @@ public sealed class CombatSystem
         var applied = target.TakeDamage(requested);
         var killed = wasAlive && !target.IsAlive;
 
+        if (applied > 0 && target is Player damagedPlayer) damagedPlayer.MarkDirty();
+
         if (attacker is not null && applied > 0)
         {
             attacker.EnterCombat(target.Id);
@@ -168,11 +184,15 @@ public sealed class CombatSystem
             applied,
             killed,
             breakdown);
+        var occurredAt = nowMilliseconds ?? Environment.TickCount64;
         if (target is Mob targetMob &&
             targetMob.Combat.Parameters.GetValueOrDefault("track_damage_telemetry") > 0)
         {
-            Telemetry.Record(target.Id, result, nowMilliseconds ?? Environment.TickCount64);
+            Telemetry.Record(target.Id, result, occurredAt);
         }
+
+        if (killed && dispatchDefeat)
+            EntityDefeated?.Invoke(new CombatDefeatEvent(attacker, target, result, occurredAt));
         return result;
     }
 
@@ -183,6 +203,7 @@ public sealed class CombatSystem
         if (source is not null && source.MapInstanceId != target.MapInstanceId)
             throw new InvalidOperationException("Fuente y objetivo no están en la misma instancia.");
         var applied = target.Heal(amount);
+        if (applied > 0 && target is Player healedPlayer) healedPlayer.MarkDirty();
         return new HealingResult(source?.Id, target.Id, amount, applied);
     }
 

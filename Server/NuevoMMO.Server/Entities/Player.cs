@@ -33,18 +33,25 @@ public sealed class Player : LivingEntity
     public EntityId? TargetId { get; set; }
     public MovementInputBuffer Inputs { get; } = new();
     public HashSet<EntityId> Interest { get; } = [];
-    public bool DirtyPosition { get; private set; }
+
+    /// <summary>
+    /// Cualquier estado persistible cambió: posición, vitales, XP, inventario/equipo, etc.
+    /// DirtyPosition se conserva como alias compatible para código anterior.
+    /// </summary>
+    public bool DirtyState { get; private set; }
+    public bool DirtyPosition => DirtyState;
 
     public void SetProgression(PlayerProgressionState progression)
     {
         ProgressionRules.Validate(progression);
         Progression = progression;
+        MarkDirty();
     }
 
     public void ApplyMovement(Vector2Data position, Vector2Data velocity)
     {
         MoveTo(position, velocity);
-        if (velocity.LengthSquared > 0) DirtyPosition = true;
+        if (velocity.LengthSquared > 0) MarkDirty();
     }
 
     public void TransferTo(MapInstanceId mapInstance, Vector2Data position, Direction facing = Direction.Down)
@@ -57,10 +64,11 @@ public sealed class Player : LivingEntity
         Interest.Clear();
         Inputs.Reset();
         LeaveCombat();
-        DirtyPosition = true;
+        MarkDirty();
     }
 
-    public void MarkSaved() => DirtyPosition = false;
+    public void MarkDirty() => DirtyState = true;
+    public void MarkSaved() => DirtyState = false;
 
     public override EntityState ToState() => new PlayerState(Id, CharacterId, MapInstanceId, Position, Velocity,
         Direction, VisualKey, DisplayName);
