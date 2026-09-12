@@ -104,7 +104,8 @@ public static class SqliteMigrator
             current_mana INTEGER NULL,
             tradition_id TEXT NOT NULL DEFAULT '',
             appearance_data TEXT NOT NULL DEFAULT 'v1|template.player||||||||',
-            inventory_data TEXT NOT NULL DEFAULT '{"items":[],"equipment":[]}'
+            inventory_data TEXT NOT NULL DEFAULT '{"items":[],"equipment":[]}',
+            quest_data TEXT NOT NULL DEFAULT '{"quests":[]}'
         );
         CREATE INDEX IF NOT EXISTS ix_characters_account_id ON characters(account_id);
         """;
@@ -250,7 +251,7 @@ public sealed class SqliteCharacterRepository(string databasePath) : ICharacterR
     private readonly string connectionString = SqliteMigrator.ConnectionString(databasePath);
     private const string CharacterColumns =
         "id, account_id, name, map_definition, position_x, position_y, level, experience, " +
-        "available_attribute_points, strength, intelligence, agility, spirit, vitality, current_health, current_mana, tradition_id, appearance_data, inventory_data";
+        "available_attribute_points, strength, intelligence, agility, spirit, vitality, current_health, current_mana, tradition_id, appearance_data, inventory_data, quest_data";
 
     public async Task<IReadOnlyList<CharacterRecord>> ListByAccountAsync(AccountId account, CancellationToken cancellationToken = default)
     {
@@ -414,7 +415,10 @@ public sealed class SqliteCharacterRepository(string databasePath) : ICharacterR
             Appearance = CharacterAppearance.FromStorageString(appearanceText),
             InventoryData = reader.FieldCount > 18 && !reader.IsDBNull(18)
                 ? reader.GetString(18)
-                : CharacterInventoryStorage.EmptyJson
+                : CharacterInventoryStorage.EmptyJson,
+            QuestData = reader.FieldCount > 19 && !reader.IsDBNull(19)
+                ? reader.GetString(19)
+                : CharacterQuestStorage.EmptyJson
         };
     }
 
@@ -427,6 +431,20 @@ public sealed class SqliteCharacterRepository(string databasePath) : ICharacterR
         command.Parameters.AddWithValue("$inventory", string.IsNullOrWhiteSpace(inventoryData)
             ? CharacterInventoryStorage.EmptyJson
             : inventoryData);
+        command.Parameters.AddWithValue("$id", id.Value.ToString("D"));
+        if (await command.ExecuteNonQueryAsync(cancellationToken) == 0)
+            throw new KeyNotFoundException("Personaje inexistente.");
+    }
+
+    public async Task SaveQuestDataAsync(CharacterId id, string questData, CancellationToken cancellationToken = default)
+    {
+        await using var connection = new SqliteConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "UPDATE characters SET quest_data = $quests WHERE id = $id";
+        command.Parameters.AddWithValue("$quests", string.IsNullOrWhiteSpace(questData)
+            ? CharacterQuestStorage.EmptyJson
+            : questData);
         command.Parameters.AddWithValue("$id", id.Value.ToString("D"));
         if (await command.ExecuteNonQueryAsync(cancellationToken) == 0)
             throw new KeyNotFoundException("Personaje inexistente.");
