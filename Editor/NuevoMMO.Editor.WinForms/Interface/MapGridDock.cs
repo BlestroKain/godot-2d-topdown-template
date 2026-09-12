@@ -58,7 +58,7 @@ public sealed class MapGridDock : DockContent
         };
         worldTree.AfterSelect += (_, e) =>
         {
-            if (e.Node.Tag is MapDefinition map)
+            if (e.Node?.Tag is MapDefinition map)
                 MapSelected?.Invoke(map);
         };
         worldTree.NodeMouseClick += OnNodeMouseClick;
@@ -163,7 +163,7 @@ public sealed class MapGridDock : DockContent
             createSouth.Enabled = CanCreateRelative(selected, 0, 1);
             createWest.Enabled = CanCreateRelative(selected, -1, 0);
             createEast.Enabled = CanCreateRelative(selected, 1, 0);
-            createInitial.Enabled = application.Definitions.GetAll<MapDefinition>().Count == 0;
+            createInitial.Enabled = !application.Definitions.GetAll<MapDefinition>().Any();
         };
         EditorTheme.Apply(mapMenu);
     }
@@ -182,9 +182,9 @@ public sealed class MapGridDock : DockContent
             ActivateNode(node);
     }
 
-    private void ActivateNode(TreeNode node)
+    private void ActivateNode(TreeNode? node)
     {
-        if (node.Tag is MapDefinition map)
+        if (node?.Tag is MapDefinition map)
             MapActivated?.Invoke(map);
     }
 
