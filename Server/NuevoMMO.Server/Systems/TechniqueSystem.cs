@@ -77,7 +77,7 @@ public interface ITechniqueWorldAccess
     IEnumerable<LivingEntity> LivingOn(MapInstanceId map);
     EntityId AllocateId();
     void Spawn(Entity entity);
-    Vector2Data Clamp(Vector2Data position);
+    Vector2Data Clamp(MapInstanceId map, Vector2Data position);
 }
 
 /// <summary>
@@ -654,7 +654,7 @@ public sealed class TechniqueSystem
             destination = origin + delta.Normalized() * distance;
         }
 
-        subject.MoveTo(world?.Clamp(destination) ?? destination, Vector2Data.Zero);
+        subject.MoveTo(world?.Clamp(subject.MapInstanceId, destination) ?? destination, Vector2Data.Zero);
         return subject.Id;
     }
 
@@ -700,7 +700,7 @@ public sealed class TechniqueSystem
             null,
             action,
             source.MapInstanceId,
-            world.Clamp(origin),
+            world.Clamp(source.MapInstanceId, origin),
             radius <= 0 ? 48f : radius,
             lifetime,
             interval,

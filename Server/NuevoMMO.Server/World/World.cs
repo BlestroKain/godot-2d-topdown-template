@@ -314,7 +314,6 @@ public sealed class WorldRuntime
             var position = IsValidPosition(targetMap, character.Position) ? character.Position : targetMap.Definition.Spawn;
             var player = spawns.Player(character with { MapDefinition = targetMap.Definition.Id, Position = position }, targetMap.Id);
             player.Techniques.Learn(CanonicalCombatContent.BasicAttackId);
-            targetMap.Add(player);
             session.Character = character.Character;
             session.Player = player;
             BeginMapLoad(session, targetMap.Id);
@@ -354,8 +353,9 @@ public sealed class WorldRuntime
         lock (gate)
         {
             if (session.State != PlayerSessionState.WaitingForMap || session.Player is null ||
-                session.PendingMapInstance != instance || session.Player.MapInstanceId != instance || !worlds.TryGet(instance, out _))
+                session.PendingMapInstance != instance || session.Player.MapInstanceId != instance || !worlds.TryGet(instance, out var targetMap) || targetMap is null)
                 throw new InvalidOperationException("Entrada al mapa inválida.");
+            targetMap.Add(session.Player);
             session.PendingMapInstance = null;
             session.MapLoadDispatched = false;
             session.State = PlayerSessionState.InWorld;
@@ -635,7 +635,6 @@ public sealed class WorldRuntime
         systems?.Techniques.Cancel(player.Id);
         sourceMap.Remove(player.Id, out _);
         player.TransferTo(destinationMap.Id, destination, facing);
-        destinationMap.Add(player);
         BeginMapLoad(session, destinationMap.Id);
         return true;
     }
@@ -827,10 +826,7 @@ public sealed class WorldRuntime
             world.worlds.Get(entity.MapInstanceId).Add(entity);
         }
 
-        public Vector2Data Clamp(Vector2Data position)
-        {
-            var containing = world.worlds.All.Where(candidate => candidate.Definition.Bounds.Clamp(position) == position).ToArray();
-            return containing.Length == 1 ? containing[0].Definition.Bounds.Clamp(position) : world.map.Definition.Bounds.Clamp(position);
-        }
+        public Vector2Data Clamp(MapInstanceId mapId, Vector2Data position)
+            => world.worlds.Get(mapId).Definition.Bounds.Clamp(position);
     }
 }
