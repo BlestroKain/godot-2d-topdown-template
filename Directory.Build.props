@@ -5,5 +5,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>12</LangVersion>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+    <!-- Rutas canónicas del repositorio. No duplicar rutas relativas a Core en cada proyecto. -->
+    <NuevoMMORepoRoot>$(MSBuildThisFileDirectory)</NuevoMMORepoRoot>
+    <NuevoMMOCoreProject>$(NuevoMMORepoRoot)Core\NuevoMMO.Core\NuevoMMO.Core.csproj</NuevoMMOCoreProject>
   </PropertyGroup>
 </Project>

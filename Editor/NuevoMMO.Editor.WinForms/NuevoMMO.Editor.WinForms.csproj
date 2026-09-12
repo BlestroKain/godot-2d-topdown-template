@@ -17,9 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../NuevoMMO.Editor/NuevoMMO.Editor.csproj" />
-    <!-- WinForms consume directamente contratos/tipos de Core en sus vistas y documentos.
-         Mantener la referencia explícita evita depender de referencias transitivas de diseño. -->
-    <ProjectReference Include="../../Core/NuevoMMO.Core/NuevoMMO.Core.csproj" />
+    <ProjectReference Include="$(NuevoMMOCoreProject)" />
   </ItemGroup>
 
   <ItemGroup>

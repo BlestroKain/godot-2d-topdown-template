@@ -1,0 +1,11 @@
+<Project>
+  <!--
+    Core es una pieza estructural obligatoria del repositorio. Si el archivo desaparece o se mueve,
+    abortamos con un error único y legible antes de producir cientos de CS0246/CS0234 en cascada.
+  -->
+  <Target Name="ValidateCanonicalNuevoMMOCoreProject" BeforeTargets="PrepareForBuild">
+    <Error
+      Condition="!Exists('$(NuevoMMOCoreProject)')"
+      Text="No se encontró el proyecto canónico NuevoMMO.Core en '$(NuevoMMOCoreProject)'. Restaura Core/NuevoMMO.Core/NuevoMMO.Core.csproj antes de compilar la solución." />
+  </Target>
+</Project>
