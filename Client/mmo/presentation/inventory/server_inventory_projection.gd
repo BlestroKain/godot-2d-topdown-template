@@ -1,3 +1,4 @@
+@tool
 extends Inventory
 class_name ServerInventoryProjection
 ## Read-only GLoot projection of the last inventory snapshot accepted by the C# client.
