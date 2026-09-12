@@ -45,31 +45,31 @@ partial class TilesetPaletteDock
 
         tilesets.DropDownStyle = ComboBoxStyle.DropDownList;
         tilesets.Name = "tilesets";
-        tilesets.Width = 190;
+        tilesets.Width = 245;
 
         autotileLabel.AutoSize = true;
         autotileLabel.Name = "autotileLabel";
-        autotileLabel.Padding = new Padding(5, 7, 0, 0);
+        autotileLabel.Padding = new Padding(3, 6, 0, 0);
         autotileLabel.Text = "Modo:";
 
         autotile.DropDownStyle = ComboBoxStyle.DropDownList;
         autotile.Name = "autotile";
-        autotile.Width = 130;
+        autotile.Width = 118;
 
         zoomLabel.AutoSize = true;
         zoomLabel.Name = "zoomLabel";
-        zoomLabel.Padding = new Padding(5, 7, 0, 0);
+        zoomLabel.Padding = new Padding(3, 6, 0, 0);
         zoomLabel.Text = "Zoom:";
 
         zoom.Maximum = 4;
         zoom.Minimum = 1;
         zoom.Name = "zoom";
         zoom.Value = 1;
-        zoom.Width = 48;
+        zoom.Width = 44;
 
         selection.AutoSize = true;
         selection.Name = "selection";
-        selection.Padding = new Padding(6, 7, 0, 0);
+        selection.Padding = new Padding(5, 6, 0, 0);
 
         toolbar.Controls.Add(tilesets);
         toolbar.Controls.Add(autotileLabel);
@@ -78,31 +78,31 @@ partial class TilesetPaletteDock
         toolbar.Controls.Add(zoom);
         toolbar.Controls.Add(selection);
         toolbar.Dock = DockStyle.Top;
-        toolbar.Height = 34;
+        toolbar.Height = 60;
         toolbar.Name = "toolbar";
         toolbar.Padding = new Padding(3);
-        toolbar.WrapContents = false;
+        toolbar.WrapContents = true;
 
         surface.Location = Point.Empty;
         surface.Name = "surface";
         surface.Size = new Size(1, 1);
 
         scroller.AutoScroll = true;
-        scroller.BackColor = Color.FromArgb(24, 26, 30);
+        scroller.BackColor = Color.FromArgb(20, 21, 24);
         scroller.Controls.Add(surface);
         scroller.Dock = DockStyle.Fill;
         scroller.Name = "scroller";
 
         AutoScaleDimensions = new SizeF(7F, 15F);
         AutoScaleMode = AutoScaleMode.Font;
-        ClientSize = new Size(360, 640);
+        ClientSize = new Size(330, 520);
         Controls.Add(scroller);
         Controls.Add(toolbar);
         HideOnClose = true;
         Name = "TilesetPaletteDock";
         ShowHint = DockState.DockLeft;
-        TabText = "Tilesets";
-        Text = "Tilesets";
+        TabText = "Tiles";
+        Text = "Paleta de tiles";
 
         ((ISupportInitialize)zoom).EndInit();
         toolbar.ResumeLayout(false);
