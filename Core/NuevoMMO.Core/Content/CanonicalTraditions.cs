@@ -1,8 +1,8 @@
 namespace NuevoMMO.Core;
 
 /// <summary>
-/// Catálogo canónico de Tradiciones seleccionables al crear personaje.
-/// Los nombres visibles siguen siendo provisionales de diseño; los DefinitionId son estables.
+/// Catálogo canónico de Tradiciones publicadas. Los nombres visibles siguen siendo provisionales de diseño;
+/// los DefinitionId son estables. La creación de personaje no selecciona Tradición: todo personaje nace Novicio.
 /// </summary>
 public static class CanonicalTraditions
 {
@@ -38,14 +38,15 @@ public static class CanonicalTraditions
 
     public static bool IsNovice(DefinitionId id) => id.IsEmpty;
 
+    /// <summary>Indica si una Tradición está publicada para aprendizaje/uso en runtime.</summary>
     public static bool IsSelectable(DefinitionId id)
         => ById.TryGetValue(id, out var tradition) && tradition.Enabled;
 
     /// <summary>
-    /// Create acepta Novicio (id vacío) o una Tradición publicada. Cualquier otro id se rechaza.
+    /// Create canónico: únicamente Novicio (DefinitionId vacío). Las Tradiciones se aprenden diegéticamente.
     /// </summary>
     public static bool IsValidAtCreate(DefinitionId id)
-        => IsNovice(id) || IsSelectable(id);
+        => IsNovice(id);
 
     public static bool TryGet(DefinitionId id, out TraditionDefinition tradition)
         => ById.TryGetValue(id, out tradition!);

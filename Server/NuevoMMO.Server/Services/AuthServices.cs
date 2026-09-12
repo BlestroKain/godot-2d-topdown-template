@@ -82,10 +82,10 @@ public sealed class CharacterService(ICharacterRepository characters, MapDefinit
         if (string.IsNullOrWhiteSpace(name) || name.Length > 24 || name.Any(char.IsControl))
             throw new ArgumentException("Nombre de personaje inválido.");
         if (!CanonicalTraditions.IsValidAtCreate(traditionId))
-            throw new ArgumentException("Tradición inválida. El personaje nace Novicio o con una Tradición publicada.", nameof(traditionId));
+            throw new ArgumentException("La creación de personaje siempre inicia como Novicio; la Tradición se aprende dentro del mundo.", nameof(traditionId));
         if (!CanonicalCharacterAppearance.IsSupported(appearance))
             throw new ArgumentException("La apariencia contiene piezas que aún no están publicadas en el catálogo.", nameof(appearance));
-        return await characters.CreateAsync(account, name.Trim(), map.Id, map.Spawn, traditionId, appearance, cancellationToken);
+        return await characters.CreateAsync(account, name.Trim(), map.Id, map.Spawn, DefinitionId.Empty, appearance, cancellationToken);
     }
 
     public Task<CharacterRecord> CreateAsync(

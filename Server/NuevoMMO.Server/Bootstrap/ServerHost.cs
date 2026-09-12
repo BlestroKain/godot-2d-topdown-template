@@ -190,7 +190,25 @@ public sealed class ServerHost
                 lastClientActivity[id] = Environment.TickCount64;
                 metrics.PacketIn();
                 if (!rate.TryAdmit()) throw new InvalidDataException("Límite de mensajes excedido.");
-                await dispatcher.DispatchAsync(new ServerPacketContext { Connection = id, Session = session, Send = peer.Send }, packet, peer.Token);
+                try
+                {
+                    await dispatcher.DispatchAsync(
+                        new ServerPacketContext { Connection = id, Session = session, Send = peer.Send },
+                        packet,
+                        peer.Token);
+                }
+                catch (Exception exception) when (ServerRequestFailurePolicy.CanRecover(packet, exception))
+                {
+                    metrics.Invalid();
+                    ServerLog.Warn(
+                        "request",
+                        "rejected",
+                        ("connection", id.Value),
+                        ("packet", packet.GetType().Name),
+                        ("exception", exception.GetType().Name),
+                        ("reason", exception.Message));
+                    peer.Send(ServerRequestFailurePolicy.ToPacket(packet));
+                }
             }
         }
         catch (Exception exception) when (exception is IOException or InvalidDataException or SocketException or OperationCanceledException or ArgumentException or InvalidOperationException or KeyNotFoundException)

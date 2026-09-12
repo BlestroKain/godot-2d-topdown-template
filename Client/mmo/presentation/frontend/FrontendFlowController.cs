@@ -160,41 +160,15 @@ public partial class FrontendFlowController : CanvasLayer
 
     private void BuildTraditionPicker()
     {
+        // El canon vigente fija Novicio como único estado de creación. El panel de selección se conserva
+        // en la escena para reutilizarlo más adelante en el flujo diegético de aprendizaje, pero no se
+        // expone en CharacterCreate.
         var preview = GetNode<PanelContainer>("Root/ScreenStack/CharacterCreateScreen/Panel/Margin/Content/Preview");
-        var oldPreview = preview.GetNodeOrNull<Label>("PreviewText");
-        if (oldPreview is not null)
-        {
-            preview.RemoveChild(oldPreview);
-            oldPreview.QueueFree();
-        }
-
+        preview.Hide();
         GetNode<Label>("Root/ScreenStack/CharacterCreateScreen/Panel/Margin/Content/Rule").Text =
-            "El personaje nace Novicio. La Tradición es opcional y no otorga kit al crear. No hay selector de raza; el arma no define la clase.";
+            "Todo personaje nace Novicio. Las Tradiciones se descubren y aprenden dentro del mundo; no hay selector de raza y el arma no define la clase.";
         GetNode<Label>("Root/ScreenStack/CharacterCreateScreen/Panel/Margin/Content/AppearanceNotice").Text =
             "El preview usa el renderer real. Cuerpo, rostro, cabello, ojos, orejas, cuernos, pigmentos y marcas ya tienen contrato persistente; se habilitan al publicar sus sprites.";
-
-        var picker = GD.Load<PackedScene>("res://mmo/presentation/frontend/tradition_picker.tscn").Instantiate<Control>();
-        preview.AddChild(picker);
-        traditionGrid = picker.GetNode<GridContainer>("VBox/TraditionsScroll/TraditionGrid");
-        selectedTraditionName = picker.GetNode<Label>("VBox/Selection/SelectionMargin/SelectionVBox/SelectedTradition");
-        selectedTraditionDescription = picker.GetNode<Label>("VBox/Selection/SelectionMargin/SelectionVBox/TraditionDescription");
-
-        foreach (var tradition in CanonicalTraditions.All)
-        {
-            var current = tradition;
-            var button = new Button
-            {
-                Text = current.Name,
-                ToggleMode = true,
-                CustomMinimumSize = new Vector2(0, 42),
-                SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
-                TooltipText = current.Description ?? current.Name
-            };
-            button.Pressed += () => SelectTradition(current);
-            traditionGrid.AddChild(button);
-            traditionButtons[current.Id] = button;
-        }
-
         ResetTraditionSelection();
     }
 
@@ -281,11 +255,8 @@ public partial class FrontendFlowController : CanvasLayer
             return;
         }
         waitingForCreatedCharacter = true;
-        var traditionId = selectedTradition?.Id ?? default;
-        network.CreateCharacter(name, traditionId);
-        globalStatus.Text = selectedTradition is null
-            ? $"Creando {name} · Novicio…"
-            : $"Creando {name} · {selectedTradition.Name}…";
+        network.CreateCharacter(name, DefinitionId.Empty);
+        globalStatus.Text = $"Creando {name} · Novicio…";
     }
 
     private void SelectTradition(TraditionDefinition tradition)
@@ -304,9 +275,9 @@ public partial class FrontendFlowController : CanvasLayer
         foreach (var button in traditionButtons.Values)
             button.ButtonPressed = false;
         if (selectedTraditionName is not null)
-            selectedTraditionName.Text = "Ninguna Tradición seleccionada";
+            selectedTraditionName.Text = "Novicio";
         if (selectedTraditionDescription is not null)
-            selectedTraditionDescription.Text = "Opcional. Si no eliges, el personaje entra al mundo como Novicio.";
+            selectedTraditionDescription.Text = "Las Tradiciones se aprenden dentro del mundo.";
         if (createCharacterButton is not null)
             createCharacterButton.Disabled = false;
     }
