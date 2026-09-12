@@ -30,6 +30,7 @@ public sealed class CharacterRecord
     public int? CurrentHealth { get; set; }
     public int? CurrentMana { get; set; }
     public string InventoryData { get; set; } = CharacterInventoryStorage.EmptyJson;
+    public string QuestData { get; set; } = CharacterQuestStorage.EmptyJson;
 
     public PlayerProgressionState ToProgressionState()
     {
