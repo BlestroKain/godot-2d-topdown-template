@@ -29,13 +29,14 @@ public sealed class Player : LivingEntity
     public Knowledge Knowledge { get; } = new();
     public ProfessionSet Professions { get; } = new();
     public TechniqueSet Techniques { get; } = new();
+    public QuestJournal Quests { get; } = new();
     public PlayerEventState Events { get; } = new();
     public EntityId? TargetId { get; set; }
     public MovementInputBuffer Inputs { get; } = new();
     public HashSet<EntityId> Interest { get; } = [];
 
     /// <summary>
-    /// Cualquier estado persistible cambió: posición, vitales, XP, inventario/equipo, etc.
+    /// Cualquier estado persistible cambió: posición, vitales, XP, inventario/equipo, quests, etc.
     /// DirtyPosition se conserva como alias compatible para código anterior.
     /// </summary>
     public bool DirtyState { get; private set; }
