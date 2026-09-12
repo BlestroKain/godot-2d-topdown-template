@@ -3,6 +3,8 @@ using NuevoMMO.Server.Entities;
 
 namespace NuevoMMO.Server.Systems;
 
+public sealed record QuestTaskAdvance(DefinitionId QuestId, Guid TaskId, int Previous, int Current, int Required);
+
 /// <summary>
 /// Autoridad única del estado de quests. Eventos, combate, gathering y otros sistemas solicitan
 /// transiciones aquí; no mutan el QuestJournal directamente.
@@ -65,6 +67,43 @@ public sealed class QuestSystem
         progress.Advance(task, amount);
         player.MarkDirty();
         return progress;
+    }
+
+    /// <summary>
+    /// Observa un hecho ya resuelto por otro sistema (kill, gathering, interacción, crafting, etc.)
+    /// y traduce ese hecho a progreso de tareas compatibles. No altera el sistema productor del hecho.
+    /// </summary>
+    public IReadOnlyList<QuestTaskAdvance> Observe(
+        Player player,
+        QuestObjectiveKind objective,
+        DefinitionId? targetDefinitionId = null,
+        int amount = 1)
+    {
+        ArgumentNullException.ThrowIfNull(player);
+        if (amount < 1) throw new ArgumentOutOfRangeException(nameof(amount));
+        if (targetDefinitionId is { } target && target.IsEmpty)
+            throw new ArgumentException("TargetDefinitionId vacío.", nameof(targetDefinitionId));
+
+        var changes = new List<QuestTaskAdvance>();
+        foreach (var progress in player.Quests.Entries.Where(static entry => entry.State == QuestRuntimeState.Active).ToArray())
+        {
+            if (!definitions.TryGet<QuestDefinition>(progress.QuestId, out var quest) || quest is null || !quest.Enabled)
+                continue;
+
+            foreach (var task in quest.Tasks)
+            {
+                if (task.Objective != objective || progress.ProgressOf(task.Id) >= task.Quantity) continue;
+                if (task.TargetDefinitionId is { } required && targetDefinitionId != required) continue;
+
+                var previous = progress.ProgressOf(task.Id);
+                var current = progress.Advance(task, amount);
+                if (current != previous)
+                    changes.Add(new QuestTaskAdvance(progress.QuestId, task.Id, previous, current, task.Quantity));
+            }
+        }
+
+        if (changes.Count > 0) player.MarkDirty();
+        return changes;
     }
 
     public QuestProgress Complete(Player player, DefinitionId questId, ConditionEvaluationContext? context = null)
