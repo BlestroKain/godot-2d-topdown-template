@@ -5,9 +5,14 @@ on:
     branches: [main, master, devMMO]
   pull_request:
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 8
     services:
       postgres:
         image: postgres:16
@@ -40,11 +45,15 @@ jobs:
           dotnet-version: '8.0.x'
 
       - name: Build solution
+        timeout-minutes: 3
         run: dotnet build NuevoMMO.sln -c Release --nologo
         env:
           DOTNET_EnableWindowsTargeting: true
 
       - name: Run tests
-        run: dotnet run --project Tests/NuevoMMO.Tests/NuevoMMO.Tests.csproj -c Release --no-build --nologo
+        timeout-minutes: 3
+        run: |
+          timeout --foreground --signal=TERM --kill-after=10s 120s \
+            dotnet run --project Tests/NuevoMMO.Tests/NuevoMMO.Tests.csproj -c Release --no-build --nologo
         env:
           NUEVOMMO_TEST_POSTGRES: Host=127.0.0.1;Port=5432;Database=nuevommo_test;Username=nuevommo;Password=nuevommo_ci;Pooling=false
