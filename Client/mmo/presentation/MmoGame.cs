@@ -2,6 +2,7 @@ using Godot;
 using NuevoMMO.Client;
 using NuevoMMO.Core;
 using NuevoMMO.Network;
+using NuevoMMO.GodotClient.UI;
 
 namespace NuevoMMO.GodotClient;
 
@@ -10,6 +11,7 @@ public partial class MmoGame : Node2D
     public NetworkBridge Network { get; private set; } = null!;
     private WorldPresentation world = null!;
     private GameHud gameHud = null!;
+    private GameplayInputGate gameplayInputGate = null!;
     private LineEdit host = null!, username = null!, password = null!;
     private Label status = null!, details = null!, statsText = null!, statsNotice = null!, combatText = null!;
     private Button login = null!, register = null!, disconnect = null!;
@@ -35,6 +37,12 @@ public partial class MmoGame : Node2D
         {
             gameHud = GD.Load<PackedScene>("res://mmo/presentation/hud/game_hud.tscn").Instantiate<GameHud>();
             AddChild(gameHud);
+        }
+        gameplayInputGate = GetNodeOrNull<GameplayInputGate>("GameplayInputGate");
+        if (gameplayInputGate is null)
+        {
+            gameplayInputGate = GD.Load<PackedScene>("res://mmo/presentation/ui/gameplay_input_gate.tscn").Instantiate<GameplayInputGate>();
+            AddChild(gameplayInputGate);
         }
         BuildUi(); RegisterInput();
     }
@@ -278,10 +286,25 @@ public partial class MmoGame : Node2D
 
     public override void _Process(double delta)
     {
-        var typing = GetViewport().GuiGetFocusOwner() is LineEdit;
-        inputs.SetUiFocus(typing);
-        var input = TestInput ?? (focused && !typing ? Input.GetVector("mmo_left", "mmo_right", "mmo_up", "mmo_down") : Vector2.Zero);
-        if (focused && Network.InWorld)
+        var focusOwner = GetViewport().GuiGetFocusOwner();
+        var typing = focusOwner is LineEdit || focusOwner is TextEdit;
+
+        // UI controls remain available while gameplay is captured so the same hotkey can
+        // close a modal window. Text entry is the exception: typing must never trigger UI hotkeys.
+        if (focused && Network.InWorld && !typing)
+            HandleUiHotkeys();
+
+        gameplayInputGate.Refresh(focusOwner);
+        var gameplayEnabled = focused && Network.InWorld && gameplayInputGate.GameplayEnabled;
+        inputs.SetUiFocus(!gameplayEnabled);
+
+        // A captured UI state must also flush movement intention. This prevents the authoritative
+        // server from continuing with the last non-zero vector while the player navigates a window.
+        var input = gameplayEnabled
+            ? TestInput ?? Input.GetVector("mmo_left", "mmo_right", "mmo_up", "mmo_down")
+            : Vector2.Zero;
+
+        if (gameplayEnabled)
         {
             if (inputs.Gameplay.Attack || inputs.Combat.JustPressed)
                 BasicAttackVisible();
@@ -297,10 +320,6 @@ public partial class MmoGame : Node2D
                 Network.World.Local.Entity?.ClearTarget();
                 Network.SetTarget(default);
             }
-            if (Input.IsActionJustPressed("mmo_inventory") || Input.IsActionJustPressed("inventory"))
-                gameHud.ToggleInventory();
-            if (Input.IsActionJustPressed("mmo_character")) gameHud.ToggleCharacter();
-            if (Input.IsActionJustPressed("mmo_escape")) gameHud.ToggleEscape();
         }
         if (Network.World.Session.Map is { } map && Network.InWorld)
         {
@@ -325,6 +344,16 @@ public partial class MmoGame : Node2D
         username.Editable = !busy;
         password.Editable = !busy;
         foreach (var button in combatButtons) button.Disabled = !Network.InWorld;
+    }
+
+    private void HandleUiHotkeys()
+    {
+        if (Input.IsActionJustPressed("mmo_inventory") || Input.IsActionJustPressed("inventory"))
+            gameHud.ToggleInventory();
+        if (Input.IsActionJustPressed("mmo_character"))
+            gameHud.ToggleCharacter();
+        if (Input.IsActionJustPressed("mmo_escape"))
+            gameHud.ToggleEscape();
     }
 
     private void RefreshStats()
@@ -386,7 +415,7 @@ public partial class MmoGame : Node2D
 
     public override void _UnhandledInput(InputEvent @event)
     {
-        if (!focused || !Network.InWorld || inputs.Gameplay.Blocked) return;
+        if (!focused || !Network.InWorld || !gameplayInputGate.GameplayEnabled || inputs.Gameplay.Blocked) return;
         if (@event is InputEventMouseButton mouse && mouse.Pressed && mouse.ButtonIndex == MouseButton.Left)
         {
             SelectAtMouse();
