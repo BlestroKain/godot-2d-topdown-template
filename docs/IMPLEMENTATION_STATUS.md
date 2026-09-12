@@ -1,6 +1,6 @@
 # Estado real
 
-Revisión: 2026-09-09. Arquitectura `Core / Network / Server / Client / Editor` creada sobre el template. El slice de movimiento autoritativo se migró al protocolo nuevo.
+Revisión: 2026-09-12. Arquitectura `Core / Network / Server / Client / Editor` creada sobre el template. El slice de movimiento autoritativo se migró al protocolo nuevo.
 
 ## Incorporado y comprobado
 
@@ -11,6 +11,9 @@ Revisión: 2026-09-09. Arquitectura `Core / Network / Server / Client / Editor` 
 - Servidor Development con tick fijo, input secuenciado, AOI, mob de fixture, persistencia en memoria y cierre ordenado.
 - Cliente Godot C# con `NetworkBridge`, predicción/reconciliación local e interpolación remota.
 - Editor offline mínimo sobre `Core.Definitions`.
+- Rama `feature/godot-first-systems` creada desde `devMMO` para adoptar addons y lógica externa sin descartar los sistemas autoritativos existentes.
+- Godot State Charts 0.22.5 integrado en el flujo visual Frontend/World/SettingsOverWorld.
+- GLoot 3.0.2 integrado como proyección de snapshots de inventario; la durabilidad ya no se pierde en el modelo cliente.
 
 ## En implementación por decisión posterior
 

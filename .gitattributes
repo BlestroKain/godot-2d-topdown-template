@@ -1,2 +1,6 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Vendored upstream sources are kept byte-for-byte (except ignored Godot import caches).
+Client/addons/gloot/** -whitespace
+Client/addons/godot_state_charts/** -whitespace

@@ -19,3 +19,15 @@ DISCARD: lore, sistemas de Broken, arquitectura antigua innecesaria.
 KEEP as reference: ENet wrapper, peer management, Handler → Service → Repository, account/character/map lifecycle.
 REPLACE: `var_to_bytes` / hashes de funciones como protocolo.
 DISCARD: todos los mensajes Reliable.
+
+## Ecosistema Godot 4.7 y otras fuentes RPG/MMO
+
+La matriz viva de adopción, revisiones, licencias y límites está en
+[`godot-ecosystem-adoption.md`](godot-ecosystem-adoption.md).
+
+ADOPT: Dialogue Manager, Godot State Charts y GLoot encapsulado como proyección cliente.
+
+ADAPT: quest Resources/pools/señales y ability Resources/containers sin autoridad local.
+
+REFERENCE ONLY: LimboAI mientras Server sea el runtime AI; ESS por migración Godot 4
+inconclusa; Reia por AGPL-3.0.

@@ -1,4 +1,5 @@
 using Godot;
+using GodotStateCharts;
 using NuevoMMO.Core;
 using NuevoMMO.Network;
 
@@ -14,6 +15,13 @@ public enum FrontendStage
     CharacterCreate,
     Settings,
     LoadingWorld
+}
+
+internal enum PresentationMode
+{
+    Frontend,
+    World,
+    SettingsOverWorld
 }
 
 /// <summary>
@@ -32,6 +40,8 @@ public partial class FrontendFlowController : CanvasLayer
     private TraditionDefinition? selectedTradition;
     private bool waitingForCreatedCharacter;
     private bool settingsOverWorld;
+    private PresentationMode presentationMode = PresentationMode.Frontend;
+    private StateChart presentationStateChart = null!;
 
     private Control root = null!;
     private Control loginScreen = null!;
@@ -78,6 +88,7 @@ public partial class FrontendFlowController : CanvasLayer
         masterVolume = GetNode<HSlider>("Root/ScreenStack/SettingsScreen/Panel/Margin/Content/MasterVolume");
         uiScale = GetNode<HSlider>("Root/ScreenStack/SettingsScreen/Panel/Margin/Content/UiScale");
 
+        BindPresentationStateChart();
         BuildCharacterPreviews();
         BuildTraditionPicker();
         WireButtons();
@@ -97,13 +108,7 @@ public partial class FrontendFlowController : CanvasLayer
         }
 
         globalStatus.Text = network.Status;
-        if (network.InWorld && !settingsOverWorld)
-        {
-            root.Hide();
-            return;
-        }
-
-        root.Show();
+        SyncPresentationMode();
     }
 
     /// <summary>Abre exactamente el mismo panel de preferencias encima del mundo.</summary>
@@ -112,7 +117,7 @@ public partial class FrontendFlowController : CanvasLayer
         if (network is null || !network.InWorld) return;
         settingsOverWorld = true;
         ShowStage(FrontendStage.Settings);
-        root.Show();
+        presentationStateChart.SendEvent("open_settings");
     }
 
     private void TryBindNetwork()
@@ -310,7 +315,7 @@ public partial class FrontendFlowController : CanvasLayer
         if (settingsOverWorld)
         {
             settingsOverWorld = false;
-            root.Hide();
+            presentationStateChart.SendEvent("close_settings");
             return;
         }
         ShowStage(returnFromSettings);
@@ -328,13 +333,14 @@ public partial class FrontendFlowController : CanvasLayer
             settingsOverWorld = false;
             selectedCharacter = null;
             ShowStage(FrontendStage.Login);
-            root.Show();
+            presentationStateChart.SendEvent("left_world");
             return;
         }
 
         if (network.InWorld)
         {
-            if (!settingsOverWorld) root.Hide();
+            if (!settingsOverWorld)
+                presentationStateChart.SendEvent("world_entered");
             return;
         }
 
@@ -440,5 +446,38 @@ public partial class FrontendFlowController : CanvasLayer
         createScreen.Visible = next == FrontendStage.CharacterCreate;
         settingsScreen.Visible = next == FrontendStage.Settings;
         loadingScreen.Visible = next is FrontendStage.LoadingCharacters or FrontendStage.LoadingWorld;
+    }
+
+    private void BindPresentationStateChart()
+    {
+        presentationStateChart = StateChart.Of(GetNode<Node>("PresentationStateChart"));
+        StateChartState.Of(GetNode<Node>("PresentationStateChart/Root/Frontend")).StateEntered +=
+            () => ApplyPresentationMode(PresentationMode.Frontend);
+        StateChartState.Of(GetNode<Node>("PresentationStateChart/Root/World")).StateEntered +=
+            () => ApplyPresentationMode(PresentationMode.World);
+        StateChartState.Of(GetNode<Node>("PresentationStateChart/Root/SettingsOverWorld")).StateEntered +=
+            () => ApplyPresentationMode(PresentationMode.SettingsOverWorld);
+        ApplyPresentationMode(PresentationMode.Frontend);
+    }
+
+    private void SyncPresentationMode()
+    {
+        if (network is null)
+            return;
+
+        if (!network.InWorld && presentationMode != PresentationMode.Frontend)
+        {
+            presentationStateChart.SendEvent("left_world");
+            return;
+        }
+
+        if (network.InWorld && !settingsOverWorld && presentationMode == PresentationMode.Frontend)
+            presentationStateChart.SendEvent("world_entered");
+    }
+
+    private void ApplyPresentationMode(PresentationMode mode)
+    {
+        presentationMode = mode;
+        root.Visible = mode != PresentationMode.World;
     }
 }

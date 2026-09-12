@@ -51,6 +51,10 @@ Check(ClientAssetPaths.SharedRootFromRepo == AssetCatalog.SharedRootFromRepo, "C
 Check(ClientAssetPaths.GodotRoot == "res://resources", "Cliente C# raíz Godot res://resources");
 Check(ClientAssetPaths.Godot(new ContentKey("items.potion_hp")) == AssetCatalog.GodotPath(new ContentKey("items.potion_hp")),
     "Cliente C# y catálogo misma ruta Godot");
+Check(File.Exists(Path.Combine("Client", "addons", "gloot", "LICENSE")), "GLoot vendorizado conserva licencia");
+Check(File.Exists(Path.Combine("Client", "addons", "godot_state_charts", "LICENSE")),
+    "Godot State Charts vendorizado conserva licencia");
+Check(File.Exists(Path.Combine("Client", "addons", "addons.lock.json")), "Addons Godot fijados por revisión");
 
 var editorAssets = new AssetLibrary(new EditorConfiguration());
 Check(editorAssets.Root.Replace('\\', '/').TrimEnd('/').EndsWith("Client/resources", StringComparison.OrdinalIgnoreCase),
@@ -206,6 +210,11 @@ var snapshot = world.Step();
 Check(snapshot[first].Full && snapshot[first].Upserts.Length == 2 && sessionOne.Player!.Id != sessionTwo.Player!.Id, "Spawn de dos entidades y snapshot inicial");
 var state = new ClientWorldState();
 state.Start(new MapLoadPacket(world.Projection("dev-1"), sessionOne.Player!.Id, sessionOne.Character));
+var projectedItemId = new ItemInstanceId(Guid.NewGuid());
+state.Apply(new InventorySnapshotPacket(
+    [new InventoryItemSnapshot(projectedItemId, DefinitionId.New(), 3, 72)], []));
+Check(state.Inventory.Slots.Single().Durability == 72,
+    "Proyección cliente conserva durabilidad autoritativa del inventario");
 state.Apply(snapshot[first], 0);
 Check(state.Entities.All.Count == 2 && state.Predictor is not null, "Proyección cliente construida desde snapshot");
 var idle = world.Step(); state.Apply(idle[first], .05);

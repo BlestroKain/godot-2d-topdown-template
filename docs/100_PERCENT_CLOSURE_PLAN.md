@@ -1,6 +1,9 @@
 # Plan de cierre al 100% — NuevoMMO
 
-**Rama de ejecución:** `devMMO`  
+**Rama base:** `devMMO`
+
+**Rama de adopción Godot-first:** `feature/godot-first-systems`
+
 **Repositorio:** `BlestroKain/godot-2d-topdown-template`  
 **Regla:** `main` no se modifica ni se mezcla sin autorización explícita.  
 **Canon:** `docs/design.md` + `docs/sources/PROYECTO_MMO_NUEVO_REGLAS_ACTUALIZADAS.md`; *newest canon wins*.
@@ -87,3 +90,7 @@ El orden es por dependencias, no por comodidad:
 El porcentaje se calcula por gates y criterios cerrados, no por cantidad de archivos ni líneas de código. Un sistema con UI pero sin autoridad/persistencia no cuenta como terminado. Un repositorio que compila pero pierde estado tampoco cuenta como terminado.
 
 Cada lote debe dejar: **commit identificable + CI + criterio cerrado + siguiente blocker concreto**.
+
+La implementación nueva aplica la auditoría `Godot-first, MMO-authoritative`: reutilizar
+Godot/addons/fuentes externas antes de reconstruir capacidades genéricas, sin ceder al cliente
+la autoridad de gameplay ni deformar los contratos ya cerrados.

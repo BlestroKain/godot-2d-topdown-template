@@ -6,6 +6,8 @@ Decisión posterior del usuario, 2026-09-09: empezar a programar las clases y la
 
 Decisión posterior del usuario, 2026-09-09: el plan maestro aprobado fija las carpetas `Core`, `Network`, `Server`, `Client`, `Editor` y `Tests`; ENet será el transporte runtime encapsulado y TCP quedará como adaptador de pruebas. PostgreSQL cubrirá inicialmente cuentas, sesiones, contenido mínimo y checkpoint de personaje. Tras validar el slice mínimo Cliente ↔ Server ↔ mundo/movimiento, se autoriza habilitar autenticación y persistencia real como siguiente milestone. **Superseded**: la disposición provisional `shared/core/server/client`, el handshake de nombre Development como flujo final y TCP como transporte runtime. Esta sustitución es arquitectónica y no define combate, economía, progresión ni otras reglas de juego.
 
+Decisión posterior del usuario, 2026-09-12: adoptar una dirección **Godot-first, MMO-authoritative** en una rama nueva basada en `devMMO`, conservando lo ya implementado. Antes de programar sistemas desde cero se revisan Godot, addons mantenidos y soluciones de Intersect, Broken_Reborn, otros MMO, Unity, RPG Maker u otras fuentes legalmente reutilizables. Se adapta la lógica útil alrededor de las fronteras vigentes; ningún addon cliente sustituye la autoridad del servidor. El editor MMO se pospone por petición expresa. La auditoría y las decisiones por dependencia están en `development/godot-ecosystem-adoption.md`.
+
 ## Fuentes y precedencia
 
 1. Decisiones explícitas posteriores del usuario.
@@ -22,6 +24,7 @@ Los adjuntos se conservan sin editar. Sus órdenes para Codex se interpretan den
 - Godot representa el mundo; el servidor .NET independiente decide sus reglas.
 - El template completo constituye la base del cliente, conservando escenas, componentes, GDScript, arte provisional y licencias.
 - Se puede reutilizar ingeniería de Broken_Reborn/Intersect/referencias de forma revisada y legal. No importar automáticamente su canon, clases, nombres, game design ni arquitectura.
+- Godot-first: aprovechar Nodes, Resources, escenas, señales, física, navegación, animación y addons mantenidos antes de duplicarlos en una capa propia.
 - Principio de reutilización: `Reutilizar la solución, no heredar las limitaciones de la implementación original.`
 - STR/Tierra, INT/Fuego, AGI/Aire, SPI/Agua y VIT no elemental. La lista no autoriza inventar fórmulas ausentes.
 - Definition y Instance son distintas; ownership, location y custody también. Cartography permanece fuera como sistema/profesión.

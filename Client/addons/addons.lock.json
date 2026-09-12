@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "godot": "4.7.1-mono",
+  "dependencies": [
+    {
+      "name": "Dialogue Manager",
+      "path": "res://addons/dialogue_manager",
+      "version": "3.10.1",
+      "source": "https://github.com/nathanhoad/godot_dialogue_manager",
+      "revision": "inherited-from-template",
+      "license": "MIT",
+      "mode": "authoring-and-presentation"
+    },
+    {
+      "name": "GLoot",
+      "path": "res://addons/gloot",
+      "version": "3.0.2",
+      "source": "https://github.com/peter-kish/gloot",
+      "revision": "6b09b87ac07a8536779ef1ab0fafc7e99830f948",
+      "license": "MIT",
+      "mode": "client-projection-only"
+    },
+    {
+      "name": "Godot State Charts",
+      "path": "res://addons/godot_state_charts",
+      "version": "0.22.5",
+      "source": "https://github.com/derkork/godot-statecharts",
+      "revision": "76d226a3efac66a72aea825382b320c94808f409",
+      "license": "MIT",
+      "mode": "client-presentation-state"
+    }
+  ]
+}

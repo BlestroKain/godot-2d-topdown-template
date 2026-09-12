@@ -18,6 +18,8 @@ public partial class GameHud : CanvasLayer
     private MmoWindow characterRoot = null!, inventoryRoot = null!, escapeRoot = null!, questRoot = null!, techniquesRoot = null!;
     private readonly Dictionary<string, MmoWindow> windows = new(StringComparer.OrdinalIgnoreCase);
     private string lastChatFingerprint = string.Empty;
+    private string lastInventoryProjectionFingerprint = string.Empty;
+    private Node inventoryProjection = null!;
     private UiSystemBinder systemBinder = null!;
 
     public override void _Ready()
@@ -28,6 +30,7 @@ public partial class GameHud : CanvasLayer
         healthBar = GetNode<ProgressBar>("Root/CombatBar/HBox/Vitals/HealthBar");
         manaBar = GetNode<ProgressBar>("Root/CombatBar/HBox/Vitals/ManaBar");
         levelLabel = GetNode<Label>("Root/CombatBar/HBox/PortraitStack/Level");
+        inventoryProjection = GetNode<Node>("ServerInventoryProjection");
         hotbarGrid = GetNode<UiSlotGrid>("Root/CombatBar/HBox/Hotbar");
         targetVitals = GetNode<Label>("Root/TargetBox/TargetVitals");
         chatLog = GetNode<Label>("Root/ChatPanel/VBox/ChatLog");
@@ -102,7 +105,15 @@ public partial class GameHud : CanvasLayer
         ArgumentNullException.ThrowIfNull(network);
         var world = network.World;
         Visible = world.Flow == GameFlowState.InWorld;
-        if (!Visible) return;
+        if (!Visible)
+        {
+            if (lastInventoryProjectionFingerprint.Length > 0)
+            {
+                inventoryProjection.Call("reset_server_projection");
+                lastInventoryProjectionFingerprint = string.Empty;
+            }
+            return;
+        }
 
         var stats = world.Local.Stats;
         if (stats is null)
@@ -192,6 +203,8 @@ public partial class GameHud : CanvasLayer
 
     private void RefreshInventory(ClientWorldState world)
     {
+        ProjectInventoryThroughGodot(world);
+
         foreach (var child in inventoryGrid.GetChildren())
             if (child is UiSlot slot)
             {
@@ -203,13 +216,40 @@ public partial class GameHud : CanvasLayer
         {
             var slot = inventoryGrid.GetSlot(state.Slot);
             if (slot is null) continue;
-            slot.SetData(null, state.Quantity, $"Item {state.DefinitionId} · x{state.Quantity}");
+            slot.SetData(null, state.Quantity,
+                $"Item {state.DefinitionId} · x{state.Quantity} · Durabilidad {state.Durability}");
             slot.Text = $"#{state.Slot}\nx{state.Quantity}";
         }
 
         inventorySummary.Text = world.Inventory.Count == 0
             ? "Inventario vacío."
             : $"{world.Inventory.Count} stacks replicados por el servidor.";
+    }
+
+    private void ProjectInventoryThroughGodot(ClientWorldState world)
+    {
+        var fingerprint = string.Join('|', world.Inventory.Slots
+            .OrderBy(static value => value.Slot)
+            .Select(static value =>
+                $"{value.Slot}:{value.ItemId.Value:N}:{value.DefinitionId.Value:N}:{value.Quantity}:{value.Durability}"));
+        if (fingerprint == lastInventoryProjectionFingerprint)
+            return;
+
+        var slots = new Godot.Collections.Array<Godot.Collections.Dictionary>();
+        foreach (var state in world.Inventory.Slots)
+        {
+            slots.Add(new Godot.Collections.Dictionary
+            {
+                ["slot"] = state.Slot,
+                ["item_id"] = state.ItemId.Value.ToString(),
+                ["definition_id"] = state.DefinitionId.Value.ToString(),
+                ["quantity"] = state.Quantity,
+                ["durability"] = state.Durability
+            });
+        }
+
+        inventoryProjection.Call("apply_server_snapshot", slots);
+        lastInventoryProjectionFingerprint = fingerprint;
     }
 
     private void OnInventorySlotActivated(int index)

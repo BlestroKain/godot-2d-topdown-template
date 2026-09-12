@@ -2,7 +2,12 @@ using NuevoMMO.Core;
 
 namespace NuevoMMO.Client;
 
-public sealed record InventorySlotState(int Slot, ItemInstanceId ItemId, DefinitionId DefinitionId, int Quantity);
+public sealed record InventorySlotState(
+    int Slot,
+    ItemInstanceId ItemId,
+    DefinitionId DefinitionId,
+    int Quantity,
+    int Durability);
 
 /// <summary>
 /// Copia local del inventario. El servidor es la autoridad; esto solo proyecta lo recibido.
@@ -18,7 +23,12 @@ public sealed class InventoryState
     {
         ArgumentNullException.ThrowIfNull(values);
         var copy = values.ToArray();
-        if (copy.Any(static slot => slot.Slot < 0 || slot.ItemId.Value == Guid.Empty || slot.DefinitionId.IsEmpty || slot.Quantity < 1))
+        if (copy.Any(static slot =>
+                slot.Slot < 0 ||
+                slot.ItemId.Value == Guid.Empty ||
+                slot.DefinitionId.IsEmpty ||
+                slot.Quantity < 1 ||
+                slot.Durability < 0))
             throw new ArgumentException("Slot de inventario inválido.", nameof(values));
 
         slots.Clear();

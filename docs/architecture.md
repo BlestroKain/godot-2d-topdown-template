@@ -12,6 +12,8 @@ Leer primero [design.md](design.md). Esta página define las fronteras; [TECHNIC
 
 Core no conoce Godot, Network, Server, Client, Editor, PostgreSQL ni transporte. Network conoce Core y contiene protocolo/transporte, nunca ejecución de gameplay. Server contiene las entidades runtime y la simulación autoritativa. Client y Editor son aplicaciones Godot separadas. **Superseded**: la división provisional `Contracts + Protocol + Domain + Simulation` como arquitectura pública; sus piezas se consolidan sin duplicar modelos.
 
+Los addons Godot viven exclusivamente detrás de adaptadores de Client/Editor. Pueden representar estados, contenedores, abilities, diálogos o herramientas de authoring, pero no entran en Core/Network/Server ni aceptan resultados locales como verdad. Sus versiones/licencias se fijan en `Client/addons/addons.lock.json`.
+
 ## Autoridad
 
 Input → Intent → Command → validación de sesión → validación de dominio → System → eventos → persistencia/replicación.

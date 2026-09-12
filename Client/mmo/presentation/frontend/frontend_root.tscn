@@ -1,11 +1,57 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://mmo/presentation/frontend/FrontendFlowController.cs" id="1_frontend"]
 [ext_resource type="Theme" path="res://mmo/presentation/ui/theme/mmo_ui_theme.tres" id="2_theme"]
+[ext_resource type="Script" path="res://addons/godot_state_charts/state_chart.gd" id="3_state_chart"]
+[ext_resource type="Script" path="res://addons/godot_state_charts/compound_state.gd" id="4_compound_state"]
+[ext_resource type="Script" path="res://addons/godot_state_charts/atomic_state.gd" id="5_atomic_state"]
+[ext_resource type="Script" path="res://addons/godot_state_charts/transition.gd" id="6_transition"]
 
 [node name="FrontendRoot" type="CanvasLayer"]
 layer = 50
 script = ExtResource("1_frontend")
+
+[node name="PresentationStateChart" type="Node" parent="."]
+script = ExtResource("3_state_chart")
+track_in_editor = true
+
+[node name="Root" type="Node" parent="PresentationStateChart"]
+script = ExtResource("4_compound_state")
+initial_state = NodePath("Frontend")
+
+[node name="Frontend" type="Node" parent="PresentationStateChart/Root"]
+script = ExtResource("5_atomic_state")
+
+[node name="EnterWorld" type="Node" parent="PresentationStateChart/Root/Frontend"]
+script = ExtResource("6_transition")
+to = NodePath("../../World")
+event = &"world_entered"
+
+[node name="World" type="Node" parent="PresentationStateChart/Root"]
+script = ExtResource("5_atomic_state")
+
+[node name="LeaveWorld" type="Node" parent="PresentationStateChart/Root/World"]
+script = ExtResource("6_transition")
+to = NodePath("../../Frontend")
+event = &"left_world"
+
+[node name="OpenSettings" type="Node" parent="PresentationStateChart/Root/World"]
+script = ExtResource("6_transition")
+to = NodePath("../../SettingsOverWorld")
+event = &"open_settings"
+
+[node name="SettingsOverWorld" type="Node" parent="PresentationStateChart/Root"]
+script = ExtResource("5_atomic_state")
+
+[node name="CloseSettings" type="Node" parent="PresentationStateChart/Root/SettingsOverWorld"]
+script = ExtResource("6_transition")
+to = NodePath("../../World")
+event = &"close_settings"
+
+[node name="LeaveWorld" type="Node" parent="PresentationStateChart/Root/SettingsOverWorld"]
+script = ExtResource("6_transition")
+to = NodePath("../../Frontend")
+event = &"left_world"
 
 [node name="Root" type="Control" parent="."]
 layout_mode = 3
