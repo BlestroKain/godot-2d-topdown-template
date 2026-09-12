@@ -14,6 +14,7 @@ internal static class MultiMapHardeningVerification
     {
         VerifyPersistedSecondaryMapJoin();
         VerifyPortalHandshakeAndPersistence();
+        VerifyTwoClientPortalPreservesInventoryEquipment();
         VerifyClientPreservesCharacterStateAcrossMapLoad();
     }
 
@@ -99,6 +100,94 @@ internal static class MultiMapHardeningVerification
         Expect(destinationSnapshot.Full && destinationSnapshot.Correction.Position == portal.Destination &&
                destinationSnapshot.Upserts.Any(entity => entity.Id == player.Id),
             "Tras MapReady el primer snapshot de B es Full y contiene al jugador");
+    }
+
+    private static void VerifyTwoClientPortalPreservesInventoryEquipment()
+    {
+        var mapB = CreateMap("maps.multimap.inventory.b", new BoundsData(new(1000, 1000), new(1300, 1300)), new(1050, 1050));
+        var portal = new MapPortalDefinition(
+            Guid.NewGuid(),
+            new MapShapeDefinition(MapShapeKind.Rectangle, new(100, 100), new(64, 64)),
+            mapB.Id,
+            new Vector2Data(1100, 1110),
+            Direction.Right);
+        var mapA = CreateMap(
+            "maps.multimap.inventory.a",
+            new BoundsData(new(0, 0), new(300, 300)),
+            new(100, 100),
+            new MapContentDefinition(portals: [portal]));
+        var weapon = new ItemDefinition(
+            DefinitionId.New(),
+            new ContentKey("items.multimap.persistence_weapon"),
+            "Arma persistente",
+            string.Empty,
+            true,
+            1,
+            null,
+            new ContentKey("visuals.item.multimap.persistence_weapon"),
+            kind: ItemKind.Equipment,
+            equipment: new ItemEquipmentDefinition(
+                EquipmentSlot.Weapon,
+                WeaponFamily.OneHanded,
+                twoHanded: false,
+                maxDurability: 100,
+                flatStats: new Dictionary<StatId, float> { [StatId.Strength] = 4 }));
+
+        var definitions = new DefinitionRegistry();
+        definitions.Register(mapA);
+        definitions.Register(mapB);
+        definitions.Register(weapon);
+        var systems = new GameSystems(definitions);
+        var world = new WorldRuntime(mapA, Options(), new OscillatingMobPolicy(), systems);
+        var secondary = world.AddMap(mapB, new MapInstanceId(2));
+
+        var movingSession = AuthenticatedSession(world, "MovingClient");
+        var observerSession = AuthenticatedSession(world, "ObserverClient");
+        var repository = new InMemoryCharacterRepository();
+        var movingRecord = repository.CreateAsync(movingSession.Account, "MovingClient", mapA.Id, mapA.Spawn).GetAwaiter().GetResult();
+        var moving = world.Join(movingSession,
+            new CharacterSpawn(movingSession.Account, movingRecord.Id, movingRecord.Name, mapA.Id, mapA.Spawn));
+        var observer = world.Join(observerSession,
+            new CharacterSpawn(observerSession.Account, new CharacterId(Guid.NewGuid()), "ObserverClient", mapA.Id, new(220, 220)));
+        systems.Progression.Initialize(moving, movingRecord.ToProgressionState());
+        systems.Progression.Initialize(observer);
+        world.PrepareMapLoad(movingSession, "multimap-test");
+        world.PrepareMapLoad(observerSession, "multimap-test");
+        world.Activate(movingSession, world.Instance);
+        world.Activate(observerSession, world.Instance);
+
+        var item = new ItemInstance(new ItemInstanceId(Guid.NewGuid()), weapon.Id, 1, 73);
+        systems.Inventory.Give(moving.Inventory, item);
+        world.EquipItem(movingSession, item.UniqueId);
+        var effectiveStrength = moving.Stats.Primary.Strength;
+        Expect(moving.Inventory.Count == 1 && moving.Equipment.Contains(item.UniqueId),
+            "Cliente A inicia transición con inventario/equipo autoritativos");
+
+        var transitionTick = world.Step();
+        Expect(movingSession.State == PlayerSessionState.WaitingForMap && !transitionTick.ContainsKey(movingSession.Connection),
+            "Cliente A entra en handshake de mapa sin snapshot intermedio");
+        Expect(observerSession.State == PlayerSessionState.InWorld && transitionTick.ContainsKey(observerSession.Connection) &&
+               observer.MapInstanceId == world.Instance,
+            "Cliente B permanece activo y aislado en el mapa origen");
+        Expect(moving.Inventory.Count == 1 && moving.Equipment.Contains(item.UniqueId) &&
+               moving.Stats.Primary.Strength == effectiveStrength,
+            "Transición A→B conserva inventario, equipo y stats del mismo Player");
+
+        world.Activate(movingSession, secondary.Id);
+        var afterTransition = world.Step();
+        Expect(afterTransition.ContainsKey(movingSession.Connection) && moving.MapInstanceId == secondary.Id &&
+               moving.Inventory.Count == 1 && moving.Equipment.Contains(item.UniqueId) &&
+               moving.Stats.Primary.Strength == effectiveStrength,
+            "Cliente A completa MapReady en B sin perder inventario/equipo");
+
+        var persistence = new PersistenceService(repository, mapA, world.MapDefinitionFor);
+        persistence.SaveCharacterAsync(moving).GetAwaiter().GetResult();
+        var saved = repository.GetAsync(movingRecord.Id).GetAwaiter().GetResult()
+            ?? throw new InvalidOperationException("MultiMapHardeningVerification FAIL: personaje no persistido");
+        var storedInventory = CharacterInventoryStorage.Parse(saved.InventoryData);
+        Expect(saved.MapDefinition == mapB.Id && storedInventory.Items.Any(entry => entry.Id == item.UniqueId.Value) &&
+               storedInventory.Equipment.Any(entry => entry.ItemId == item.UniqueId.Value),
+            "Checkpoint post-transición persiste mapa, inventario y equipo juntos");
     }
 
     private static void VerifyClientPreservesCharacterStateAcrossMapLoad()
