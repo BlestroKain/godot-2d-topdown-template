@@ -56,7 +56,7 @@ public class ClientGameState
         foreach (var entry in packet.Equipped)
         {
             if (!byId.TryGetValue(entry.ItemId, out var item)) continue;
-            Local.Equipment.Equip(entry.Slot,
+            Local.Equipment.Equip(entry.Slot, entry.Index,
                 new InventorySlotState(entry.Index, item.ItemId, item.DefinitionId, item.Quantity, item.Durability));
         }
     }

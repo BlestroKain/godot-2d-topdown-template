@@ -9,8 +9,29 @@ internal static class ServerInventoryEquipmentVerification
     internal static void Verify()
     {
         VerifyInventoryStacking();
+        VerifyInventoryReordering();
         VerifyEquipmentConflicts();
         VerifyEquipmentRequirements();
+    }
+
+    private static void VerifyInventoryReordering()
+    {
+        var inventory = new Inventory(maxSlots: 3);
+        var first = new ItemInstance(new ItemInstanceId(Guid.NewGuid()), DefinitionId.New(), 1, 0);
+        var second = new ItemInstance(new ItemInstanceId(Guid.NewGuid()), DefinitionId.New(), 1, 0);
+        var third = new ItemInstance(new ItemInstanceId(Guid.NewGuid()), DefinitionId.New(), 1, 0);
+        inventory.Add(first);
+        inventory.Add(second);
+        inventory.Add(third);
+
+        Expect(inventory.Move(first.UniqueId, 2), "mover stack cambia el orden autoritativo");
+        Expect(inventory.Items.Select(static item => item.UniqueId).SequenceEqual(
+            [second.UniqueId, third.UniqueId, first.UniqueId]), "reordenamiento conserva identidad y destino");
+        Expect(!inventory.Move(first.UniqueId, 2), "mover al mismo índice es idempotente");
+        ExpectThrows<ArgumentOutOfRangeException>(() => inventory.Move(first.UniqueId, 3),
+            "índice fuera de rango rechazado");
+        ExpectThrows<KeyNotFoundException>(() => inventory.Move(new ItemInstanceId(Guid.NewGuid()), 0),
+            "item ajeno rechazado");
     }
 
     private static void VerifyInventoryStacking()
@@ -135,5 +156,12 @@ internal static class ServerInventoryEquipmentVerification
     private static void Expect(bool condition, string name)
     {
         if (!condition) throw new InvalidOperationException("ServerInventoryEquipmentVerification FAIL: " + name);
+    }
+
+    private static void ExpectThrows<TException>(Action action, string name) where TException : Exception
+    {
+        try { action(); }
+        catch (TException) { return; }
+        throw new InvalidOperationException("ServerInventoryEquipmentVerification FAIL: " + name);
     }
 }

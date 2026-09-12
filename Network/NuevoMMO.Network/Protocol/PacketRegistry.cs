@@ -23,6 +23,7 @@ public static class PacketRegistry
             [typeof(SetTargetRequest)] = (PacketId.SetTargetRequest, PacketDirection.ClientToServer),
             [typeof(EquipItemRequest)] = (PacketId.EquipItemRequest, PacketDirection.ClientToServer),
             [typeof(UnequipItemRequest)] = (PacketId.UnequipItemRequest, PacketDirection.ClientToServer),
+            [typeof(MoveInventoryItemRequest)] = (PacketId.MoveInventoryItemRequest, PacketDirection.ClientToServer),
             [typeof(ConnectionAccepted)] = (PacketId.ConnectionAccepted, PacketDirection.ServerToClient),
             [typeof(LoginResult)] = (PacketId.LoginResult, PacketDirection.ServerToClient),
             [typeof(RegisterResult)] = (PacketId.RegisterResult, PacketDirection.ServerToClient),

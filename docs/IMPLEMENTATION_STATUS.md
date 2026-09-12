@@ -14,12 +14,14 @@ Revisión: 2026-09-12. Arquitectura `Core / Network / Server / Client / Editor` 
 - Rama `feature/godot-first-systems` creada desde `devMMO` para adoptar addons y lógica externa sin descartar los sistemas autoritativos existentes.
 - Godot State Charts 0.22.5 integrado en el flujo visual Frontend/World/SettingsOverWorld.
 - GLoot 3.0.2 integrado como proyección de snapshots de inventario; la durabilidad ya no se pierde en el modelo cliente.
+- Contrato de reordenamiento autoritativo de inventario (`MoveInventoryItemRequest`) y soporte de índices múltiples de equipo implementados con pruebas de regresión en código.
 
 ## En implementación por decisión posterior
 
 - ENet como transporte runtime de producción; TCP se conserva como adaptador de pruebas.
 - PostgreSQL real para cuentas, sesiones y checkpoint; el schema SQL está preparado.
 - Mapa visual dedicado importado desde TileMap, Editor Godot y validación de dos procesos Godot sobre el protocolo nuevo.
+- Validación runtime de `ServerInventoryGrid` con Godot 4.7.1 Mono: el entorno de esta revisión no contiene ejecutables de Godot/.NET; solo se completaron validaciones estáticas de escenas, recursos, registros de paquete y JSON.
 - CI de .NET, PostgreSQL y smoke Godot; releases únicamente mediante tag manual.
 
 ## Límites actuales

@@ -366,6 +366,7 @@ public sealed class EquipItemHandler(
         catch (Exception exception) when (exception is InvalidOperationException or KeyNotFoundException)
         {
             context.Send(new ErrorPacket("equip", exception.Message, false));
+            context.Send(world.InventorySnapshot(context.Session));
         }
     }
 }
@@ -392,6 +393,31 @@ public sealed class UnequipItemHandler(
         catch (Exception exception) when (exception is InvalidOperationException or KeyNotFoundException)
         {
             context.Send(new ErrorPacket("unequip", exception.Message, false));
+            context.Send(world.InventorySnapshot(context.Session));
+        }
+    }
+}
+
+public sealed class MoveInventoryItemHandler(
+    WorldRuntime world,
+    PersistenceService persistence,
+    AuthorizationService authorization)
+    : IPacketHandler<ServerPacketContext, MoveInventoryItemRequest>
+{
+    public async ValueTask HandleAsync(ServerPacketContext context, MoveInventoryItemRequest packet, CancellationToken cancellationToken)
+    {
+        ServerAuthorizationGuard.Demand(context, ServerAction.ManageInventory, authorization);
+        try
+        {
+            world.MoveInventoryItem(context.Session, packet.ItemId, packet.TargetIndex);
+            context.Send(world.InventorySnapshot(context.Session));
+            if (context.Session.Player is { } player)
+                await persistence.SaveCharacterAsync(player, cancellationToken);
+        }
+        catch (Exception exception) when (exception is ArgumentOutOfRangeException or InvalidOperationException or KeyNotFoundException)
+        {
+            context.Send(new ErrorPacket("inventory_move", exception.Message, false));
+            context.Send(world.InventorySnapshot(context.Session));
         }
     }
 }

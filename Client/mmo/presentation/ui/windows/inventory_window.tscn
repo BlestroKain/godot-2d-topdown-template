@@ -2,8 +2,8 @@
 
 [ext_resource type="Script" path="res://mmo/presentation/ui/components/MmoWindow.cs" id="1"]
 [ext_resource type="Theme" path="res://mmo/presentation/ui/theme/mmo_ui_theme.tres" id="2"]
-[ext_resource type="Script" path="res://mmo/presentation/ui/components/UiSlotGrid.cs" id="3"]
-[ext_resource type="PackedScene" path="res://mmo/presentation/ui/components/ui_slot.tscn" id="4"]
+[ext_resource type="Script" path="res://mmo/presentation/inventory/server_inventory_grid.gd" id="3"]
+[ext_resource type="PackedScene" path="res://mmo/presentation/inventory/server_inventory_item.tscn" id="4"]
 [ext_resource type="Script" path="res://mmo/presentation/ui/components/UiTabBar.cs" id="5"]
 
 [node name="InventoryWindow" type="PanelContainer"]
@@ -43,7 +43,8 @@ theme_override_font_sizes/font_size = 30
 [node name="Weight" type="Label" parent="Margin/VBox/HeaderDrag"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "⚖ 0 / 90"
+text = "Stacks: 0"
+tooltip_text = "Capacidad y peso definitivos: PENDING DESIGN"
 vertical_alignment = 1
 [node name="CloseButton" type="Button" parent="Margin/VBox/HeaderDrag"]
 unique_name_in_owner = true
@@ -58,36 +59,46 @@ script = ExtResource("5")
 layout_mode = 2
 size_flags_horizontal = 3
 button_pressed = true
+disabled = true
 text = "Todos"
 [node name="Equipment" type="Button" parent="Margin/VBox/Tabs"]
 layout_mode = 2
 size_flags_horizontal = 3
+disabled = true
 text = "Equipamiento"
 [node name="Consumables" type="Button" parent="Margin/VBox/Tabs"]
 layout_mode = 2
 size_flags_horizontal = 3
+disabled = true
 text = "Consumibles"
 [node name="Materials" type="Button" parent="Margin/VBox/Tabs"]
 layout_mode = 2
 size_flags_horizontal = 3
+disabled = true
 text = "Materiales"
 [node name="Other" type="Button" parent="Margin/VBox/Tabs"]
 layout_mode = 2
 size_flags_horizontal = 3
+disabled = true
 text = "Otros"
 
 [node name="Separator" type="HSeparator" parent="Margin/VBox"]
 layout_mode = 2
 
-[node name="SlotGrid" type="GridContainer" parent="Margin/VBox"]
+[node name="GridScroll" type="ScrollContainer" parent="Margin/VBox"]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_horizontal = 4
 size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="SlotGrid" type="Control" parent="Margin/VBox/GridScroll"]
+custom_minimum_size = Vector2(398, 338)
+layout_mode = 2
 script = ExtResource("3")
-GridColumns = 7
-SlotCount = 42
-SlotScene = ExtResource("4")
+custom_item_control_scene = ExtResource("4")
+field_dimensions = Vector2(54, 54)
+item_spacing = 2
+stretch_item_icons = false
 
 [node name="InventorySummary" type="Label" parent="Margin/VBox"]
 unique_name_in_owner = true
@@ -102,8 +113,11 @@ layout_mode = 2
 layout_mode = 2
 size_flags_horizontal = 3
 text = "◉ 0"
+tooltip_text = "Moneda y economía: PENDING DESIGN"
 theme_override_font_sizes/font_size = 20
 [node name="Sort" type="Button" parent="Margin/VBox/Footer"]
 layout_mode = 2
 custom_minimum_size = Vector2(140, 40)
+disabled = true
+tooltip_text = "El orden automático requiere reglas de contenido aprobadas."
 text = "☷  Ordenar"

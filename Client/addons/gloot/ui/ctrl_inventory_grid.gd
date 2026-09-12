@@ -9,7 +9,7 @@ extends Control
 signal item_dropped(item: InventoryItem, offset: Vector2) ## Emitted when an item has been dropped onto the 2D grid.
 signal selection_changed ## Emitted when the item selection has changed.
 signal inventory_item_activated(item: InventoryItem) ## Emitted when an inventory item has been double-clicked.
-signal inventory_item_clicked(item: InventoryItem) ## Emitted when an inventory item has been right-clicked.
+signal inventory_item_clicked(item: InventoryItem, at_position: Vector2, mouse_button_index: int) ## Emitted when an inventory item has been clicked.
 signal inventory_item_selected(item: InventoryItem) ## Emitted when an inventory item has been selected.
 signal item_mouse_entered(item: InventoryItem) ## Emitted when the mouse cursor has entered the visible area of an item.
 signal item_mouse_exited(item: InventoryItem) ## Emitted when the mouse cursor has exited the visible area of an item.

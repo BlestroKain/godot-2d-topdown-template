@@ -55,6 +55,11 @@ Check(File.Exists(Path.Combine("Client", "addons", "gloot", "LICENSE")), "GLoot 
 Check(File.Exists(Path.Combine("Client", "addons", "godot_state_charts", "LICENSE")),
     "Godot State Charts vendorizado conserva licencia");
 Check(File.Exists(Path.Combine("Client", "addons", "addons.lock.json")), "Addons Godot fijados por revisión");
+Check(File.Exists(Path.Combine("Client", "mmo", "presentation", "inventory", "server_inventory_grid.gd")),
+    "Adaptador GLoot autoritativo presente");
+Check(File.ReadAllText(Path.Combine("Client", "mmo", "presentation", "ui", "windows", "inventory_window.tscn"))
+        .Contains("server_inventory_grid.gd", StringComparison.Ordinal),
+    "Ventana de inventario usa el grid GLoot adaptado");
 
 var editorAssets = new AssetLibrary(new EditorConfiguration());
 Check(editorAssets.Root.Replace('\\', '/').TrimEnd('/').EndsWith("Client/resources", StringComparison.OrdinalIgnoreCase),
@@ -215,6 +220,24 @@ state.Apply(new InventorySnapshotPacket(
     [new InventoryItemSnapshot(projectedItemId, DefinitionId.New(), 3, 72)], []));
 Check(state.Inventory.Slots.Single().Durability == 72,
     "Proyección cliente conserva durabilidad autoritativa del inventario");
+var inventoryRevision = state.Inventory.Revision;
+var ringOneId = new ItemInstanceId(Guid.NewGuid());
+var ringTwoId = new ItemInstanceId(Guid.NewGuid());
+state.Apply(new InventorySnapshotPacket(
+    [
+        new InventoryItemSnapshot(ringOneId, DefinitionId.New(), 1, 20),
+        new InventoryItemSnapshot(ringTwoId, DefinitionId.New(), 1, 25)
+    ],
+    [
+        new EquippedItemSnapshot(EquipmentSlot.Ring, 0, ringOneId),
+        new EquippedItemSnapshot(EquipmentSlot.Ring, 1, ringTwoId)
+    ]));
+Check(state.Local.Equipment.Worn.Count == 2 &&
+      state.Local.Equipment.IsEquipped(EquipmentSlot.Ring, 0) &&
+      state.Local.Equipment.IsEquipped(EquipmentSlot.Ring, 1),
+    "Proyección cliente conserva índices múltiples de anillos/trofeos");
+Check(state.Inventory.Revision > inventoryRevision,
+    "Cada snapshot de inventario confirma una nueva revisión cliente");
 state.Apply(snapshot[first], 0);
 Check(state.Entities.All.Count == 2 && state.Predictor is not null, "Proyección cliente construida desde snapshot");
 var idle = world.Step(); state.Apply(idle[first], .05);
@@ -292,6 +315,13 @@ Check(PacketCodec.Decode(PacketCodec.Encode(equip)) is EquipItemRequest decodedE
 var unequip = new UnequipItemRequest(inventorySnapshot.Items[0].ItemId);
 Check(PacketCodec.Decode(PacketCodec.Encode(unequip)) is UnequipItemRequest decodedUnequip && decodedUnequip == unequip,
     "Network: UnequipItem roundtrip");
+var moveInventory = new MoveInventoryItemRequest(inventorySnapshot.Items[0].ItemId, 0);
+Check(PacketCodec.Decode(PacketCodec.Encode(moveInventory)) is MoveInventoryItemRequest decodedMoveInventory && decodedMoveInventory == moveInventory,
+    "Network: MoveInventoryItem roundtrip");
+Check(PacketRegistry.Describe(moveInventory) == (PacketId.MoveInventoryItemRequest, PacketDirection.ClientToServer),
+    "Network: MoveInventoryItem registrado cliente a servidor");
+Reject(() => PacketCodec.Encode(moveInventory with { TargetIndex = -1 }),
+    "Network: MoveInventoryItem rechaza índice negativo");
 
 var eventRuntime = new EventRuntime(new DefinitionRegistry());
 var pageListId = Guid.NewGuid();

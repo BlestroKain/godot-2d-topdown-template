@@ -18,7 +18,10 @@
       "source": "https://github.com/peter-kish/gloot",
       "revision": "6b09b87ac07a8536779ef1ab0fafc7e99830f948",
       "license": "MIT",
-      "mode": "client-projection-only"
+      "mode": "client-projection-only",
+      "localPatches": [
+        "ctrl_inventory_grid.gd: align inventory_item_clicked signature with emitted arguments"
+      ]
     },
     {
       "name": "Godot State Charts",

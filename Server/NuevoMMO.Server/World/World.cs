@@ -537,6 +537,15 @@ public sealed class WorldRuntime
         }
     }
 
+    public void MoveInventoryItem(PlayerSession session, ItemInstanceId itemId, int targetIndex)
+    {
+        lock (gate)
+        {
+            EnsureInWorld(session);
+            session.Player!.Inventory.Move(itemId, targetIndex);
+        }
+    }
+
     private static int NextEquipmentIndex(Player player, EquipmentSlot slot)
     {
         if (slot is not (EquipmentSlot.Ring or EquipmentSlot.Trophy)) return 0;

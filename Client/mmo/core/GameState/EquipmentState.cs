@@ -2,22 +2,25 @@ using NuevoMMO.Core;
 
 namespace NuevoMMO.Client;
 
+public readonly record struct EquipmentSlotKey(EquipmentSlot Slot, int Index = 0);
+
 public sealed class EquipmentState
 {
-    private readonly Dictionary<EquipmentSlot, InventorySlotState> worn = [];
+    private readonly Dictionary<EquipmentSlotKey, InventorySlotState> worn = [];
 
-    public IReadOnlyDictionary<EquipmentSlot, InventorySlotState> Worn => worn;
+    public IReadOnlyDictionary<EquipmentSlotKey, InventorySlotState> Worn => worn;
 
-    public void Equip(EquipmentSlot slot, InventorySlotState item)
+    public void Equip(EquipmentSlot slot, int index, InventorySlotState item)
     {
         if (slot == EquipmentSlot.None) throw new ArgumentOutOfRangeException(nameof(slot));
+        if (index < 0) throw new ArgumentOutOfRangeException(nameof(index));
         ArgumentNullException.ThrowIfNull(item);
-        worn[slot] = item;
+        worn[new EquipmentSlotKey(slot, index)] = item;
     }
 
-    public bool Unequip(EquipmentSlot slot) => worn.Remove(slot);
+    public bool Unequip(EquipmentSlot slot, int index = 0) => worn.Remove(new EquipmentSlotKey(slot, index));
 
-    public bool IsEquipped(EquipmentSlot slot) => worn.ContainsKey(slot);
+    public bool IsEquipped(EquipmentSlot slot, int index = 0) => worn.ContainsKey(new EquipmentSlotKey(slot, index));
 
     public bool Contains(ItemInstanceId itemId)
         => itemId.Value != Guid.Empty && worn.Values.Any(item => item.ItemId == itemId);

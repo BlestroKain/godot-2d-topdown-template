@@ -12,14 +12,17 @@ namespace NuevoMMO.GodotClient;
 /// </summary>
 public partial class GameHud : CanvasLayer
 {
-    private Label selfVitals = null!, targetVitals = null!, chatLog = null!, inventorySummary = null!, characterStats = null!, levelLabel = null!;
+    private Label selfVitals = null!, targetVitals = null!, chatLog = null!, inventorySummary = null!, inventoryCapacity = null!, characterStats = null!, levelLabel = null!;
     private ProgressBar healthBar = null!, manaBar = null!;
-    private UiSlotGrid hotbarGrid = null!, inventoryGrid = null!;
+    private UiSlotGrid hotbarGrid = null!;
     private MmoWindow characterRoot = null!, inventoryRoot = null!, escapeRoot = null!, questRoot = null!, techniquesRoot = null!;
     private readonly Dictionary<string, MmoWindow> windows = new(StringComparer.OrdinalIgnoreCase);
     private string lastChatFingerprint = string.Empty;
     private string lastInventoryProjectionFingerprint = string.Empty;
+    private long lastInventoryRevision = -1;
+    private readonly HashSet<ItemInstanceId> pendingInventoryItems = [];
     private Node inventoryProjection = null!;
+    private Node inventoryGrid = null!;
     private UiSystemBinder systemBinder = null!;
 
     public override void _Ready()
@@ -43,15 +46,11 @@ public partial class GameHud : CanvasLayer
 
         characterStats = characterRoot.GetNode<Label>("Margin/VBox/Body/StatsPanel/StatsVBox/CharacterStats");
         inventorySummary = inventoryRoot.GetNode<Label>("Margin/VBox/InventorySummary");
-        inventoryGrid = inventoryRoot.GetNode<UiSlotGrid>("Margin/VBox/SlotGrid");
-        foreach (var child in inventoryGrid.GetChildren())
-            if (child is UiSlot existing)
-                existing.SlotActivated += OnInventorySlotActivated;
-        inventoryGrid.ChildEnteredTree += child =>
-        {
-            if (child is UiSlot slot)
-                slot.SlotActivated += OnInventorySlotActivated;
-        };
+        inventoryCapacity = inventoryRoot.GetNode<Label>("Margin/VBox/HeaderDrag/Weight");
+        inventoryGrid = inventoryRoot.GetNode<Node>("Margin/VBox/GridScroll/SlotGrid");
+        inventoryGrid.Set("inventory", inventoryProjection);
+        inventoryGrid.Connect("server_item_activated", Callable.From<string>(OnInventoryItemActivated));
+        inventoryGrid.Connect("server_item_move_requested", Callable.From<string, int>(OnInventoryItemMoveRequested));
 
         RegisterWindow("character", characterRoot);
         RegisterWindow("inventory", inventoryRoot);
@@ -111,6 +110,8 @@ public partial class GameHud : CanvasLayer
             {
                 inventoryProjection.Call("reset_server_projection");
                 lastInventoryProjectionFingerprint = string.Empty;
+                lastInventoryRevision = -1;
+                pendingInventoryItems.Clear();
             }
             return;
         }
@@ -203,27 +204,18 @@ public partial class GameHud : CanvasLayer
 
     private void RefreshInventory(ClientWorldState world)
     {
-        ProjectInventoryThroughGodot(world);
-
-        foreach (var child in inventoryGrid.GetChildren())
-            if (child is UiSlot slot)
-            {
-                slot.Clear();
-                slot.Text = string.Empty;
-            }
-
-        foreach (var state in world.Inventory.Slots)
+        if (lastInventoryRevision != world.Inventory.Revision)
         {
-            var slot = inventoryGrid.GetSlot(state.Slot);
-            if (slot is null) continue;
-            slot.SetData(null, state.Quantity,
-                $"Item {state.DefinitionId} · x{state.Quantity} · Durabilidad {state.Durability}");
-            slot.Text = $"#{state.Slot}\nx{state.Quantity}";
+            lastInventoryRevision = world.Inventory.Revision;
+            pendingInventoryItems.Clear();
         }
-
+        ProjectInventoryThroughGodot(world);
+        inventoryCapacity.Text = $"Stacks: {world.Inventory.Count}";
         inventorySummary.Text = world.Inventory.Count == 0
             ? "Inventario vacío."
-            : $"{world.Inventory.Count} stacks replicados por el servidor.";
+            : pendingInventoryItems.Count > 0
+                ? $"Esperando confirmación del servidor · {pendingInventoryItems.Count} operación(es)…"
+                : $"{world.Inventory.Count} stacks autoritativos · arrastra para reordenar · doble clic para equipar.";
     }
 
     private void ProjectInventoryThroughGodot(ClientWorldState world)
@@ -231,7 +223,8 @@ public partial class GameHud : CanvasLayer
         var fingerprint = string.Join('|', world.Inventory.Slots
             .OrderBy(static value => value.Slot)
             .Select(static value =>
-                $"{value.Slot}:{value.ItemId.Value:N}:{value.DefinitionId.Value:N}:{value.Quantity}:{value.Durability}"));
+                $"{value.Slot}:{value.ItemId.Value:N}:{value.DefinitionId.Value:N}:{value.Quantity}:{value.Durability}:" +
+                world.Local.Equipment.Contains(value.ItemId)));
         if (fingerprint == lastInventoryProjectionFingerprint)
             return;
 
@@ -244,7 +237,8 @@ public partial class GameHud : CanvasLayer
                 ["item_id"] = state.ItemId.Value.ToString(),
                 ["definition_id"] = state.DefinitionId.Value.ToString(),
                 ["quantity"] = state.Quantity,
-                ["durability"] = state.Durability
+                ["durability"] = state.Durability,
+                ["equipped"] = world.Local.Equipment.Contains(state.ItemId)
             });
         }
 
@@ -252,15 +246,31 @@ public partial class GameHud : CanvasLayer
         lastInventoryProjectionFingerprint = fingerprint;
     }
 
-    private void OnInventorySlotActivated(int index)
+    private void OnInventoryItemActivated(string rawItemId)
     {
-        if (GetParent() is not MmoGame game || game.Network is null) return;
-        var slot = game.Network.World.Inventory.Slots.FirstOrDefault(value => value.Slot == index);
-        if (slot is null) return;
+        if (GetParent() is not MmoGame game || game.Network is null || !Guid.TryParse(rawItemId, out var parsed)) return;
+        var itemId = new ItemInstanceId(parsed);
+        if (pendingInventoryItems.Count > 0 || !pendingInventoryItems.Add(itemId)) return;
+        var slot = game.Network.World.Inventory.Slots.FirstOrDefault(value => value.ItemId == itemId);
+        if (slot is null)
+        {
+            pendingInventoryItems.Remove(itemId);
+            return;
+        }
         if (game.Network.World.Local.Equipment.Contains(slot.ItemId))
             game.Network.UnequipItem(slot.ItemId);
         else
             game.Network.EquipItem(slot.ItemId);
+    }
+
+    private void OnInventoryItemMoveRequested(string rawItemId, int targetIndex)
+    {
+        if (GetParent() is not MmoGame game || game.Network is null ||
+            !Guid.TryParse(rawItemId, out var parsed) || targetIndex < 0 || targetIndex >= game.Network.World.Inventory.Count)
+            return;
+        var itemId = new ItemInstanceId(parsed);
+        if (pendingInventoryItems.Count > 0 || !pendingInventoryItems.Add(itemId)) return;
+        game.Network.MoveInventoryItem(itemId, targetIndex);
     }
 
     private static string DefaultHotbarName(int index) => index switch

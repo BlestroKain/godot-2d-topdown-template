@@ -65,6 +65,7 @@ public static class ServerHandlerRegistry
         registry.Register(new InteractHandler(world, authorization));
         registry.Register(new EquipItemHandler(world, persistence, progression, authorization));
         registry.Register(new UnequipItemHandler(world, persistence, progression, authorization));
+        registry.Register(new MoveInventoryItemHandler(world, persistence, authorization));
         registry.Register(new SetTargetHandler(world, authorization));
         registry.Register(new PingHandler());
         registry.Register(new DisconnectHandler());

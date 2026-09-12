@@ -5,7 +5,7 @@ namespace NuevoMMO.Network;
 
 public static class PacketCodec
 {
-    public const ushort Version = 4;
+    public const ushort Version = 5;
     public const int MaxPacketBytes = 64 * 1024;
     public const int MaxEntities = 256;
     private static ReadOnlySpan<byte> Magic => "NMMO"u8;
@@ -96,6 +96,10 @@ public static class PacketCodec
             case UnequipItemRequest value:
                 if (value.ItemId.Value == Guid.Empty) throw new InvalidDataException("UnequipItem inválido.");
                 writer.Write(value.ItemId.Value); break;
+            case MoveInventoryItemRequest value:
+                if (value.ItemId.Value == Guid.Empty || value.TargetIndex is < 0 or >= MaxInventoryItems)
+                    throw new InvalidDataException("MoveInventoryItem inválido.");
+                writer.Write(value.ItemId.Value); writer.Write(value.TargetIndex); break;
             case PingPacket value: writer.Write(value.Nonce); writer.Write(value.ClientSendTimestamp); break;
             case DisconnectRequest value: writer.Write(value.Reason, 256); break;
             case ConnectionAccepted value: writer.Write(value.Connection.Value); writer.Write(value.ServerTimestamp); writer.Write(value.ProtocolVersion); break;
@@ -144,6 +148,7 @@ public static class PacketCodec
         PacketId.SetTargetRequest => new SetTargetRequest(new(reader.ReadInt64())),
         PacketId.EquipItemRequest => new EquipItemRequest(new(reader.ReadGuid())),
         PacketId.UnequipItemRequest => new UnequipItemRequest(new(reader.ReadGuid())),
+        PacketId.MoveInventoryItemRequest => ReadMoveInventoryItemRequest(reader),
         PacketId.Ping => new PingPacket(reader.ReadInt64(), reader.ReadInt64()),
         PacketId.DisconnectRequest => new DisconnectRequest(reader.ReadString(256)),
         PacketId.ConnectionAccepted => new ConnectionAccepted(new(reader.ReadGuid()), reader.ReadInt64(), reader.ReadUInt16()),
@@ -182,6 +187,15 @@ public static class PacketCodec
         if (target.Value <= 0 || !Enum.IsDefined(attack))
             throw new InvalidDataException("Ataque de desarrollo inválido.");
         return new(target, attack);
+    }
+
+    private static MoveInventoryItemRequest ReadMoveInventoryItemRequest(PacketReader reader)
+    {
+        var itemId = new ItemInstanceId(reader.ReadGuid());
+        var targetIndex = reader.ReadInt32();
+        if (itemId.Value == Guid.Empty || targetIndex is < 0 or >= MaxInventoryItems)
+            throw new InvalidDataException("MoveInventoryItem inválido.");
+        return new MoveInventoryItemRequest(itemId, targetIndex);
     }
 
     private static EntityStatePacket ReadEntityStatePacket(PacketReader reader)

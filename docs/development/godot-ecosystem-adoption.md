@@ -41,14 +41,23 @@ arquitectura completa por comodidad.
 
 - El frontend ya usa Godot State Charts para separar `Frontend`, `World` y
   `SettingsOverWorld`; el C# conserva coordinación y la escena declara transiciones.
-- El inventario C# conserva la durabilidad recibida por red y la proyecta a un `Inventory` de
-  GLoot. La UI actual se mantiene mientras se migra interacción/drag-and-drop a comandos.
+- El inventario C# conserva la durabilidad recibida por red y la proyecta a un `Inventory` con
+  `GridConstraint` de GLoot. `ServerInventoryGrid` usa el drag-and-drop de GLoot únicamente
+  para emitir `MoveInventoryItemRequest`; no modifica la proyección local. Doble clic/clic
+  derecho emite equipar/desequipar y cada operación queda pendiente hasta un nuevo snapshot.
+  Los gestos se serializan de uno en uno mientras no existe correlación de comandos de inventario.
+- El servidor valida el reordenamiento, conserva identidad/equipo, persiste el nuevo orden y
+  responde siempre con `InventorySnapshotPacket`, incluso al rechazar, para reconciliar la UI.
+- La proyección de equipo cliente conserva el índice de slots múltiples (anillos y trofeos).
+- El parche local de firma de señal requerido por GLoot está declarado en
+  `Client/addons/addons.lock.json`.
 - Las revisiones y licencias vendorizadas se registran en `Client/addons/addons.lock.json`.
 
 ## Siguiente lote autorizado por esta dirección
 
-1. Adaptar GLoot `CtrlInventoryGrid` y drag-and-drop para emitir `MoveItemRequest`,
-   `EquipItemRequest`, `UnequipItemRequest` y esperar el snapshot de confirmación.
+1. Validar el circuito GLoot con Godot 4.7.1 Mono y dos procesos cliente; la implementación y
+   las pruebas de contrato ya están preparadas, pero la verificación runtime no se declara
+   cerrada sin ejecutar Godot.
 2. Crear proyección de quests basada en Resources/señales sin manager autoritativo local.
 3. Hacer spike reproducible de Gameplay Abilities para Windows/Linux/Android; si no pasa CI,
    portar su modelo a Nodes/Resources sin dependencia binaria.

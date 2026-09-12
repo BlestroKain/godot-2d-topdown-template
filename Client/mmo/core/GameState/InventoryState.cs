@@ -18,6 +18,7 @@ public sealed class InventoryState
 
     public IReadOnlyList<InventorySlotState> Slots => slots;
     public int Count => slots.Count;
+    public long Revision { get; private set; }
 
     public void Replace(IEnumerable<InventorySlotState> values)
     {
@@ -33,7 +34,12 @@ public sealed class InventoryState
 
         slots.Clear();
         slots.AddRange(copy);
+        Revision++;
     }
 
-    public void Clear() => slots.Clear();
+    public void Clear()
+    {
+        slots.Clear();
+        Revision++;
+    }
 }

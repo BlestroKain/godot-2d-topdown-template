@@ -11,3 +11,9 @@ public sealed record InventorySnapshotPacket(InventoryItemSnapshot[] Items, Equi
 public sealed record EquipItemRequest(ItemInstanceId ItemId) : IPacket;
 
 public sealed record UnequipItemRequest(ItemInstanceId ItemId) : IPacket;
+
+/// <summary>
+/// Reorders an existing authoritative inventory stack. TargetIndex is an insertion index in
+/// the compact server-owned stack list; it is not a free-form client position.
+/// </summary>
+public sealed record MoveInventoryItemRequest(ItemInstanceId ItemId, int TargetIndex) : IPacket;

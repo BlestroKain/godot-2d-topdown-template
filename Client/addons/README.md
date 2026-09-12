@@ -10,3 +10,7 @@ red y el estado solo cambia definitivamente cuando llega la proyección del serv
 
 No actualizar una carpeta a `master` sin repetir la auditoría de compatibilidad, licencia,
 cambios de API, exportación de plataformas y fronteras de autoridad.
+
+Los parches locales mínimos se registran en `addons.lock.json`; no deben ocultarse dentro de
+una carpeta vendorizada. Actualmente GLoot corrige la firma de `inventory_item_clicked` para
+que coincida con los tres argumentos que el propio control emite.

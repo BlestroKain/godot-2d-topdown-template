@@ -362,6 +362,14 @@ public partial class NetworkBridge : Node
         catch (Exception exception) { Enqueue(current, null, exception.Message); }
     }
 
+    public async void MoveInventoryItem(ItemInstanceId itemId, int targetIndex)
+    {
+        if (!InWorld || connection is null || itemId.Value == Guid.Empty || targetIndex < 0) return;
+        var current = connection;
+        try { await current.SendAsync(new MoveInventoryItemRequest(itemId, targetIndex)); }
+        catch (Exception exception) { Enqueue(current, null, exception.Message); }
+    }
+
     public void DisconnectFromServer()
     {
         connection?.Dispose();

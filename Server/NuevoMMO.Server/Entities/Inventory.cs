@@ -83,5 +83,21 @@ public sealed class Inventory
         return item;
     }
 
+    /// <summary>Moves a stack to another position in the compact authoritative ordering.</summary>
+    public bool Move(ItemInstanceId id, int targetIndex)
+    {
+        if (targetIndex < 0 || targetIndex >= items.Count)
+            throw new ArgumentOutOfRangeException(nameof(targetIndex));
+        var sourceIndex = items.FindIndex(item => item.UniqueId == id);
+        if (sourceIndex < 0)
+            throw new KeyNotFoundException($"No existe el item {id.Value} en el inventario.");
+        if (sourceIndex == targetIndex) return false;
+
+        var item = items[sourceIndex];
+        items.RemoveAt(sourceIndex);
+        items.Insert(targetIndex, item);
+        return true;
+    }
+
     public void Clear() => items.Clear();
 }

@@ -1,4 +1,4 @@
-[gd_scene load_steps=20 format=3]
+[gd_scene load_steps=21 format=3]
 
 [ext_resource type="Script" path="res://mmo/presentation/hud/GameHud.cs" id="1"]
 [ext_resource type="Theme" path="res://mmo/presentation/ui/theme/mmo_ui_theme.tres" id="2"]
@@ -19,6 +19,7 @@
 [ext_resource type="PackedScene" path="res://mmo/presentation/ui/windows/escape_window.tscn" id="17"]
 [ext_resource type="Script" path="res://mmo/presentation/ui/UiHotkeyRouter.cs" id="18"]
 [ext_resource type="Script" path="res://mmo/presentation/inventory/server_inventory_projection.gd" id="19_inventory_projection"]
+[ext_resource type="Script" path="res://addons/gloot/core/constraints/grid_constraint.gd" id="20_grid_constraint"]
 
 [node name="GameHud" type="CanvasLayer"]
 layer = 10
@@ -29,6 +30,10 @@ script = ExtResource("18")
 
 [node name="ServerInventoryProjection" type="Node" parent="."]
 script = ExtResource("19_inventory_projection")
+
+[node name="GridConstraint" type="Node" parent="ServerInventoryProjection"]
+script = ExtResource("20_grid_constraint")
+size = Vector2i(7, 6)
 
 [node name="Root" type="Control" parent="."]
 layout_mode = 3
