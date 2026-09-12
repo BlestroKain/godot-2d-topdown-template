@@ -1,3 +1,4 @@
+@tool
 extends CtrlInventoryItemBase
 ## Compact GLoot item renderer for server snapshots. Content art can replace this fallback later.
 
