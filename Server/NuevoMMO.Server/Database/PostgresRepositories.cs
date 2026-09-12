@@ -100,7 +100,7 @@ public sealed class PostgresCharacterRepository(string connectionString) : IChar
 {
     private const string CharacterColumns =
         "id, account_id, name, map_definition, position_x, position_y, level, experience, " +
-        "available_attribute_points, strength, intelligence, agility, spirit, vitality, current_health, current_mana, tradition_id, appearance_data, inventory_data";
+        "available_attribute_points, strength, intelligence, agility, spirit, vitality, current_health, current_mana, tradition_id, appearance_data, inventory_data, quest_data";
 
     public async Task<IReadOnlyList<CharacterRecord>> ListByAccountAsync(AccountId account, CancellationToken cancellationToken = default)
     {
@@ -163,17 +163,18 @@ public sealed class PostgresCharacterRepository(string connectionString) : IChar
                 id, account_id, name, map_definition, position_x, position_y,
                 level, experience, available_attribute_points,
                 strength, intelligence, agility, spirit, vitality, current_health, current_mana,
-                tradition_id, appearance_data, inventory_data)
+                tradition_id, appearance_data, inventory_data, quest_data)
             VALUES (
                 @id, @account, @name, @map, @x, @y,
                 @level, @experience, @points,
                 @str, @int, @agi, @spi, @vit, NULL, NULL,
-                @tradition, @appearance, @inventory)
+                @tradition, @appearance, @inventory, @quests)
             """, connection);
         AddIdentityParameters(command, record);
         AddProgressionParameters(command, record.ToProgressionState());
         command.Parameters.AddWithValue("appearance", record.Appearance.ToStorageString());
         command.Parameters.AddWithValue("inventory", record.InventoryData);
+        command.Parameters.AddWithValue("quests", record.QuestData);
         try { await command.ExecuteNonQueryAsync(cancellationToken); }
         catch (PostgresException exception) when (exception.SqlState == PostgresErrorCodes.UniqueViolation)
         { throw new InvalidOperationException("El nombre de personaje ya existe.", exception); }
@@ -243,6 +244,21 @@ public sealed class PostgresCharacterRepository(string connectionString) : IChar
             throw new KeyNotFoundException("Personaje inexistente.");
     }
 
+    public async Task SaveQuestDataAsync(CharacterId id, string questData, CancellationToken cancellationToken = default)
+    {
+        var normalized = string.IsNullOrWhiteSpace(questData)
+            ? CharacterQuestStorage.EmptyJson
+            : questData;
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            "UPDATE characters SET quest_data = @quests WHERE id = @id", connection);
+        command.Parameters.AddWithValue("id", id.Value);
+        command.Parameters.AddWithValue("quests", normalized);
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+            throw new KeyNotFoundException("Personaje inexistente.");
+    }
+
     private static void AddIdentityParameters(NpgsqlCommand command, CharacterRecord record)
     {
         command.Parameters.AddWithValue("id", record.Id.Value);
@@ -270,6 +286,7 @@ public sealed class PostgresCharacterRepository(string connectionString) : IChar
     {
         var appearanceText = reader.IsDBNull(17) ? null : reader.GetString(17);
         var inventoryText = reader.IsDBNull(18) ? CharacterInventoryStorage.EmptyJson : reader.GetString(18);
+        var questText = reader.IsDBNull(19) ? CharacterQuestStorage.EmptyJson : reader.GetString(19);
         return new CharacterRecord
         {
             Id = new(reader.GetGuid(0)), AccountId = new(reader.GetGuid(1)), Name = reader.GetString(2),
@@ -281,7 +298,8 @@ public sealed class PostgresCharacterRepository(string connectionString) : IChar
             CurrentMana = reader.IsDBNull(15) ? null : reader.GetInt32(15),
             TraditionId = reader.IsDBNull(16) ? DefinitionId.Empty : new(reader.GetGuid(16)),
             Appearance = CharacterAppearance.FromStorageString(appearanceText),
-            InventoryData = string.IsNullOrWhiteSpace(inventoryText) ? CharacterInventoryStorage.EmptyJson : inventoryText
+            InventoryData = string.IsNullOrWhiteSpace(inventoryText) ? CharacterInventoryStorage.EmptyJson : inventoryText,
+            QuestData = string.IsNullOrWhiteSpace(questText) ? CharacterQuestStorage.EmptyJson : questText
         };
     }
 }
