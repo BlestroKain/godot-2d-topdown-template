@@ -55,11 +55,27 @@ internal static class CombatLifecycleVerification
                 experience: 100,
                 maxVitals: new Dictionary<VitalId, float> { [VitalId.Health] = 20 },
                 parameters: new Dictionary<string, float> { ["respawnMilliseconds"] = 5 }));
+        var killTask = new QuestTaskDefinition(
+            Guid.NewGuid(),
+            "Derrotar al mob de prueba",
+            QuestObjectiveKind.KillMobs,
+            mobId,
+            quantity: 1);
+        var killQuest = new QuestDefinition(
+            DefinitionId.New(),
+            new ContentKey($"quests.test.kill.{Guid.NewGuid():N}"),
+            "Kill quest",
+            null,
+            true,
+            1,
+            ["test"],
+            tasks: [killTask]);
 
         registry.Register(mapDefinition);
         registry.Register(item);
         registry.Register(loot);
         registry.Register(mobDefinition);
+        registry.Register(killQuest);
 
         var systems = new GameSystems(registry);
         var map = new MapInstance(new MapInstanceId(1), mapDefinition, 128);
@@ -67,6 +83,7 @@ internal static class CombatLifecycleVerification
         var mob = new Mob(new EntityId(2), mobDefinition, map.Id, new Vector2Data(48, 32));
         map.Add(player);
         map.Add(mob);
+        systems.Quests.Start(player, killQuest.Id);
 
         var initialLevel = player.Level;
         var initialExperience = player.Experience;
@@ -87,8 +104,11 @@ internal static class CombatLifecycleVerification
             "Combat lifecycle: resolución única entrega XP al atacante");
         Check(player.Level != initialLevel || player.Experience != initialExperience,
             "Combat lifecycle: recompensa modifica la progresión");
+        Check(player.Quests.TryGet(killQuest.Id, out var questProgress) && questProgress is not null &&
+              questProgress.ProgressOf(killTask.Id) == 1,
+            "Combat lifecycle: quest observa la derrota sin mutar combate");
         Check(player.DirtyState,
-            "Combat lifecycle: progreso XP queda marcado para autosave");
+            "Combat lifecycle: progreso XP/quest queda marcado para autosave");
 
         systems.Advance(map, 101, 1);
         var groundDrops = map.Entities.All.OfType<WorldItem>().ToArray();
