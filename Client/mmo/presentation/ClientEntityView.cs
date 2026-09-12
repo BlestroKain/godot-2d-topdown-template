@@ -3,51 +3,56 @@ using NuevoMMO.Core;
 
 namespace NuevoMMO.GodotClient;
 
+/// <summary>
+/// Presenter for non-character world entities. The node tree lives in client_entity_view.tscn;
+/// runtime code only selects the visual mode and binds replicated state.
+/// </summary>
 public partial class ClientEntityView : Node2D
 {
     public EntityId EntityId { get; set; }
-    private ColorRect? marker;
-    private Sprite2D? sprite;
-    private Label? caption;
+
+    private ColorRect marker = null!;
+    private Sprite2D sprite = null!;
+    private Label caption = null!;
+    private bool nodesBound;
+
+    public override void _Ready() => BindNodes();
 
     public void InitializeMarker(Color color)
     {
-        marker = new ColorRect { Size = new(14, 14), Position = new(-7, -7), Color = color };
-        AddChild(marker);
-        AddChild(CreateCaption(color));
+        BindNodes();
+        marker.Visible = true;
+        marker.Color = color;
+        sprite.Visible = false;
+        caption.AddThemeColorOverride("font_color", color);
     }
 
     public void InitializeTexture(Texture2D texture, Color captionColor)
     {
-        sprite = new Sprite2D
-        {
-            Texture = texture,
-            TextureFilter = TextureFilterEnum.Nearest,
-            Position = new(0, -texture.GetHeight() / 2f)
-        };
-        AddChild(sprite);
-        AddChild(CreateCaption(captionColor));
-    }
-
-    private Label CreateCaption(Color color)
-    {
-        caption = new Label
-        {
-            Position = new(-50, -28),
-            Size = new(100, 18),
-            HorizontalAlignment = HorizontalAlignment.Center
-        };
-        caption.AddThemeFontSizeOverride("font_size", 11);
-        caption.AddThemeColorOverride("font_color", color);
-        return caption;
+        BindNodes();
+        marker.Visible = false;
+        sprite.Visible = true;
+        sprite.Texture = texture;
+        sprite.TextureFilter = TextureFilterEnum.Nearest;
+        sprite.Position = new(0, -texture.GetHeight() / 2f);
+        caption.AddThemeColorOverride("font_color", captionColor);
     }
 
     public void PresentMarker(EntityState entity, Vector2Data position)
     {
+        BindNodes();
         EntityId = entity.Id;
         Position = new(position.X, position.Y);
-        if (caption is not null)
-            caption.Text = $"{KindGlyph(entity.Kind)} {entity.DisplayName}";
+        caption.Text = $"{KindGlyph(entity.Kind)} {entity.DisplayName}";
+    }
+
+    private void BindNodes()
+    {
+        if (nodesBound) return;
+        marker = GetNode<ColorRect>("Marker");
+        sprite = GetNode<Sprite2D>("Sprite");
+        caption = GetNode<Label>("Caption");
+        nodesBound = true;
     }
 
     private static string KindGlyph(EntityKind kind) => kind switch
