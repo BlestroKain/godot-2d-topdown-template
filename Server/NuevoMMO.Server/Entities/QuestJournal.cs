@@ -43,6 +43,20 @@ public sealed class QuestProgress
         taskProgress[task.Id] = next;
         return next;
     }
+
+    internal void Restore(QuestRuntimeState state, int completionCount, IEnumerable<KeyValuePair<Guid, int>> tasks)
+    {
+        if (!Enum.IsDefined(state)) throw new ArgumentOutOfRangeException(nameof(state));
+        if (completionCount < 0) throw new ArgumentOutOfRangeException(nameof(completionCount));
+        taskProgress.Clear();
+        foreach (var pair in tasks)
+        {
+            if (pair.Key == Guid.Empty || pair.Value < 0) continue;
+            taskProgress[pair.Key] = pair.Value;
+        }
+        State = state;
+        CompletionCount = completionCount;
+    }
 }
 
 public sealed class QuestJournal
@@ -68,4 +82,21 @@ public sealed class QuestJournal
         entry.ResetForStart(definition.Tasks);
         return entry;
     }
+
+    internal void Restore(
+        DefinitionId questId,
+        QuestRuntimeState state,
+        int completionCount,
+        IEnumerable<KeyValuePair<Guid, int>> tasks)
+    {
+        if (questId.IsEmpty) return;
+        if (!progress.TryGetValue(questId, out var entry))
+        {
+            entry = new QuestProgress(questId);
+            progress.Add(questId, entry);
+        }
+        entry.Restore(state, completionCount, tasks);
+    }
+
+    internal void Clear() => progress.Clear();
 }
