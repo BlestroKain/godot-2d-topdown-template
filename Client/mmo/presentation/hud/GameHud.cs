@@ -222,7 +222,7 @@ public partial class GameHud : CanvasLayer
     {
         var fingerprint = string.Join('|', world.Inventory.Slots
             .OrderBy(static value => value.Slot)
-            .Select(static value =>
+            .Select(value =>
                 $"{value.Slot}:{value.ItemId.Value:N}:{value.DefinitionId.Value:N}:{value.Quantity}:{value.Durability}:" +
                 world.Local.Equipment.Contains(value.ItemId)));
         if (fingerprint == lastInventoryProjectionFingerprint)
