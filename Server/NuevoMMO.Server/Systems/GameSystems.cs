@@ -141,6 +141,8 @@ public sealed class GameSystems
     private void ResolveDefeat(CombatDefeatEvent defeat)
     {
         var resolution = Defeats.Resolve(defeat);
+        if (defeat.Attacker is Player attacker && defeat.Target is Mob defeatedMob)
+            Quests.Observe(attacker, QuestObjectiveKind.KillMobs, defeatedMob.DefinitionId);
         lock (lifecycleGate)
         {
             if (!pendingDefeats.TryGetValue(defeat.Target.MapInstanceId, out var queue))
@@ -253,7 +255,7 @@ public sealed class GameSystems
 
     private void RemoveRespawn(EntityId entity)
     {
-        lock (lifecycleGate) respawnAt.Remove(entity);
+        lock (lifecycleGate) respawnAt.Remove(entity.Id);
     }
 
     public void OnEntityRemoved(Entity entity)
