@@ -255,7 +255,7 @@ public sealed class GameSystems
 
     private void RemoveRespawn(EntityId entity)
     {
-        lock (lifecycleGate) respawnAt.Remove(entity.Id);
+        lock (lifecycleGate) respawnAt.Remove(entity);
     }
 
     public void OnEntityRemoved(Entity entity)
