@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using NuevoMMO.Core;
+using NuevoMMO.Server.Database;
 using NuevoMMO.Server.Entities;
 using NuevoMMO.Server.Systems;
 
@@ -10,6 +11,7 @@ internal static class QuestRuntimeVerification
     {
         VerifyEventOwnedQuestLifecycle();
         VerifyInvalidCompletionAndFailure();
+        VerifyQuestPersistenceReconnect();
     }
 
     private static void VerifyEventOwnedQuestLifecycle()
@@ -114,6 +116,46 @@ internal static class QuestRuntimeVerification
             text: new Dictionary<string, string> { ["state"] = "Failed" });
         Expect(systems.Conditions.Evaluate(player, failedCondition),
             "condiciones observan quest fallida");
+    }
+
+    private static void VerifyQuestPersistenceReconnect()
+    {
+        var map = new MapDefinition(
+            DefinitionId.New(), new ContentKey("maps.quest_persistence"), "Quest persistence", string.Empty,
+            true, 1, null, new ContentKey("maps.quest_persistence.visual"),
+            new BoundsData(new(0, 0), new(320, 320)), new Vector2Data(100, 100), new Vector2IntData(32, 32));
+        var task = new QuestTaskDefinition(Guid.NewGuid(), "Persistir progreso", quantity: 3);
+        var quest = new QuestDefinition(
+            DefinitionId.New(), new ContentKey("quests.runtime.persistence"), "Quest Persistence", string.Empty,
+            true, 1, null, tasks: [task]);
+        var definitions = new DefinitionRegistry();
+        definitions.Register(quest);
+        var systems = new GameSystems(definitions);
+        var repository = new InMemoryCharacterRepository();
+        var account = new AccountId(Guid.NewGuid());
+        var record = repository.CreateAsync(account, "QuestReconnect", map.Id, map.Spawn, DefinitionId.Empty)
+            .GetAwaiter().GetResult();
+        var player = new Player(
+            new EntityId(91_002), account, record.Id, new MapInstanceId(1), map.Spawn,
+            new ContentKey("template.player"), record.Name);
+        systems.Quests.Start(player, quest.Id);
+        systems.Quests.Advance(player, quest.Id, task.Id, 2);
+
+        var persistence = new PersistenceService(repository, map);
+        persistence.SaveCharacterAsync(player).GetAwaiter().GetResult();
+        var stored = repository.GetAsync(record.Id).GetAwaiter().GetResult()
+            ?? throw new InvalidOperationException("Quest persistence FAIL: record inexistente.");
+        Expect(stored.QuestData.Contains(quest.Id.Value.ToString("D"), StringComparison.OrdinalIgnoreCase),
+            "checkpoint serializa quest_data");
+
+        var reconnected = new Player(
+            new EntityId(91_003), account, record.Id, new MapInstanceId(1), map.Spawn,
+            new ContentKey("template.player"), record.Name);
+        persistence.RestoreQuests(reconnected, stored);
+        Expect(reconnected.Quests.TryGet(quest.Id, out var restored) && restored is not null,
+            "reconexión restaura journal");
+        Expect(restored!.State == QuestRuntimeState.Active && restored.ProgressOf(task.Id) == 2,
+            "reconexión conserva estado y progreso de tarea");
     }
 
     private static EventCommandDefinition QuestCommand(
