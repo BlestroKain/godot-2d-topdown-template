@@ -80,7 +80,10 @@ public partial class WorldPresentation : Node2D
         }
 
         var marker = new ClientEntityView();
-        marker.InitializeMarker(MarkerColor(entity.Kind));
+        if (assets.TryTexture(entity.VisualKey, out var texture) && texture is not null)
+            marker.InitializeTexture(texture, MarkerColor(entity.Kind));
+        else
+            marker.InitializeMarker(MarkerColor(entity.Kind));
         AddChild(marker);
         return marker;
     }

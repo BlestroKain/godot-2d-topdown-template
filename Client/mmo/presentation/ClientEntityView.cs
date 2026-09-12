@@ -7,11 +7,30 @@ public partial class ClientEntityView : Node2D
 {
     public EntityId EntityId { get; set; }
     private ColorRect? marker;
+    private Sprite2D? sprite;
     private Label? caption;
 
     public void InitializeMarker(Color color)
     {
         marker = new ColorRect { Size = new(14, 14), Position = new(-7, -7), Color = color };
+        AddChild(marker);
+        AddChild(CreateCaption(color));
+    }
+
+    public void InitializeTexture(Texture2D texture, Color captionColor)
+    {
+        sprite = new Sprite2D
+        {
+            Texture = texture,
+            TextureFilter = TextureFilterEnum.Nearest,
+            Position = new(0, -texture.GetHeight() / 2f)
+        };
+        AddChild(sprite);
+        AddChild(CreateCaption(captionColor));
+    }
+
+    private Label CreateCaption(Color color)
+    {
         caption = new Label
         {
             Position = new(-50, -28),
@@ -20,8 +39,7 @@ public partial class ClientEntityView : Node2D
         };
         caption.AddThemeFontSizeOverride("font_size", 11);
         caption.AddThemeColorOverride("font_color", color);
-        AddChild(marker);
-        AddChild(caption);
+        return caption;
     }
 
     public void PresentMarker(EntityState entity, Vector2Data position)
