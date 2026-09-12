@@ -26,39 +26,24 @@ public enum MapEditorTool : byte
 [DesignerCategory("Form")]
 public sealed partial class MapToolsDock : DockContent
 {
-    private readonly Panel definitionPanel = new() { Dock = DockStyle.Bottom, Height = 58, Padding = new Padding(6, 2, 6, 6) };
-    private readonly Label definitionLabel = new() { Dock = DockStyle.Top, Height = 22, Text = "Definición" };
+    private readonly Panel definitionPanel = new() { Dock = DockStyle.Bottom, Height = 56, Padding = new Padding(6, 2, 6, 6) };
+    private readonly Label definitionLabel = new() { Dock = DockStyle.Top, Height = 20, Text = "Definición" };
     private readonly ComboBox definitions = new()
     {
         Dock = DockStyle.Bottom,
         DropDownStyle = ComboBoxStyle.DropDownList,
         DisplayMember = nameof(DefinitionEntry.Label)
     };
+    private bool selectingTool;
 
     public MapToolsDock()
     {
         InitializeComponent();
-        EditorTheme.ApplyWindow(this);
         BuildDefinitionPicker();
-
-        tools.Items.AddRange(Enum.GetNames<MapEditorTool>());
-        tools.SelectedIndex = 0;
-        tools.SelectedIndexChanged += (_, _) =>
-        {
-            if (tools.SelectedIndex < 0) return;
-            var tool = (MapEditorTool)tools.SelectedIndex;
-            ConfigureDefinitionPanel(tool);
-            ToolSelected?.Invoke(tool);
-        };
-        layers.SelectedIndexChanged += (_, _) =>
-        {
-            if (layers.SelectedItem is LayerEntry entry)
-                LayerSelected?.Invoke(entry.Key);
-        };
-        definitions.SelectedIndexChanged += (_, _) =>
-            DefinitionSelected?.Invoke((definitions.SelectedItem as DefinitionEntry)?.Id);
-
-        ConfigureDefinitionPanel(MapEditorTool.Select);
+        PopulateToolGroups();
+        WireToolLists();
+        EditorTheme.ApplyWindow(this);
+        SelectTool(MapEditorTool.Select);
     }
 
     public event Action<MapEditorTool>? ToolSelected;
@@ -69,9 +54,28 @@ public sealed partial class MapToolsDock : DockContent
 
     public void SelectTool(MapEditorTool tool)
     {
-        var index = (int)tool;
-        if (index < 0 || index >= tools.Items.Count) return;
-        tools.SelectedIndex = index;
+        selectingTool = true;
+        try
+        {
+            foreach (var (page, list) in ToolLists())
+            {
+                var index = FindToolIndex(list, tool);
+                if (index < 0)
+                {
+                    list.SelectedIndex = -1;
+                    continue;
+                }
+
+                modeTabs.SelectedTab = page;
+                list.SelectedIndex = index;
+                ConfigureDefinitionPanel(tool);
+                return;
+            }
+        }
+        finally
+        {
+            selectingTool = false;
+        }
     }
 
     public void SetDefinitions(IEnumerable<GameDefinition> values, DefinitionId? selectedId = null)
@@ -126,11 +130,99 @@ public sealed partial class MapToolsDock : DockContent
         layers.EndUpdate();
     }
 
+    private void PopulateToolGroups()
+    {
+        BindTools(tileTools,
+            new ToolEntry(MapEditorTool.Select, "Seleccionar"),
+            new ToolEntry(MapEditorTool.PaintTile, "Pintar tiles"),
+            new ToolEntry(MapEditorTool.EraseTile, "Borrar tiles"),
+            new ToolEntry(MapEditorTool.Fill, "Rellenar"),
+            new ToolEntry(MapEditorTool.Rectangle, "Rectángulo"));
+
+        BindTools(attributeTools,
+            new ToolEntry(MapEditorTool.Collision, "Colisión"),
+            new ToolEntry(MapEditorTool.Portal, "Portal"),
+            new ToolEntry(MapEditorTool.Region, "Región"),
+            new ToolEntry(MapEditorTool.SpawnZone, "Zona de spawn"));
+
+        BindTools(lightTools,
+            new ToolEntry(MapEditorTool.Light, "Luz"));
+
+        BindTools(eventTools,
+            new ToolEntry(MapEditorTool.Event, "Evento"));
+
+        BindTools(entityTools,
+            new ToolEntry(MapEditorTool.Mob, "Mob"),
+            new ToolEntry(MapEditorTool.Npc, "NPC"),
+            new ToolEntry(MapEditorTool.Resource, "Recurso"));
+    }
+
+    private static void BindTools(ListBox list, params ToolEntry[] entries)
+    {
+        list.DataSource = entries;
+        list.DisplayMember = nameof(ToolEntry.Label);
+    }
+
+    private void WireToolLists()
+    {
+        foreach (var (_, list) in ToolLists())
+            list.SelectedIndexChanged += (_, _) => ActivateTool(list);
+
+        layers.SelectedIndexChanged += (_, _) =>
+        {
+            if (layers.SelectedItem is LayerEntry entry)
+                LayerSelected?.Invoke(entry.Key);
+        };
+        definitions.SelectedIndexChanged += (_, _) =>
+            DefinitionSelected?.Invoke((definitions.SelectedItem as DefinitionEntry)?.Id);
+    }
+
+    private void ActivateTool(ListBox source)
+    {
+        if (selectingTool || source.SelectedItem is not ToolEntry entry) return;
+
+        selectingTool = true;
+        try
+        {
+            foreach (var (_, list) in ToolLists())
+            {
+                if (!ReferenceEquals(list, source))
+                    list.SelectedIndex = -1;
+            }
+        }
+        finally
+        {
+            selectingTool = false;
+        }
+
+        ConfigureDefinitionPanel(entry.Tool);
+        ToolSelected?.Invoke(entry.Tool);
+    }
+
+    private IEnumerable<(TabPage Page, ListBox List)> ToolLists()
+    {
+        yield return (tilesPage, tileTools);
+        yield return (attributesPage, attributeTools);
+        yield return (lightsPage, lightTools);
+        yield return (eventsPage, eventTools);
+        yield return (entitiesPage, entityTools);
+    }
+
+    private static int FindToolIndex(ListBox list, MapEditorTool tool)
+    {
+        for (var i = 0; i < list.Items.Count; i++)
+        {
+            if (list.Items[i] is ToolEntry entry && entry.Tool == tool)
+                return i;
+        }
+        return -1;
+    }
+
     private void BuildDefinitionPicker()
     {
         definitionPanel.Controls.Add(definitions);
         definitionPanel.Controls.Add(definitionLabel);
-        split.Panel1.Controls.Add(definitionPanel);
+        Controls.Add(definitionPanel);
         definitionPanel.BringToFront();
     }
 
@@ -150,4 +242,5 @@ public sealed partial class MapToolsDock : DockContent
 
     private sealed record LayerEntry(string Key, string Label);
     private sealed record DefinitionEntry(DefinitionId Id, string Label);
+    private sealed record ToolEntry(MapEditorTool Tool, string Label);
 }
