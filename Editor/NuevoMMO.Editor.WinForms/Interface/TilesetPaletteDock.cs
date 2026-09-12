@@ -12,6 +12,7 @@ public sealed partial class TilesetPaletteDock : DockContent
 {
     private EditorApplication? application;
     private TilesetImageProvider? images;
+
     public TilesetPaletteDock()
     {
         InitializeComponent();
@@ -35,6 +36,12 @@ public sealed partial class TilesetPaletteDock : DockContent
         RefreshTilesets();
     }
 
+    /// <summary>
+    /// Se dispara cuando el usuario elige explícitamente un tile de la imagen.
+    /// MainForm lo usa para activar inmediatamente la herramienta Pintar, igual que Intersect.
+    /// </summary>
+    public event Action<TilesetDefinition, Vector2IntData>? TileBrushSelected;
+
     public void RefreshTilesets()
     {
         if (application is null) return;
@@ -54,19 +61,38 @@ public sealed partial class TilesetPaletteDock : DockContent
             if (index >= 0) tilesets.SelectedIndex = index;
         }
         tilesets.EndUpdate();
+
+        // DataSource no garantiza SelectedIndexChanged en todos los escenarios de recarga.
+        // Forzamos la sincronización para que la imagen visible siempre corresponda al listado.
+        SelectTileset();
     }
 
     private void SelectTileset()
     {
-        if (images is null || tilesets.SelectedItem is not TilesetDefinition definition)
+        if (application is null || images is null || tilesets.SelectedItem is not TilesetDefinition definition)
         {
             surface.SetImage(null, default);
+            selection.Text = "Sin tileset";
             return;
         }
 
         try
         {
-            surface.SetImage(images.Get(definition), definition.TileSize);
+            var image = images.Get(definition);
+            surface.SetImage(image, definition.TileSize);
+
+            // Mantiene la celda actual al refrescar el mismo tileset. Al cambiar de tileset,
+            // deja preparada la primera celda como pincel para que el flujo sea inmediato.
+            var palette = application.Maps.Palette;
+            var cell = palette.HasSelection && palette.SelectedTilesetKey == definition.Key
+                ? palette.SelectedAtlasCell
+                : new Vector2IntData(0, 0);
+
+            if (!surface.ContainsCell(cell))
+                cell = new Vector2IntData(0, 0);
+
+            SetSelectedTile(definition, cell, activatePaint: false);
+            surface.SelectCell(cell);
         }
         catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException or ArgumentException)
         {
@@ -78,9 +104,20 @@ public sealed partial class TilesetPaletteDock : DockContent
     private void OnTileSelected(Vector2IntData cell)
     {
         if (application is null || tilesets.SelectedItem is not TilesetDefinition definition) return;
+        SetSelectedTile(definition, cell, activatePaint: true);
+    }
+
+    private void SetSelectedTile(TilesetDefinition definition, Vector2IntData cell, bool activatePaint)
+    {
+        if (application is null) return;
+
         var mode = autotile.SelectedItem is MapAutotileMode value ? value : MapAutotileMode.None;
         application.Maps.Palette.Select(definition.Key, cell, autotileMode: mode);
-        selection.Text = $"{cell.X},{cell.Y}";
+        surface.SelectCell(cell);
+        selection.Text = $"{definition.Name} · {cell.X},{cell.Y}";
+
+        if (activatePaint)
+            TileBrushSelected?.Invoke(definition, cell);
     }
 }
 
@@ -103,10 +140,9 @@ internal sealed class TilesetPaletteSurface : Control
             var cell = new Vector2IntData(
                 e.X / Math.Max(1, tileSize.X * zoom),
                 e.Y / Math.Max(1, tileSize.Y * zoom));
-            if (cell.X * tileSize.X >= image.Width || cell.Y * tileSize.Y >= image.Height) return;
-            selected = cell;
+            if (!ContainsCell(cell)) return;
+            SelectCell(cell);
             TileSelected?.Invoke(cell);
-            Invalidate();
         };
     }
 
@@ -129,6 +165,21 @@ internal sealed class TilesetPaletteSurface : Control
         tileSize = size;
         selected = null;
         UpdateSize();
+        Invalidate();
+    }
+
+    public bool ContainsCell(Vector2IntData cell)
+    {
+        if (image is null || tileSize.X <= 0 || tileSize.Y <= 0 || cell.X < 0 || cell.Y < 0)
+            return false;
+
+        return cell.X * tileSize.X < image.Width && cell.Y * tileSize.Y < image.Height;
+    }
+
+    public void SelectCell(Vector2IntData cell)
+    {
+        if (!ContainsCell(cell)) return;
+        selected = cell;
         Invalidate();
     }
 
@@ -156,13 +207,16 @@ internal sealed class TilesetPaletteSurface : Control
 
         if (selected is { } cell)
         {
+            // Intersect-style: el pincel activo queda claramente marcado sobre el atlas.
+            using var shadowPen = new Pen(Color.Black, 4);
             using var pen = new Pen(Color.Yellow, 2);
-            e.Graphics.DrawRectangle(
-                pen,
+            var rectangle = new Rectangle(
                 cell.X * tileSize.X * zoom,
                 cell.Y * tileSize.Y * zoom,
-                tileSize.X * zoom - 1,
-                tileSize.Y * zoom - 1);
+                Math.Max(1, tileSize.X * zoom - 1),
+                Math.Max(1, tileSize.Y * zoom - 1));
+            e.Graphics.DrawRectangle(shadowPen, rectangle);
+            e.Graphics.DrawRectangle(pen, rectangle);
         }
     }
 
