@@ -14,6 +14,7 @@ public sealed class EditorApplication
     public EditorHistory History { get; } = new();
     public ProjectValidator Validator { get; }
     public ContentWorkspace Content { get; }
+    public AssetLibrary Assets { get; }
     public MapEditor Maps { get; }
     public EventEditor Events { get; }
 
@@ -22,6 +23,8 @@ public sealed class EditorApplication
         Configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         Validator = new(Definitions);
         Content = new ContentWorkspace(Definitions, Validator, Dirty);
+        Assets = new AssetLibrary(Configuration);
+        Assets.EnsureLayout();
         Maps = new MapEditor(Definitions, History, Dirty);
         Events = new EventEditor(Definitions, History, Dirty);
     }

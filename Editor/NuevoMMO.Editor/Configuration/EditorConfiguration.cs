@@ -1,3 +1,5 @@
+using NuevoMMO.Core;
+
 namespace NuevoMMO.Editor;
 
 public sealed class EditorConfiguration
@@ -6,13 +8,8 @@ public sealed class EditorConfiguration
     public string ContentPath { get; init; } = "Data/game.db";
 
     /// <summary>
-    /// Ruta relativa o absoluta a los recursos visuales del cliente. El Editor la resuelve
-    /// desde el directorio de trabajo y, si hace falta, buscando la raíz del repositorio.
+    /// Única carpeta de assets. Editor, cliente C# y Godot leen aquí.
+    /// Godot la ve como <c>res://resources</c> porque el proyecto está en <c>Client/</c>.
     /// </summary>
-    public string ClientAssetRoot { get; init; } = "Client";
-
-    /// <summary>
-    /// Carpeta de imágenes de tilesets dentro de ClientAssetRoot.
-    /// </summary>
-    public string TilesetAssetFolder { get; init; } = "tilesets";
+    public string ResourcesRoot { get; init; } = AssetCatalog.SharedRootFromRepo;
 }

@@ -17,7 +17,7 @@ public partial class TilesetEditorForm : DefinitionEditorForm
     protected override void BindSpecific(GameDefinition definition)
     {
         if (definition is not TilesetDefinition tileset) return;
-        textureKeyTextBox.Text = tileset.TextureKey.Value;
+        BindVisualKey(textureKeyTextBox, AssetKind.Tileset, tileset.TextureKey);
         SetNumeric(tileWidthNumeric, tileset.TileSize.X);
         SetNumeric(tileHeightNumeric, tileset.TileSize.Y);
         SetNumeric(autotileFramesNumeric, tileset.AutotileAnimationFrames);
@@ -33,7 +33,7 @@ public partial class TilesetEditorForm : DefinitionEditorForm
         var tileset = current as TilesetDefinition ?? throw new InvalidOperationException("La selección no es un Tileset.");
         return new TilesetDefinition(
             id, key, name, description, enabled, version, tags,
-            ReadContentKey(textureKeyTextBox),
+            ReadVisualKey(textureKeyTextBox, AssetKind.Tileset),
             new Vector2IntData((int)tileWidthNumeric.Value, (int)tileHeightNumeric.Value),
             (int)autotileFramesNumeric.Value,
             (int)autotileMsNumeric.Value,

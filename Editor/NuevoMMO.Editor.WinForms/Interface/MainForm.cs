@@ -25,7 +25,7 @@ public sealed partial class MainForm : Form
     {
         InitializeComponent();
         this.application = application ?? throw new ArgumentNullException(nameof(application));
-        images = new TilesetImageProvider(application.Configuration, application.Definitions);
+        images = new TilesetImageProvider(application.Configuration, application.Definitions, application.Assets);
         definitionEditors = new DefinitionEditorCatalog(application);
 
         dockPanel.Theme = new VS2015DarkTheme();

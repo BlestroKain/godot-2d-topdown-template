@@ -17,7 +17,7 @@ public partial class ResourceEditorForm : DefinitionEditorForm
     protected override void BindSpecific(GameDefinition definition)
     {
         if (definition is not ResourceDefinition resource) return;
-        visualKeyTextBox.Text = resource.VisualKey.Value;
+        BindVisualKey(visualKeyTextBox, AssetKind.Resource, resource.VisualKey);
         exhaustedVisualTextBox.Text = resource.ExhaustedVisualKey?.Value ?? string.Empty;
         BindDefinitionCombo<LootTableDefinition>(lootTableCombo, resource.Harvest.LootTableId);
         BindDefinitionCombo<ProfessionDefinition>(professionCombo, resource.Harvest.RequiredProfessionId);
@@ -39,7 +39,7 @@ public partial class ResourceEditorForm : DefinitionEditorForm
             throw new InvalidOperationException("Nivel de profesión requiere una profesión.");
         return new ResourceDefinition(
             id, key, name, description, enabled, version, tags,
-            ReadContentKey(visualKeyTextBox),
+            ReadVisualKey(visualKeyTextBox, AssetKind.Resource),
             resource.PropertyIds,
             ReadOptionalContentKey(exhaustedVisualTextBox),
             new ResourceHarvestDefinition(

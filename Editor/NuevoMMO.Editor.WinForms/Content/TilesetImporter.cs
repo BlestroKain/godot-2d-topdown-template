@@ -26,7 +26,8 @@ public sealed class TilesetImporter
             .Select(path =>
             {
                 var fileName = Path.GetFileNameWithoutExtension(path);
-                return (path, fileName, key: new ContentKey("tileset." + NormalizeKey(fileName)));
+                var key = AssetCatalog.Key(AssetKind.Tileset, fileName);
+                return (path, fileName, key);
             })
             .Where(candidate => !registry.TryGet<TilesetDefinition>(candidate.key, out _))
             .ToArray();
@@ -50,11 +51,11 @@ public sealed class TilesetImporter
                 DefinitionId.New(),
                 candidate.key,
                 candidate.fileName,
-                $"Tileset importado desde Client/tilesets/{Path.GetFileName(candidate.path)}.",
+                $"Tileset importado desde {AssetCatalog.SharedRootFromRepo}/{AssetCatalog.RelativePath(AssetKind.Tileset, Path.GetFileName(candidate.path))}.",
                 enabled: true,
                 version: 1,
                 tags: ["tileset", "imported"],
-                textureKey: new ContentKey(NormalizeKey(candidate.fileName)),
+                textureKey: candidate.key,
                 tileSize: tileSize);
 
             registry.Register(definition);
@@ -62,15 +63,5 @@ public sealed class TilesetImporter
         }
 
         return imported;
-    }
-
-    private static string NormalizeKey(string value)
-    {
-        var chars = value.Trim().ToLowerInvariant()
-            .Select(character => char.IsAsciiLetterOrDigit(character) || character is '.' or '_' or '-'
-                ? character
-                : '-')
-            .ToArray();
-        return new string(chars).Trim('-');
     }
 }

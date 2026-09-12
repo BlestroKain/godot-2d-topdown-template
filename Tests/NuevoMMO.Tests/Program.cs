@@ -32,6 +32,33 @@ async Task Until(Func<bool> ready, string name, int milliseconds = 8000)
     Check(ready(), name);
 }
 
+Check(AssetCatalog.Key(AssetKind.Item, "potion_hp").Value == "items.potion_hp", "AssetCatalog key de item");
+Check(AssetCatalog.RelativePath(AssetKind.Tileset, "grounds") == "tilesets/grounds.png", "AssetCatalog ruta tileset");
+Check(AssetCatalog.RelativePath(new ContentKey("items.potion_hp")) == "items/potion_hp.png", "AssetCatalog RelativePath ContentKey");
+Check(AssetCatalog.GodotPath(new ContentKey("items.potion_hp")) == "res://resources/items/potion_hp.png", "AssetCatalog ruta Godot");
+Check(AssetCatalog.SharedRootFromRepo == "Client/resources", "AssetCatalog raíz compartida editor/Godot");
+Check(AssetCatalog.DiskPath("Client/resources", new ContentKey("items.potion_hp"))
+    .Replace('/', Path.DirectorySeparatorChar)
+    .EndsWith(Path.Combine("Client", "resources", "items", "potion_hp.png"), StringComparison.OrdinalIgnoreCase),
+    "AssetCatalog ruta disco compartida");
+Check(AssetCatalog.TryKind(new ContentKey("spells.fireball"), out var spellKind) && spellKind == AssetKind.Spell, "AssetCatalog kind spell");
+Check(ClientAssetPaths.SharedRootFromRepo == AssetCatalog.SharedRootFromRepo, "Cliente C# misma raíz que el catálogo");
+Check(ClientAssetPaths.GodotRoot == "res://resources", "Cliente C# raíz Godot res://resources");
+Check(ClientAssetPaths.Godot(new ContentKey("items.potion_hp")) == AssetCatalog.GodotPath(new ContentKey("items.potion_hp")),
+    "Cliente C# y catálogo misma ruta Godot");
+
+var editorAssets = new AssetLibrary(new EditorConfiguration());
+Check(editorAssets.Root.Replace('\\', '/').TrimEnd('/').EndsWith("Client/resources", StringComparison.OrdinalIgnoreCase),
+    "Editor AssetLibrary = Client/resources");
+Check(Directory.Exists(Path.Combine(editorAssets.Root, AssetCatalog.Folder(AssetKind.Tileset))),
+    "Carpeta compartida tilesets existe");
+var sharedTileset = AssetCatalog.Key(AssetKind.Tileset, "Ground");
+Check(editorAssets.TryResolve(sharedTileset, out var sharedTilesetPath) && File.Exists(sharedTilesetPath),
+    "Editor lee tileset desde Client/resources");
+Check(File.Exists(AssetCatalog.DiskPath(editorAssets.Root, sharedTileset)),
+    "DiskPath del editor apunta al mismo PNG");
+Check(ClientAssetPaths.Disk(editorAssets.Root, sharedTileset) == AssetCatalog.DiskPath(editorAssets.Root, sharedTileset),
+    "Cliente C# y editor mismo DiskPath");
 Check(typeof(GameDefinition).Assembly.GetReferencedAssemblies().All(a => a.Name is not ("GodotSharp" or "ENet-CSharp" or "GodotSharpEditor")), "Core sin Godot ni ENet");
 Check(typeof(PacketCodec).Assembly.GetReferencedAssemblies().All(a => a.Name is not ("GodotSharp" or "GodotSharpEditor")), "Network sin Godot");
 Check(typeof(Entity).Assembly.GetReferencedAssemblies().All(a => a.Name is not ("GodotSharp" or "GodotSharpEditor")), "Server sin Godot");

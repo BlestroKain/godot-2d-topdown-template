@@ -20,7 +20,7 @@ public partial class ItemEditorForm : DefinitionEditorForm
     protected override void BindSpecific(GameDefinition definition)
     {
         if (definition is not ItemDefinition item) return;
-        visualKeyTextBox.Text = item.VisualKey.Value;
+        BindVisualKey(visualKeyTextBox, AssetKind.Item, item.VisualKey);
         SelectEnum(kindCombo, item.Kind);
         SetNumeric(rarityNumeric, item.Rarity);
         SetNumeric(priceNumeric, item.BasePrice);
@@ -95,7 +95,7 @@ public partial class ItemEditorForm : DefinitionEditorForm
 
         return new ItemDefinition(
             id, key, name, description, enabled, version, tags,
-            ReadContentKey(visualKeyTextBox),
+            ReadVisualKey(visualKeyTextBox, AssetKind.Item),
             item.PropertyIds,
             kind,
             (int)rarityNumeric.Value,

@@ -1,4 +1,5 @@
 using System.Windows.Forms;
+using NuevoMMO.Core;
 
 namespace NuevoMMO.Editor;
 
@@ -13,8 +14,7 @@ internal static class Program
         {
             Mode = EditorMode.Offline,
             ContentPath = Path.Combine("Data", GameDatabase.DefaultFileName),
-            ClientAssetRoot = "Client",
-            TilesetAssetFolder = "tilesets"
+            ResourcesRoot = AssetCatalog.SharedRootFromRepo
         };
 
         var application = new EditorApplication(configuration);

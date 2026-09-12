@@ -331,6 +331,58 @@ public partial class DefinitionEditorForm : DockContent
     protected static void SetNumeric(NumericUpDown numeric, decimal value)
         => numeric.Value = Math.Clamp(value, numeric.Minimum, numeric.Maximum);
 
+    protected void BindAssetCombo(ComboBox combo, AssetKind kind, ContentKey selected)
+    {
+        combo.DropDownStyle = ComboBoxStyle.DropDown;
+        var names = Editor.Assets.ListFileNames(kind).ToList();
+        var stem = AssetCatalog.FileStem(selected);
+        if (stem.Length > 0 && !names.Contains(stem, StringComparer.OrdinalIgnoreCase))
+            names.Insert(0, stem);
+        combo.Items.Clear();
+        foreach (var name in names) combo.Items.Add(name);
+        combo.Text = stem;
+    }
+
+    protected ContentKey ReadAssetKey(ComboBox combo, AssetKind kind, bool required = true)
+    {
+        var stem = combo.Text.Trim();
+        if (stem.Length == 0)
+        {
+            if (required) throw new InvalidOperationException($"Hace falta un archivo en {AssetCatalog.Folder(kind)}.");
+            return default;
+        }
+
+        return AssetCatalog.Key(kind, stem);
+    }
+
+    protected void BindVisualKey(TextBox box, AssetKind kind, ContentKey selected)
+    {
+        box.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
+        box.AutoCompleteSource = AutoCompleteSource.CustomSource;
+        var source = new AutoCompleteStringCollection();
+        foreach (var name in Editor.Assets.ListFileNames(kind))
+        {
+            source.Add(name);
+            source.Add(AssetCatalog.Key(kind, name).Value);
+        }
+
+        box.AutoCompleteCustomSource = source;
+        box.PlaceholderText = $"{AssetCatalog.Folder(kind)}/archivo.png";
+        box.Text = selected.IsEmpty ? string.Empty : selected.Value;
+    }
+
+    protected ContentKey ReadVisualKey(TextBox box, AssetKind kind, bool required = true)
+    {
+        var text = box.Text.Trim();
+        if (text.Length == 0)
+        {
+            if (required) throw new InvalidOperationException($"VisualKey vacío. Use un archivo de resources/{AssetCatalog.Folder(kind)}.");
+            return default;
+        }
+
+        return text.Contains('.') ? new ContentKey(text) : AssetCatalog.Key(kind, text);
+    }
+
     protected DefinitionId ResolveDefinition<T>(string text, string field) where T : GameDefinition
     {
         text = text.Trim();

@@ -11,12 +11,14 @@ public sealed class TilesetImageProvider : IDisposable
     private static readonly string[] Extensions = [".png", ".webp", ".jpg", ".jpeg", ".bmp"];
     private readonly EditorConfiguration configuration;
     private readonly DefinitionRegistry registry;
+    private readonly AssetLibrary? assets;
     private readonly Dictionary<ContentKey, Bitmap> cache = [];
 
-    public TilesetImageProvider(EditorConfiguration configuration, DefinitionRegistry registry)
+    public TilesetImageProvider(EditorConfiguration configuration, DefinitionRegistry registry, AssetLibrary? assets = null)
     {
         this.configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         this.registry = registry ?? throw new ArgumentNullException(nameof(registry));
+        this.assets = assets;
     }
 
     public Bitmap Get(TilesetDefinition definition)
@@ -53,16 +55,21 @@ public sealed class TilesetImageProvider : IDisposable
 
     public string ResolvePath(ContentKey textureKey)
     {
+        if (assets is not null && assets.TryResolve(textureKey, out var fromLibrary))
+            return fromLibrary;
+
         var tilesetFolder = ResolveTilesetFolder();
         var key = textureKey.Value;
-        var logicalName = key.StartsWith("tileset.", StringComparison.OrdinalIgnoreCase)
-            ? key[8..]
-            : key;
+        var stem = AssetCatalog.TryKind(textureKey, out _)
+            ? AssetCatalog.FileStem(textureKey)
+            : key.StartsWith("tileset.", StringComparison.OrdinalIgnoreCase)
+                ? key[8..]
+                : key;
 
         var candidates = new List<string>();
         AddCandidates(candidates, tilesetFolder, key);
-        if (!string.Equals(logicalName, key, StringComparison.OrdinalIgnoreCase))
-            AddCandidates(candidates, tilesetFolder, logicalName);
+        if (!string.Equals(stem, key, StringComparison.OrdinalIgnoreCase))
+            AddCandidates(candidates, tilesetFolder, stem);
 
         foreach (var candidate in candidates.Distinct(StringComparer.OrdinalIgnoreCase))
             if (File.Exists(candidate)) return Path.GetFullPath(candidate);
@@ -73,28 +80,14 @@ public sealed class TilesetImageProvider : IDisposable
 
     public string ResolveTilesetFolder()
     {
-        var configuredRoot = configuration.ClientAssetRoot;
-        var direct = Path.Combine(configuredRoot, configuration.TilesetAssetFolder);
-        if (Directory.Exists(direct)) return Path.GetFullPath(direct);
+        if (assets is not null)
+            return assets.Folder(AssetKind.Tileset);
 
-        var current = new DirectoryInfo(Directory.GetCurrentDirectory());
-        while (current is not null)
-        {
-            var candidate = Path.Combine(current.FullName, configuredRoot, configuration.TilesetAssetFolder);
-            if (Directory.Exists(candidate)) return candidate;
-            current = current.Parent;
-        }
-
-        current = new DirectoryInfo(AppContext.BaseDirectory);
-        while (current is not null)
-        {
-            var candidate = Path.Combine(current.FullName, configuredRoot, configuration.TilesetAssetFolder);
-            if (Directory.Exists(candidate)) return candidate;
-            current = current.Parent;
-        }
-
-        throw new DirectoryNotFoundException(
-            $"No se encontró la carpeta de tilesets '{configuration.ClientAssetRoot}/{configuration.TilesetAssetFolder}'.");
+        var shared = Path.Combine(
+            AssetLibrary.LocateSharedRoot(configuration.ResourcesRoot),
+            AssetCatalog.Folder(AssetKind.Tileset));
+        Directory.CreateDirectory(shared);
+        return Path.GetFullPath(shared);
     }
 
     public void Clear()
