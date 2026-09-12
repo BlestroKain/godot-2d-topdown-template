@@ -97,7 +97,15 @@ public sealed class ServerHost
     public async Task RunAsync(CancellationToken stopping)
     {
         listener.Start();
-        Console.WriteLine($"Servidor {configuration.Environment} escuchando {configuration.Host}:{Port}; tick={world.TickMilliseconds}ms; maxPlayers={configuration.MaxPlayers}; maxConnections={configuration.MaxConnections}.");
+        ServerLog.Info(
+            "host",
+            "listening",
+            ("environment", configuration.Environment),
+            ("host", configuration.Host),
+            ("port", Port),
+            ("tick_ms", world.TickMilliseconds),
+            ("max_players", configuration.MaxPlayers),
+            ("max_connections", configuration.MaxConnections));
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(stopping);
         var simulation = SimulateAsync(lifetime.Token);
         try
@@ -105,7 +113,12 @@ public sealed class ServerHost
             while (!lifetime.IsCancellationRequested)
             {
                 var tcp = await listener.AcceptTcpClientAsync(lifetime.Token);
-                if (!slots.Wait(0)) { tcp.Dispose(); continue; }
+                if (!slots.Wait(0))
+                {
+                    ServerLog.Warn("network", "connection_rejected_capacity");
+                    tcp.Dispose();
+                    continue;
+                }
                 tcp.NoDelay = true;
                 var id = new ConnectionId(Guid.NewGuid());
                 var task = ServeAsync(id, tcp, lifetime.Token);
@@ -122,6 +135,7 @@ public sealed class ServerHost
             await Task.WhenAll(connections.Values);
             try { await simulation; } catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
             await persistence.SaveDirtyAsync(world.DirtyPlayers(), CancellationToken.None);
+            ServerLog.Info("host", "stopped", ("players", world.PlayerCount));
         }
     }
 
@@ -167,6 +181,7 @@ public sealed class ServerHost
             lastClientActivity[id] = connectedAt;
             lastKeepAliveSent[id] = connectedAt;
             writer = peer.WriteLoopAsync();
+            ServerLog.Info("network", "connected", ("connection", id.Value));
             var rate = new RateLimiter(configuration.MaxMessagesPerWindow);
             while (!peer.Token.IsCancellationRequested)
             {
@@ -181,7 +196,14 @@ public sealed class ServerHost
         catch (Exception exception) when (exception is IOException or InvalidDataException or SocketException or OperationCanceledException or ArgumentException or InvalidOperationException or KeyNotFoundException)
         {
             if (!stopping.IsCancellationRequested && !IsCleanDisconnect(exception))
-                Console.WriteLine($"Conexión cerrada: {exception.Message}");
+            {
+                ServerLog.Warn(
+                    "network",
+                    "connection_closed",
+                    ("connection", id.Value),
+                    ("exception", exception.GetType().Name),
+                    ("reason", exception.Message));
+            }
             if (writer is null && !peer.Token.IsCancellationRequested)
             {
                 try
@@ -202,7 +224,15 @@ public sealed class ServerHost
             if (sessions is not null && session is not null && session.Session.Value != Guid.Empty)
             {
                 try { await sessions.RevokeAsync(session.Session, CancellationToken.None); }
-                catch (Exception exception) { Console.WriteLine($"No se pudo revocar sesión: {exception.Message}"); }
+                catch (Exception exception)
+                {
+                    ServerLog.Error(
+                        "auth",
+                        "session_revoke_failed",
+                        exception,
+                        ("connection", id.Value),
+                        ("session", session.Session.Value));
+                }
             }
             peer.Dispose();
             if (writer is not null)
@@ -210,6 +240,11 @@ public sealed class ServerHost
                 try { await writer; }
                 catch (Exception exception) when (exception is IOException or SocketException or OperationCanceledException or ObjectDisposedException) { }
             }
+            ServerLog.Info(
+                "network",
+                "disconnected",
+                ("connection", id.Value),
+                ("character", player?.CharacterId.Value));
             slots.Release();
         }
     }
