@@ -58,6 +58,7 @@ public sealed class ConditionSystem
             ConditionKind.HasItem => HasItem(player, condition),
             ConditionKind.ItemEquipped => ItemEquipped(player, condition),
             ConditionKind.HasTechnique => HasTechnique(player, condition),
+            ConditionKind.QuestState => QuestStateMatches(player, condition),
             ConditionKind.ProfessionMastery => ProfessionMastery(player, condition),
             ConditionKind.CharacterLevel => CompareNumber(player.Level, ExpectedNumber(condition, "value", "level"), condition.Comparison),
             ConditionKind.Stat => CompareNumber(ReadStat(player.Stats, RequiredText(condition, "stat")),
@@ -96,6 +97,15 @@ public sealed class ConditionSystem
     {
         var techniqueId = RequiredReference(condition, "technique");
         return CompareBool(player.Techniques.Knows(techniqueId), condition.Comparison);
+    }
+
+    private static bool QuestStateMatches(Player player, ConditionDefinition condition)
+    {
+        var questId = RequiredReference(condition, "quest");
+        var expectedText = RequiredText(condition, "state");
+        if (!Enum.TryParse<QuestRuntimeState>(expectedText, true, out var expected))
+            throw new InvalidOperationException($"QuestState desconocido: {expectedText}.");
+        return CompareBool(player.Quests.StateOf(questId) == expected, condition.Comparison);
     }
 
     private static bool ProfessionMastery(Player player, ConditionDefinition condition)
