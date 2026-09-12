@@ -42,14 +42,26 @@ internal static class InventoryCircuitVerification
             new ContentKey("template.player"));
         var systems = new GameSystems(new DefinitionRegistry());
         systems.Definitions.Register(sword);
+
+        var account = new AccountId(Guid.NewGuid());
+        var characters = new InMemoryCharacterRepository();
+        var record = characters.CreateAsync(
+            account,
+            "Heroe",
+            map.Id,
+            new Vector2Data(100, 100),
+            DefinitionId.Empty).GetAwaiter().GetResult();
+        var persistence = new PersistenceService(characters, map, _ => map.Id);
+
         var world = new WorldRuntime(map, mob, new WorldOptions(new(1), 120, 40, 50, 60, 32), new OscillatingMobPolicy(), new(900, 500), systems);
         var session = world.AddConnection(new ConnectionId(Guid.NewGuid()));
         world.AcceptProtocol(session);
-        world.Authenticate(session, new AccountId(Guid.NewGuid()), new SessionId(Guid.NewGuid()), "token");
-        world.Join(session, new CharacterSpawn(session.Account, new CharacterId(Guid.NewGuid()), "Heroe", map.Id, new Vector2Data(100, 100)));
+        world.Authenticate(session, account, new SessionId(Guid.NewGuid()), "token");
+        world.Join(session, new CharacterSpawn(account, record.Id, record.Name, map.Id, record.Position));
         world.Activate(session, world.Instance);
 
         var player = session.Player ?? throw new InvalidOperationException("FAIL: jugador no unido");
+        systems.Progression.Initialize(player, record.ToProgressionState());
         var natural = player.Stats.Primary.Strength;
 
         var ground = new WorldItem(
@@ -74,12 +86,29 @@ internal static class InventoryCircuitVerification
         var snapshot = InventoryProjection.Create(player);
         Expect(snapshot.Items.Length == 1 && snapshot.Equipped.Length == 1, "Snapshot incluye bolsa y equipo");
 
-        var stored = CharacterInventoryStorage.FromPlayer(player);
-        var restored = new Player(new EntityId(10_002), player.AccountId, player.CharacterId, player.MapInstanceId,
-            player.Position, player.VisualKey, player.DisplayName);
-        stored.ApplyTo(restored);
-        Expect(restored.Inventory.Count == 1, "JSON de inventario restaura items");
-        Expect(restored.Equipment.Contains(itemId), "JSON de inventario restaura equipo");
+        persistence.SaveCharacterAsync(player).GetAwaiter().GetResult();
+        var persisted = characters.GetAsync(record.Id).GetAwaiter().GetResult()
+            ?? throw new InvalidOperationException("InventoryCircuitVerification FAIL: personaje no persistido");
+        var loaded = persistence.LoadCharacterAsync(account, persisted).GetAwaiter().GetResult();
+
+        var restored = new Player(
+            new EntityId(10_002),
+            account,
+            record.Id,
+            player.MapInstanceId,
+            persisted.Position,
+            player.VisualKey,
+            persisted.Name);
+        systems.Progression.Initialize(restored, loaded.Progression, preserveVitals: false);
+        persistence.RestoreInventory(restored, persisted);
+        systems.Equipment.RepairInvalidEquipment(restored);
+        systems.Progression.Recalculate(restored, preserveVitals: loaded.CurrentHealth is not null);
+
+        Expect(restored.Inventory.Count == 1, "Save/load restaura items tras reconexión");
+        Expect(restored.Equipment.Contains(itemId), "Save/load restaura equipo tras reconexión");
+        Expect(restored.Stats.Primary.Strength == natural + 5, "Reconexión recalcula stats desde equipo restaurado");
+        Expect(CharacterInventoryStorage.FromPlayer(restored).ToJson() == persisted.InventoryData,
+            "Estado restaurado coincide con snapshot persistido");
 
         world.UnequipItem(session, itemId);
         Expect(!player.Equipment.Contains(itemId), "Unequip libera el slot");
