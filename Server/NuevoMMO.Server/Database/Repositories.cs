@@ -50,6 +50,7 @@ public interface ICharacterRepository
         CancellationToken cancellationToken = default);
 
     Task SaveInventoryAsync(CharacterId id, string inventoryData, CancellationToken cancellationToken = default);
+    Task SaveQuestDataAsync(CharacterId id, string questData, CancellationToken cancellationToken = default);
 }
 
 public interface IInventoryRepository { }
@@ -180,6 +181,15 @@ public sealed class InMemoryCharacterRepository : ICharacterRepository
         character.InventoryData = string.IsNullOrWhiteSpace(inventoryData)
             ? CharacterInventoryStorage.EmptyJson
             : inventoryData;
+        return Task.CompletedTask;
+    }
+
+    public Task SaveQuestDataAsync(CharacterId id, string questData, CancellationToken cancellationToken = default)
+    {
+        if (!characters.TryGetValue(id, out var character)) throw new KeyNotFoundException("Personaje inexistente.");
+        character.QuestData = string.IsNullOrWhiteSpace(questData)
+            ? CharacterQuestStorage.EmptyJson
+            : questData;
         return Task.CompletedTask;
     }
 }
