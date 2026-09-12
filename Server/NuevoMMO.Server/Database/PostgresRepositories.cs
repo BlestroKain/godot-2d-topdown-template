@@ -264,6 +264,9 @@ public sealed class PostgresCharacterRepository(string connectionString) : IChar
             Appearance = CharacterAppearance.FromStorageString(appearanceText)
         };
     }
+
+    public Task SaveInventoryAsync(CharacterId id, string inventoryData, CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
 }
 
 public static class PostgresMigrator

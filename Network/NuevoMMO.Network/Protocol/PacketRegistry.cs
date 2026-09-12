@@ -21,6 +21,8 @@ public static class PacketRegistry
             [typeof(UseTechniqueRequest)] = (PacketId.UseTechniqueRequest, PacketDirection.ClientToServer),
             [typeof(InteractRequest)] = (PacketId.InteractRequest, PacketDirection.ClientToServer),
             [typeof(SetTargetRequest)] = (PacketId.SetTargetRequest, PacketDirection.ClientToServer),
+            [typeof(EquipItemRequest)] = (PacketId.EquipItemRequest, PacketDirection.ClientToServer),
+            [typeof(UnequipItemRequest)] = (PacketId.UnequipItemRequest, PacketDirection.ClientToServer),
             [typeof(ConnectionAccepted)] = (PacketId.ConnectionAccepted, PacketDirection.ServerToClient),
             [typeof(LoginResult)] = (PacketId.LoginResult, PacketDirection.ServerToClient),
             [typeof(RegisterResult)] = (PacketId.RegisterResult, PacketDirection.ServerToClient),
@@ -36,7 +38,8 @@ public static class PacketRegistry
             [typeof(PongPacket)] = (PacketId.Pong, PacketDirection.ServerToClient),
             [typeof(ErrorPacket)] = (PacketId.Error, PacketDirection.ServerToClient),
             [typeof(PlayerStatsPacket)] = (PacketId.PlayerStats, PacketDirection.ServerToClient),
-            [typeof(CombatDebugPacket)] = (PacketId.CombatDebug, PacketDirection.ServerToClient)
+            [typeof(CombatDebugPacket)] = (PacketId.CombatDebug, PacketDirection.ServerToClient),
+            [typeof(InventorySnapshotPacket)] = (PacketId.InventorySnapshot, PacketDirection.ServerToClient)
         };
 
     public static (PacketId Id, PacketDirection Direction) Describe(IPacket packet) =>

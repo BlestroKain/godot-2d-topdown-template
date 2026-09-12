@@ -42,13 +42,13 @@ public sealed class PersistenceService
             stored.CurrentMana);
     }
 
-    public Task SaveCharacterAsync(Player player, CancellationToken cancellationToken = default)
+    public async Task SaveCharacterAsync(Player player, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(player);
         var mapDefinition = mapDefinitionResolver?.Invoke(player.MapInstanceId) ?? fallbackMap.Id;
         if (mapDefinition.IsEmpty)
             throw new InvalidOperationException("No se pudo resolver la MapDefinition actual del jugador.");
-        return characters.SaveCheckpointAsync(
+        await characters.SaveCheckpointAsync(
             player.CharacterId,
             mapDefinition,
             player.Position,
@@ -56,6 +56,17 @@ public sealed class PersistenceService
             player.Health,
             player.Mana,
             cancellationToken);
+        await characters.SaveInventoryAsync(
+            player.CharacterId,
+            CharacterInventoryStorage.FromPlayer(player).ToJson(),
+            cancellationToken);
+    }
+
+    public void RestoreInventory(Player player, CharacterRecord record)
+    {
+        ArgumentNullException.ThrowIfNull(player);
+        ArgumentNullException.ThrowIfNull(record);
+        CharacterInventoryStorage.Parse(record.InventoryData).ApplyTo(player);
     }
 
     public async Task SaveDirtyAsync(IEnumerable<Player> players, CancellationToken cancellationToken = default)

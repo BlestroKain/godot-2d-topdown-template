@@ -46,6 +46,20 @@ public class ClientGameState
         Local.Stats = packet.Stats;
     }
 
+    public void Apply(InventorySnapshotPacket packet)
+    {
+        ArgumentNullException.ThrowIfNull(packet);
+        Inventory.Replace(packet.Items.Select((item, index) =>
+            new InventorySlotState(index, item.ItemId, item.DefinitionId, item.Quantity)));
+        Local.Equipment.Clear();
+        var byId = packet.Items.ToDictionary(static item => item.ItemId);
+        foreach (var entry in packet.Equipped)
+        {
+            if (!byId.TryGetValue(entry.ItemId, out var item)) continue;
+            Local.Equipment.Equip(entry.Slot, new InventorySlotState(entry.Index, item.ItemId, item.DefinitionId, item.Quantity));
+        }
+    }
+
     public void Apply(EntityStatePacket snapshot, double localTime)
     {
         if (Session.Map is null || snapshot.Correction.Self != Session.Self || snapshot.Tick <= LastTick ||

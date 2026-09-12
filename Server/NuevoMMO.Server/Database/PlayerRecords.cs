@@ -29,6 +29,7 @@ public sealed class CharacterRecord
     public int Vitality { get; set; } = ProgressionRules.BaseNaturalAttribute;
     public int? CurrentHealth { get; set; }
     public int? CurrentMana { get; set; }
+    public string InventoryData { get; set; } = CharacterInventoryStorage.EmptyJson;
 
     public PlayerProgressionState ToProgressionState()
     {

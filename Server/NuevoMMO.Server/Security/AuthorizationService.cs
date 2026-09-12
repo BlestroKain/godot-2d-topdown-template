@@ -15,7 +15,8 @@ public enum ServerAction : byte
     Interact = 8,
     UseTechnique = 9,
     Chat = 10,
-    AllocateAttribute = 11
+    AllocateAttribute = 11,
+    Equip = 12
 }
 
 public readonly record struct AuthorizationDecision(bool Allowed, string Reason)
@@ -44,7 +45,8 @@ public sealed class AuthorizationService
             ServerAction.ListCharacters or ServerAction.CreateCharacter or ServerAction.SelectCharacter
                 => state == PlayerSessionState.Authenticated,
             ServerAction.EnterWorld => state == PlayerSessionState.WaitingForMap,
-            ServerAction.Move or ServerAction.Interact or ServerAction.UseTechnique or ServerAction.Chat or ServerAction.AllocateAttribute
+            ServerAction.Move or ServerAction.Interact or ServerAction.UseTechnique or ServerAction.Chat
+                or ServerAction.AllocateAttribute or ServerAction.Equip
                 => state == PlayerSessionState.InWorld && session.Player is not null,
             _ => false
         };

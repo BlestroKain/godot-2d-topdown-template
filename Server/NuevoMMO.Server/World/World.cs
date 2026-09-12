@@ -419,7 +419,8 @@ public sealed class WorldRuntime
             {
                 var picked = systems.Interactions.TryPickup(player, worldItem, now);
                 if (picked.Success) currentMap.Remove(worldItem.Id, out _);
-                return picked.Success ? InteractionOutcome.Ok(string.IsNullOrWhiteSpace(picked.Message) ? "Recogido." : picked.Message)
+                return picked.Success
+                    ? InteractionOutcome.Ok(string.IsNullOrWhiteSpace(picked.Message) ? "Recogido." : picked.Message)
                     : InteractionOutcome.Fail(picked.Message);
             }
             if (target is ResourceEntity resource)
@@ -492,6 +493,57 @@ public sealed class WorldRuntime
     {
         ArgumentNullException.ThrowIfNull(entity);
         lock (gate) worlds.Get(entity.MapInstanceId).Add(entity);
+    }
+
+    public InventorySnapshotPacket InventorySnapshot(PlayerSession session)
+    {
+        lock (gate)
+        {
+            if (session.Player is null) throw new InvalidOperationException("Jugador fuera del mundo.");
+            return InventoryProjection.Create(session.Player);
+        }
+    }
+
+    public string EquipItem(PlayerSession session, ItemInstanceId itemId)
+    {
+        if (systems is null) throw new InvalidOperationException("GameSystems no está configurado.");
+        lock (gate)
+        {
+            EnsureInWorld(session);
+            var player = session.Player!;
+            if (!player.Inventory.TryGet(itemId, out var item) || item is null)
+                throw new InvalidOperationException("El item no está en el inventario.");
+            var definition = systems.Definitions.Get<ItemDefinition>(item.DefinitionId);
+            if (definition.Equipment is null)
+                throw new InvalidOperationException("El item no es equipable.");
+            var index = NextEquipmentIndex(player, definition.Equipment.Slot);
+            systems.Equipment.Equip(player, itemId, new EquipmentPosition(definition.Equipment.Slot, index));
+            systems.Progression.Recalculate(player, preserveVitals: true);
+            return $"Equipado: {definition.Name}.";
+        }
+    }
+
+    public string UnequipItem(PlayerSession session, ItemInstanceId itemId)
+    {
+        if (systems is null) throw new InvalidOperationException("GameSystems no está configurado.");
+        lock (gate)
+        {
+            EnsureInWorld(session);
+            var player = session.Player!;
+            if (!systems.Equipment.Unequip(player, itemId, out _))
+                throw new InvalidOperationException("Ese item no está equipado.");
+            systems.Progression.Recalculate(player, preserveVitals: true);
+            return "Item desequipado.";
+        }
+    }
+
+    private static int NextEquipmentIndex(Player player, EquipmentSlot slot)
+    {
+        if (slot is not (EquipmentSlot.Ring or EquipmentSlot.Trophy)) return 0;
+        var used = player.Equipment.PositionsFor(slot).Select(static position => position.Index).ToHashSet();
+        for (var index = 0; index < 8; index++)
+            if (!used.Contains(index)) return index;
+        return 0;
     }
 
     public InteractionResult TryPickup(PlayerSession session, EntityId worldItemId, long nowMilliseconds)

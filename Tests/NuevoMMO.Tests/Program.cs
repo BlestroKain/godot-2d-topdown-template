@@ -266,6 +266,23 @@ Check(PacketCodec.Decode(PacketCodec.Encode(use)) is UseTechniqueRequest decoded
 var interact = new InteractRequest(new EntityId(4));
 Check(PacketCodec.Decode(PacketCodec.Encode(interact)) is InteractRequest decodedInteract && decodedInteract == interact,
     "Network: Interact roundtrip");
+var inventorySnapshot = new InventorySnapshotPacket(
+    [new InventoryItemSnapshot(new ItemInstanceId(Guid.NewGuid()), DefinitionId.New(), 2, 10)],
+    [new EquippedItemSnapshot(EquipmentSlot.Weapon, 0, new ItemInstanceId(Guid.NewGuid()))]);
+inventorySnapshot = inventorySnapshot with
+{
+    Equipped = [new EquippedItemSnapshot(EquipmentSlot.Weapon, 0, inventorySnapshot.Items[0].ItemId)]
+};
+Check(PacketCodec.Decode(PacketCodec.Encode(inventorySnapshot)) is InventorySnapshotPacket decodedInventory
+    && decodedInventory.Items[0].Quantity == 2
+    && decodedInventory.Equipped[0].Slot == EquipmentSlot.Weapon,
+    "Network: InventorySnapshot roundtrip");
+var equip = new EquipItemRequest(inventorySnapshot.Items[0].ItemId);
+Check(PacketCodec.Decode(PacketCodec.Encode(equip)) is EquipItemRequest decodedEquip && decodedEquip == equip,
+    "Network: EquipItem roundtrip");
+var unequip = new UnequipItemRequest(inventorySnapshot.Items[0].ItemId);
+Check(PacketCodec.Decode(PacketCodec.Encode(unequip)) is UnequipItemRequest decodedUnequip && decodedUnequip == unequip,
+    "Network: UnequipItem roundtrip");
 
 var eventRuntime = new EventRuntime(new DefinitionRegistry());
 var pageListId = Guid.NewGuid();

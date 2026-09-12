@@ -172,6 +172,9 @@ public sealed class CharacterSelectHandler(
         var loaded = await persistence.LoadCharacterAsync(context.Session.Account, record, cancellationToken);
         var player = world.Join(context.Session, loaded.Spawn);
         progression.Initialize(player, loaded.Progression, preserveVitals: false);
+        persistence.RestoreInventory(player, record);
+        world.Systems?.Equipment.RepairInvalidEquipment(player);
+        progression.Recalculate(player, preserveVitals: loaded.CurrentHealth is not null);
         if (loaded.CurrentHealth is not null || loaded.CurrentMana is not null)
         {
             var health = Math.Clamp(loaded.CurrentHealth ?? player.MaxHealth, 0, player.MaxHealth);
@@ -181,6 +184,7 @@ public sealed class CharacterSelectHandler(
         context.Send(new CharacterSelected(player.CharacterId));
         context.Send(world.PrepareMapLoad(context.Session, "dev-1"));
         context.Send(PlayerStatsProjection.Create(player, progression));
+        context.Send(InventoryProjection.Create(player));
     }
 }
 
@@ -330,8 +334,64 @@ public sealed class InteractHandler(WorldRuntime world, AuthorizationService aut
         ServerAuthorizationGuard.Demand(context, ServerAction.Interact, authorization);
         var result = world.Interact(context.Session, packet.Target);
         if (!result.Success) context.Send(new ErrorPacket("interact", result.Message, false));
-        else if (!string.IsNullOrWhiteSpace(result.Message)) context.Send(new ErrorPacket("interact_ok", result.Message, false));
+        else
+        {
+            if (!string.IsNullOrWhiteSpace(result.Message)) context.Send(new ErrorPacket("interact_ok", result.Message, false));
+            context.Send(world.InventorySnapshot(context.Session));
+        }
         return ValueTask.CompletedTask;
+    }
+}
+
+public sealed class EquipItemHandler(
+    WorldRuntime world,
+    PersistenceService persistence,
+    ProgressionSystem progression,
+    AuthorizationService authorization)
+    : IPacketHandler<ServerPacketContext, EquipItemRequest>
+{
+    public async ValueTask HandleAsync(ServerPacketContext context, EquipItemRequest packet, CancellationToken cancellationToken)
+    {
+        ServerAuthorizationGuard.Demand(context, ServerAction.Equip, authorization);
+        try
+        {
+            var message = world.EquipItem(context.Session, packet.ItemId);
+            context.Send(world.InventorySnapshot(context.Session));
+            context.Send(PlayerStatsProjection.Create(context.Session.Player!, progression));
+            if (!string.IsNullOrWhiteSpace(message)) context.Send(new ErrorPacket("equip_ok", message, false));
+            if (context.Session.Player is { } player)
+                await persistence.SaveCharacterAsync(player, cancellationToken);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or KeyNotFoundException)
+        {
+            context.Send(new ErrorPacket("equip", exception.Message, false));
+        }
+    }
+}
+
+public sealed class UnequipItemHandler(
+    WorldRuntime world,
+    PersistenceService persistence,
+    ProgressionSystem progression,
+    AuthorizationService authorization)
+    : IPacketHandler<ServerPacketContext, UnequipItemRequest>
+{
+    public async ValueTask HandleAsync(ServerPacketContext context, UnequipItemRequest packet, CancellationToken cancellationToken)
+    {
+        ServerAuthorizationGuard.Demand(context, ServerAction.Equip, authorization);
+        try
+        {
+            var message = world.UnequipItem(context.Session, packet.ItemId);
+            context.Send(world.InventorySnapshot(context.Session));
+            context.Send(PlayerStatsProjection.Create(context.Session.Player!, progression));
+            if (!string.IsNullOrWhiteSpace(message)) context.Send(new ErrorPacket("unequip_ok", message, false));
+            if (context.Session.Player is { } player)
+                await persistence.SaveCharacterAsync(player, cancellationToken);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or KeyNotFoundException)
+        {
+            context.Send(new ErrorPacket("unequip", exception.Message, false));
+        }
     }
 }
 

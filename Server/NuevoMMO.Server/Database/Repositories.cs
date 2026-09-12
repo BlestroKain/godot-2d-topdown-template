@@ -48,6 +48,8 @@ public interface ICharacterRepository
         int currentHealth,
         int currentMana,
         CancellationToken cancellationToken = default);
+
+    Task SaveInventoryAsync(CharacterId id, string inventoryData, CancellationToken cancellationToken = default);
 }
 
 public interface IInventoryRepository { }
@@ -169,6 +171,15 @@ public sealed class InMemoryCharacterRepository : ICharacterRepository
         character.ApplyProgression(progression);
         character.CurrentHealth = currentHealth;
         character.CurrentMana = currentMana;
+        return Task.CompletedTask;
+    }
+
+    public Task SaveInventoryAsync(CharacterId id, string inventoryData, CancellationToken cancellationToken = default)
+    {
+        if (!characters.TryGetValue(id, out var character)) throw new KeyNotFoundException("Personaje inexistente.");
+        character.InventoryData = string.IsNullOrWhiteSpace(inventoryData)
+            ? CharacterInventoryStorage.EmptyJson
+            : inventoryData;
         return Task.CompletedTask;
     }
 }

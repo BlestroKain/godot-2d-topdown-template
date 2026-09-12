@@ -90,6 +90,12 @@ public static class PacketCodec
                 writer.Write(value.Target.Value); break;
             case SetTargetRequest value:
                 writer.Write(value.Target.Value); break;
+            case EquipItemRequest value:
+                if (value.ItemId.Value == Guid.Empty) throw new InvalidDataException("EquipItem inválido.");
+                writer.Write(value.ItemId.Value); break;
+            case UnequipItemRequest value:
+                if (value.ItemId.Value == Guid.Empty) throw new InvalidDataException("UnequipItem inválido.");
+                writer.Write(value.ItemId.Value); break;
             case PingPacket value: writer.Write(value.Nonce); writer.Write(value.ClientSendTimestamp); break;
             case DisconnectRequest value: writer.Write(value.Reason, 256); break;
             case ConnectionAccepted value: writer.Write(value.Connection.Value); writer.Write(value.ServerTimestamp); writer.Write(value.ProtocolVersion); break;
@@ -112,6 +118,7 @@ public static class PacketCodec
                 break;
             case PlayerStatsPacket value: WritePlayerStats(writer, value.Stats); break;
             case CombatDebugPacket value: WriteCombatDebug(writer, value); break;
+            case InventorySnapshotPacket value: WriteInventory(writer, value); break;
             case ServerTimePacket value: writer.Write(value.ServerTimestamp); writer.Write(value.ServerTick); break;
             case PongPacket value: writer.Write(value.Nonce); writer.Write(value.ClientSendTimestamp); writer.Write(value.ServerReceiveTimestamp); writer.Write(value.ServerSendTimestamp); break;
             case ErrorPacket value: writer.Write(value.Code, 64); writer.Write(value.Message, 512); writer.Write(value.Fatal); break;
@@ -135,6 +142,8 @@ public static class PacketCodec
         PacketId.UseTechniqueRequest => new UseTechniqueRequest(new(reader.ReadGuid()), new(reader.ReadInt64()), reader.ReadVector2()),
         PacketId.InteractRequest => new InteractRequest(new(reader.ReadInt64())),
         PacketId.SetTargetRequest => new SetTargetRequest(new(reader.ReadInt64())),
+        PacketId.EquipItemRequest => new EquipItemRequest(new(reader.ReadGuid())),
+        PacketId.UnequipItemRequest => new UnequipItemRequest(new(reader.ReadGuid())),
         PacketId.Ping => new PingPacket(reader.ReadInt64(), reader.ReadInt64()),
         PacketId.DisconnectRequest => new DisconnectRequest(reader.ReadString(256)),
         PacketId.ConnectionAccepted => new ConnectionAccepted(new(reader.ReadGuid()), reader.ReadInt64(), reader.ReadUInt16()),
@@ -150,6 +159,7 @@ public static class PacketCodec
         PacketId.EntityState => ReadEntityStatePacket(reader),
         PacketId.PlayerStats => new PlayerStatsPacket(ReadPlayerStats(reader)),
         PacketId.CombatDebug => ReadCombatDebug(reader),
+        PacketId.InventorySnapshot => ReadInventory(reader),
         PacketId.ServerTime => new ServerTimePacket(reader.ReadInt64(), reader.ReadInt64()),
         PacketId.Pong => new PongPacket(reader.ReadInt64(), reader.ReadInt64(), reader.ReadInt64(), reader.ReadInt64()),
         PacketId.Error => new ErrorPacket(reader.ReadString(64), reader.ReadString(512), reader.ReadBool()),
@@ -270,6 +280,54 @@ public static class PacketCodec
             !float.IsFinite(value.Defense) || !float.IsFinite(value.ManaRegenPerSecond) || !float.IsFinite(value.OutOfCombatManaRegenPerSecond))
             throw new InvalidDataException("Stats de jugador inválidos.");
         return value;
+    }
+
+    private const int MaxInventoryItems = 128;
+    private const int MaxEquippedItems = 32;
+
+    private static void WriteInventory(PacketWriter writer, InventorySnapshotPacket value)
+    {
+        WriteCount(writer, value.Items.Length, MaxInventoryItems);
+        foreach (var item in value.Items)
+        {
+            if (item.ItemId.Value == Guid.Empty || item.DefinitionId.IsEmpty || item.Quantity < 1 || item.Durability < 0)
+                throw new InvalidDataException("Item de inventario inválido.");
+            writer.Write(item.ItemId.Value);
+            writer.Write(item.DefinitionId.Value);
+            writer.Write(item.Quantity);
+            writer.Write(item.Durability);
+        }
+
+        WriteCount(writer, value.Equipped.Length, MaxEquippedItems);
+        foreach (var entry in value.Equipped)
+        {
+            if (entry.Slot == EquipmentSlot.None || !Enum.IsDefined(entry.Slot) || entry.ItemId.Value == Guid.Empty)
+                throw new InvalidDataException("Equipo inválido.");
+            writer.Write((byte)entry.Slot);
+            writer.Write(entry.Index);
+            writer.Write(entry.ItemId.Value);
+        }
+    }
+
+    private static InventorySnapshotPacket ReadInventory(PacketReader reader)
+    {
+        var items = ReadArray(reader, MaxInventoryItems, () =>
+        {
+            var item = new InventoryItemSnapshot(new(reader.ReadGuid()), new(reader.ReadGuid()), reader.ReadInt32(), reader.ReadInt32());
+            if (item.ItemId.Value == Guid.Empty || item.DefinitionId.IsEmpty || item.Quantity < 1 || item.Durability < 0)
+                throw new InvalidDataException("Item de inventario inválido.");
+            return item;
+        });
+        var equipped = ReadArray(reader, MaxEquippedItems, () =>
+        {
+            var slot = (EquipmentSlot)reader.ReadByte();
+            var index = reader.ReadByte();
+            var itemId = new ItemInstanceId(reader.ReadGuid());
+            if (slot == EquipmentSlot.None || !Enum.IsDefined(slot) || itemId.Value == Guid.Empty)
+                throw new InvalidDataException("Equipo inválido.");
+            return new EquippedItemSnapshot(slot, index, itemId);
+        });
+        return new InventorySnapshotPacket(items, equipped);
     }
 
     private static void WriteCombatDebug(PacketWriter writer, CombatDebugPacket value)

@@ -247,6 +247,11 @@ public partial class NetworkBridge : Node
                         LastNotice = string.Empty;
                         EmitSignal(SignalName.PlayerStatsUpdated);
                         break;
+                    case InventorySnapshotPacket inventory:
+                        World.Apply(inventory);
+                        LastNotice = string.Empty;
+                        EmitSignal(SignalName.WorldUpdated);
+                        break;
                     case CombatDebugPacket combat:
                         LastCombat = combat;
                         LastNotice = string.Empty;
@@ -338,6 +343,22 @@ public partial class NetworkBridge : Node
         if (!InWorld || connection is null) return;
         var current = connection;
         try { await current.SendAsync(new SetTargetRequest(target)); }
+        catch (Exception exception) { Enqueue(current, null, exception.Message); }
+    }
+
+    public async void EquipItem(ItemInstanceId itemId)
+    {
+        if (!InWorld || connection is null || itemId.Value == Guid.Empty) return;
+        var current = connection;
+        try { await current.SendAsync(new EquipItemRequest(itemId)); }
+        catch (Exception exception) { Enqueue(current, null, exception.Message); }
+    }
+
+    public async void UnequipItem(ItemInstanceId itemId)
+    {
+        if (!InWorld || connection is null || itemId.Value == Guid.Empty) return;
+        var current = connection;
+        try { await current.SendAsync(new UnequipItemRequest(itemId)); }
         catch (Exception exception) { Enqueue(current, null, exception.Message); }
     }
 

@@ -19,5 +19,8 @@ public sealed class EquipmentState
 
     public bool IsEquipped(EquipmentSlot slot) => worn.ContainsKey(slot);
 
+    public bool Contains(ItemInstanceId itemId)
+        => itemId.Value != Guid.Empty && worn.Values.Any(item => item.ItemId == itemId);
+
     public void Clear() => worn.Clear();
 }

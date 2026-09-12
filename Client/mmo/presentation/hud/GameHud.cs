@@ -41,6 +41,14 @@ public partial class GameHud : CanvasLayer
         characterStats = characterRoot.GetNode<Label>("Margin/VBox/Body/StatsPanel/StatsVBox/CharacterStats");
         inventorySummary = inventoryRoot.GetNode<Label>("Margin/VBox/InventorySummary");
         inventoryGrid = inventoryRoot.GetNode<UiSlotGrid>("Margin/VBox/SlotGrid");
+        foreach (var child in inventoryGrid.GetChildren())
+            if (child is UiSlot existing)
+                existing.SlotActivated += OnInventorySlotActivated;
+        inventoryGrid.ChildEnteredTree += child =>
+        {
+            if (child is UiSlot slot)
+                slot.SlotActivated += OnInventorySlotActivated;
+        };
 
         RegisterWindow("character", characterRoot);
         RegisterWindow("inventory", inventoryRoot);
@@ -202,6 +210,17 @@ public partial class GameHud : CanvasLayer
         inventorySummary.Text = world.Inventory.Count == 0
             ? "Inventario vacío."
             : $"{world.Inventory.Count} stacks replicados por el servidor.";
+    }
+
+    private void OnInventorySlotActivated(int index)
+    {
+        if (GetParent() is not MmoGame game || game.Network is null) return;
+        var slot = game.Network.World.Inventory.Slots.FirstOrDefault(value => value.Slot == index);
+        if (slot is null) return;
+        if (game.Network.World.Local.Equipment.Contains(slot.ItemId))
+            game.Network.UnequipItem(slot.ItemId);
+        else
+            game.Network.EquipItem(slot.ItemId);
     }
 
     private static string DefaultHotbarName(int index) => index switch
