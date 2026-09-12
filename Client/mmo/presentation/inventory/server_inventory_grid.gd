@@ -1,3 +1,4 @@
+@tool
 extends CtrlInventoryGrid
 class_name ServerInventoryGrid
 ## GLoot grid adapter that emits intents without mutating the authoritative projection.
@@ -5,7 +6,6 @@ class_name ServerInventoryGrid
 signal server_item_activated(item_id: String)
 signal server_item_move_requested(item_id: String, target_index: int)
 
-const _CtrlDraggableInventoryItem = preload("res://addons/gloot/ui/ctrl_draggable_inventory_item.gd")
 const _SERVER_ITEM_ID := &"server_item_id"
 const _SERVER_SLOT := &"server_slot"
 
