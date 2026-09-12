@@ -54,23 +54,20 @@ public sealed partial class MapToolsDock : DockContent
 
     public void SelectTool(MapEditorTool tool)
     {
+        var target = ToolLists()
+            .Select(pair => (pair.Page, pair.List, Index: FindToolIndex(pair.List, tool)))
+            .FirstOrDefault(pair => pair.Index >= 0);
+        if (target.List is null) return;
+
         selectingTool = true;
         try
         {
-            foreach (var (page, list) in ToolLists())
-            {
-                var index = FindToolIndex(list, tool);
-                if (index < 0)
-                {
-                    list.SelectedIndex = -1;
-                    continue;
-                }
+            foreach (var (_, list) in ToolLists())
+                list.SelectedIndex = -1;
 
-                modeTabs.SelectedTab = page;
-                list.SelectedIndex = index;
-                ConfigureDefinitionPanel(tool);
-                return;
-            }
+            modeTabs.SelectedTab = target.Page;
+            target.List.SelectedIndex = target.Index;
+            ConfigureDefinitionPanel(tool);
         }
         finally
         {
