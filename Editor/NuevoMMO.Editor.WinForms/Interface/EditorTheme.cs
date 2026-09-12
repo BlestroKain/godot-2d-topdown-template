@@ -5,19 +5,19 @@ using WeifenLuo.WinFormsUI.Docking;
 namespace NuevoMMO.Editor;
 
 /// <summary>
-/// Paleta oscura al estilo DarkUI de Broken Reborn. Se aplica a toda la UI WinForms
-/// para que no quede ningún panel blanco de sistema.
+/// Tema compacto de herramienta de producción: oscuro, denso y con acento cian.
+/// La prioridad es mantener el mapa como foco y evitar superficies claras del sistema.
 /// </summary>
 public static class EditorTheme
 {
-    public static readonly Color Background = Color.FromArgb(30, 30, 30);
-    public static readonly Color Surface = Color.FromArgb(37, 37, 38);
-    public static readonly Color SurfaceAlt = Color.FromArgb(45, 45, 48);
-    public static readonly Color Input = Color.FromArgb(27, 27, 28);
-    public static readonly Color Border = Color.FromArgb(63, 63, 70);
-    public static readonly Color Text = Color.FromArgb(220, 220, 220);
-    public static readonly Color Muted = Color.FromArgb(160, 160, 160);
-    public static readonly Color Accent = Color.FromArgb(0, 122, 204);
+    public static readonly Color Background = Color.FromArgb(24, 25, 28);
+    public static readonly Color Surface = Color.FromArgb(31, 32, 35);
+    public static readonly Color SurfaceAlt = Color.FromArgb(39, 40, 43);
+    public static readonly Color Input = Color.FromArgb(20, 21, 24);
+    public static readonly Color Border = Color.FromArgb(58, 60, 66);
+    public static readonly Color Text = Color.FromArgb(224, 224, 224);
+    public static readonly Color Muted = Color.FromArgb(148, 150, 156);
+    public static readonly Color Accent = Color.FromArgb(55, 148, 170);
 
     public static void ApplyWindow(Form form)
     {
@@ -54,7 +54,16 @@ public static class EditorTheme
                 control.BackColor = Input;
                 control.ForeColor = Text;
                 break;
-            case ListBox or TreeView or ListView or ComboBox:
+            case ListBox list:
+                list.BackColor = Input;
+                list.ForeColor = Text;
+                break;
+            case TreeView tree:
+                tree.BackColor = Input;
+                tree.ForeColor = Text;
+                tree.LineColor = Border;
+                break;
+            case ListView or ComboBox:
                 control.BackColor = Input;
                 control.ForeColor = Text;
                 break;
@@ -71,6 +80,7 @@ public static class EditorTheme
                 splitter.BackColor = Border;
                 splitter.Panel1.BackColor = Surface;
                 splitter.Panel2.BackColor = Surface;
+                splitter.SplitterWidth = Math.Max(3, splitter.SplitterWidth);
                 break;
             case MenuStrip or ToolStrip or StatusStrip:
                 control.BackColor = SurfaceAlt;
@@ -78,6 +88,7 @@ public static class EditorTheme
                 if (control is ToolStrip strip)
                 {
                     strip.Renderer = new DarkToolStripRenderer();
+                    strip.GripMargin = Padding.Empty;
                     foreach (ToolStripItem item in strip.Items)
                         PaintItem(item);
                 }
@@ -92,8 +103,6 @@ public static class EditorTheme
             case CheckBox or RadioButton or Label:
                 control.BackColor = Color.Transparent;
                 control.ForeColor = Text;
-                if (control.Parent is not null && control.BackColor == Color.Transparent)
-                    control.ForeColor = Text;
                 break;
             case TableLayoutPanel or Panel or FlowLayoutPanel or GroupBox:
                 control.BackColor = Surface;
@@ -113,6 +122,7 @@ public static class EditorTheme
     {
         item.ForeColor = Text;
         item.BackColor = SurfaceAlt;
+        item.Margin = new Padding(0);
         if (item is ToolStripTextBox text)
         {
             text.BackColor = Input;
