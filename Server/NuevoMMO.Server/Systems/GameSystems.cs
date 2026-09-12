@@ -10,7 +10,13 @@ namespace NuevoMMO.Server.Systems;
 /// </summary>
 public sealed class GameSystems
 {
+    private const int PlayerRespawnMilliseconds = 3_000;
+    private const int DefaultMobRespawnMilliseconds = 10_000;
     private readonly float mobMovementSpeed;
+    private readonly object lifecycleGate = new();
+    private readonly Dictionary<MapInstanceId, Queue<DefeatResolution>> pendingDefeats = [];
+    private readonly Dictionary<EntityId, long> respawnAt = [];
+    private long nextTransientEntityId = long.MaxValue;
 
     public GameSystems(
         DefinitionRegistry definitions,
@@ -71,8 +77,8 @@ public sealed class GameSystems
     public event Action<DefeatResolution>? DefeatResolved;
 
     /// <summary>
-    /// Avanza IA, efectos y casts/channels. Proyectiles y respawn de recursos continúan
-    /// siendo recorridos por WorldRuntime para conservar un único orden de actualización del mapa.
+    /// Avanza el ciclo autoritativo de gameplay. Las derrotas producidas por handlers, casts,
+    /// efectos, proyectiles o zonas se consumen aquí para que loot y respawn tengan un único reloj.
     /// </summary>
     public void Advance(MapInstance map, long nowMilliseconds, int deltaMilliseconds)
     {
@@ -80,6 +86,8 @@ public sealed class GameSystems
         if (nowMilliseconds < 0) throw new ArgumentOutOfRangeException(nameof(nowMilliseconds));
         if (deltaMilliseconds < 0) throw new ArgumentOutOfRangeException(nameof(deltaMilliseconds));
 
+        ProcessPendingDefeats(map);
+        ProcessRespawns(map, nowMilliseconds);
         AdvanceMobAi(map, nowMilliseconds, deltaMilliseconds);
 
         var snapshot = map.Entities.All.ToArray();
@@ -129,11 +137,127 @@ public sealed class GameSystems
     }
 
     private void ResolveDefeat(CombatDefeatEvent defeat)
-        => DefeatResolved?.Invoke(Defeats.Resolve(defeat));
+    {
+        var resolution = Defeats.Resolve(defeat);
+        lock (lifecycleGate)
+        {
+            if (!pendingDefeats.TryGetValue(defeat.Target.MapInstanceId, out var queue))
+                pendingDefeats[defeat.Target.MapInstanceId] = queue = new Queue<DefeatResolution>();
+            queue.Enqueue(resolution);
+        }
+        DefeatResolved?.Invoke(resolution);
+    }
+
+    private void ProcessPendingDefeats(MapInstance map)
+    {
+        DefeatResolution[] pending;
+        lock (lifecycleGate)
+        {
+            if (!pendingDefeats.TryGetValue(map.Id, out var queue) || queue.Count == 0) return;
+            pending = queue.ToArray();
+            queue.Clear();
+            pendingDefeats.Remove(map.Id);
+        }
+
+        foreach (var resolution in pending)
+        {
+            if (resolution.Defeated is Mob mob)
+            {
+                MaterializeLoot(map, mob.Position, resolution.Loot, resolution.OccurredAtMilliseconds);
+                var delay = ResolveMobRespawnDelay(mob);
+                if (delay > 0)
+                    ScheduleRespawn(mob.Id, checked(resolution.OccurredAtMilliseconds + delay));
+            }
+            else if (resolution.Defeated is Player player)
+            {
+                ScheduleRespawn(player.Id, checked(resolution.OccurredAtMilliseconds + PlayerRespawnMilliseconds));
+            }
+        }
+    }
+
+    private void ProcessRespawns(MapInstance map, long nowMilliseconds)
+    {
+        foreach (var living in map.Entities.All.OfType<LivingEntity>().ToArray())
+        {
+            if (living.IsAlive || !TryGetRespawn(living.Id, out var due) || nowMilliseconds < due) continue;
+
+            Effects.Clear(living);
+            switch (living)
+            {
+                case Player player:
+                    player.TransferTo(map.Id, map.Definition.Spawn);
+                    player.Revive(Math.Max(1, player.MaxHealth / 2), Math.Max(0, player.MaxMana / 2));
+                    player.MarkDirty();
+                    break;
+                case Mob mob:
+                    mob.MoveTo(mob.SpawnPosition, Vector2Data.Zero);
+                    mob.Revive(mob.MaxHealth, mob.MaxMana);
+                    mob.ResetAggro();
+                    break;
+            }
+            RemoveRespawn(living.Id);
+        }
+    }
+
+    private void MaterializeLoot(MapInstance map, Vector2Data position, IReadOnlyList<LootRoll> rolls, long nowMilliseconds)
+    {
+        foreach (var roll in rolls)
+        {
+            if (!Definitions.TryGet<ItemDefinition>(roll.Item.DefinitionId, out var definition) || definition is null)
+                continue;
+            var despawnAt = definition.GroundDespawnMilliseconds > 0
+                ? checked(nowMilliseconds + definition.GroundDespawnMilliseconds)
+                : 0;
+            var worldItem = new WorldItem(
+                AllocateTransientEntityId(map),
+                roll.Item,
+                map.Id,
+                map.Definition.Bounds.Clamp(position),
+                definition.VisualKey,
+                definition.Name,
+                despawnAt);
+            map.Add(worldItem);
+        }
+    }
+
+    private int ResolveMobRespawnDelay(Mob mob)
+    {
+        if (!mob.Combat.Parameters.TryGetValue("respawnMilliseconds", out var configured))
+            return DefaultMobRespawnMilliseconds;
+        if (!float.IsFinite(configured) || configured <= 0) return 0;
+        return configured >= int.MaxValue ? int.MaxValue : (int)MathF.Round(configured, MidpointRounding.AwayFromZero);
+    }
+
+    private EntityId AllocateTransientEntityId(MapInstance map)
+    {
+        while (true)
+        {
+            var value = Interlocked.Decrement(ref nextTransientEntityId);
+            if (value <= 0) throw new InvalidOperationException("Se agotó el espacio de EntityId transitorio.");
+            var id = new EntityId(value);
+            if (!map.Entities.TryGet(id, out _)) return id;
+        }
+    }
+
+    private void ScheduleRespawn(EntityId entity, long due)
+    {
+        lock (lifecycleGate) respawnAt[entity] = due;
+    }
+
+    private bool TryGetRespawn(EntityId entity, out long due)
+    {
+        lock (lifecycleGate) return respawnAt.TryGetValue(entity, out due);
+    }
+
+    private void RemoveRespawn(EntityId entity)
+    {
+        lock (lifecycleGate) respawnAt.Remove(entity);
+    }
 
     public void OnEntityRemoved(Entity entity)
     {
         ArgumentNullException.ThrowIfNull(entity);
+        RemoveRespawn(entity.Id);
         if (entity is LivingEntity living) Effects.Clear(living);
         if (entity is Player player) Techniques.Cancel(player.Id);
     }
