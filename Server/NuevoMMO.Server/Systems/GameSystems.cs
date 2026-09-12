@@ -42,6 +42,7 @@ public sealed class GameSystems
         Defeats = new DefeatSystem(definitions, Progression, Loot);
         Professions = new ProfessionSystem(definitions);
         Knowledge = new KnowledgeSystem();
+        Quests = new QuestSystem(definitions, Conditions);
         Projectiles = new ProjectileSystem();
         Harvesting = new ResourceHarvestSystem(definitions, Loot);
         Interactions = new InteractionSystem(Inventory, harvesting: Harvesting);
@@ -53,7 +54,7 @@ public sealed class GameSystems
             techniqueResources,
             requirementsEvaluator ?? ((player, group) => Conditions.Evaluate(player, group)),
             lineOfSight);
-        Events = new EventRuntime(definitions, Conditions, Progression, Inventory, Loot, Effects);
+        Events = new EventRuntime(definitions, Conditions, Progression, Inventory, Loot, Effects, Quests);
         Combat.EntityDefeated += ResolveDefeat;
     }
 
@@ -68,6 +69,7 @@ public sealed class GameSystems
     public DefeatSystem Defeats { get; }
     public ProfessionSystem Professions { get; }
     public KnowledgeSystem Knowledge { get; }
+    public QuestSystem Quests { get; }
     public ProjectileSystem Projectiles { get; }
     public ResourceHarvestSystem Harvesting { get; }
     public InteractionSystem Interactions { get; }
