@@ -11,13 +11,14 @@ public partial class ProfessionEditorForm : DefinitionEditorForm
         : base(application, DefinitionEditorDescriptors.Professions)
     {
         InitializeComponent();
+        ConfigureVisual(AssetKind.Gui);
         FinishSetup();
     }
 
     protected override void BindSpecific(GameDefinition definition)
     {
         if (definition is not ProfessionDefinition profession) return;
-        visualKeyTextBox.Text = profession.VisualKey?.Value ?? string.Empty;
+        BindVisualPicker(profession.VisualKey ?? default);
         dimensionsTextBox.Text = string.Join(", ", profession.Mastery.Dimensions);
     }
 
@@ -29,7 +30,7 @@ public partial class ProfessionEditorForm : DefinitionEditorForm
         var dimensions = dimensionsTextBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         return new ProfessionDefinition(
             id, key, name, description, enabled, version, tags,
-            ReadOptionalContentKey(visualKeyTextBox),
+            ReadVisualPicker(required: false) is { IsEmpty: false } visual ? visual : null,
             new ProfessionMasteryDefinition(profession.Mastery.ExperienceRequirements, dimensions, profession.Mastery.Parameters),
             profession.Activities,
             profession.Specializations,

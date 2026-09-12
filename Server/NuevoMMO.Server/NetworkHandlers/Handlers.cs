@@ -5,6 +5,7 @@ using NuevoMMO.Server.Entities;
 using NuevoMMO.Server.Security;
 using NuevoMMO.Server.Services;
 using NuevoMMO.Server.Systems;
+using NuevoMMO.Server.Telemetry;
 using NuevoMMO.Server.World;
 
 namespace NuevoMMO.Server.NetworkHandlers;
@@ -137,7 +138,8 @@ public sealed class CharacterCreateHandler(CharacterService characters, Authoriz
         ServerAuthorizationGuard.Demand(context, ServerAction.CreateCharacter, authorization);
         AuthService.EnsureSession(context.Session, packet.Session, packet.SessionToken);
         if (!InputValidator.IsSafeName(packet.Name)) throw new ArgumentException("Nombre de personaje inválido.");
-        if (!CanonicalTraditions.IsSelectable(packet.TraditionId)) throw new ArgumentException("Tradición inválida.");
+        if (!CanonicalTraditions.IsValidAtCreate(packet.TraditionId))
+            throw new ArgumentException("Tradición inválida. El personaje nace Novicio o con una Tradición publicada.");
         if (!CanonicalCharacterAppearance.IsSupported(packet.Appearance)) throw new ArgumentException("Apariencia inválida.");
         var created = await characters.CreateAsync(
             context.Session.Account,
@@ -145,6 +147,10 @@ public sealed class CharacterCreateHandler(CharacterService characters, Authoriz
             packet.TraditionId,
             packet.Appearance,
             cancellationToken);
+        ServerLog.Info(
+            $"Personaje creado account={context.Session.Account.Value:N} name={created.Name} id={created.Id.Value:N} " +
+            $"tradition={CanonicalTraditions.DisplayName(created.TraditionId)} map={created.MapDefinition.Value} " +
+            $"visual={created.Appearance.BaseVisual}");
         context.Send(new CharacterCreated(CharacterService.ToSummary(created)));
     }
 }

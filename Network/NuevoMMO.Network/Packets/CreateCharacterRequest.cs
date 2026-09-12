@@ -10,11 +10,10 @@ public sealed class CreateCharacterRequest(
     CharacterAppearance appearance) : IPacket
 {
     /// <summary>
-    /// Compatibilidad para fixtures/harness antiguos. El frontend de producción siempre envía
-    /// una Tradición elegida explícitamente; esta ruta usa Veyrkan únicamente para código legacy.
+    /// Create canónico: Novicio (TraditionId vacío). Una Tradición publicada es opcional.
     /// </summary>
     public CreateCharacterRequest(SessionId session, string sessionToken, string name)
-        : this(session, sessionToken, name, CanonicalTraditions.Veyrkan.Id, CanonicalCharacterAppearance.Default) { }
+        : this(session, sessionToken, name, DefinitionId.Empty, CanonicalCharacterAppearance.Default) { }
 
     public CreateCharacterRequest(SessionId session, string sessionToken, string name, DefinitionId traditionId)
         : this(session, sessionToken, name, traditionId, CanonicalCharacterAppearance.Default) { }

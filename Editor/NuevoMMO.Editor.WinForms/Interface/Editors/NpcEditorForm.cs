@@ -14,13 +14,14 @@ public partial class NpcEditorForm : DefinitionEditorForm
         : base(application, DefinitionEditorDescriptors.Npcs)
     {
         InitializeComponent();
+        ConfigureVisual(AssetKind.Entity);
         FinishSetup();
     }
 
     protected override void BindSpecific(GameDefinition definition)
     {
         if (definition is not NpcDefinition npc) return;
-        BindVisualKey(visualKeyTextBox, AssetKind.Entity, npc.VisualKey);
+        BindVisualPicker(npc.VisualKey);
         combatEnabledCheck.Checked = npc.CombatEnabled;
         BindDefinitionCombo<LootTableDefinition>(lootTableCombo, npc.LootTableId);
         SelectEnum(lootModeCombo, npc.LootMode);
@@ -70,7 +71,7 @@ public partial class NpcEditorForm : DefinitionEditorForm
 
         return new NpcDefinition(
             id, key, name, description, enabled, version, tags,
-            ReadVisualKey(visualKeyTextBox, AssetKind.Entity),
+            ReadVisualPicker(),
             combatEnabledCheck.Checked,
             new CreatureBehaviorDefinition(
                 aggressiveCheck.Checked,

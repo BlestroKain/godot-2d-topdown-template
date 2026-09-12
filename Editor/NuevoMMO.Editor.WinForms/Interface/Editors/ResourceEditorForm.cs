@@ -11,13 +11,14 @@ public partial class ResourceEditorForm : DefinitionEditorForm
         : base(application, DefinitionEditorDescriptors.Resources)
     {
         InitializeComponent();
+        ConfigureVisual(AssetKind.Resource);
         FinishSetup();
     }
 
     protected override void BindSpecific(GameDefinition definition)
     {
         if (definition is not ResourceDefinition resource) return;
-        BindVisualKey(visualKeyTextBox, AssetKind.Resource, resource.VisualKey);
+        BindVisualPicker(resource.VisualKey);
         exhaustedVisualTextBox.Text = resource.ExhaustedVisualKey?.Value ?? string.Empty;
         BindDefinitionCombo<LootTableDefinition>(lootTableCombo, resource.Harvest.LootTableId);
         BindDefinitionCombo<ProfessionDefinition>(professionCombo, resource.Harvest.RequiredProfessionId);
@@ -39,7 +40,7 @@ public partial class ResourceEditorForm : DefinitionEditorForm
             throw new InvalidOperationException("Nivel de profesión requiere una profesión.");
         return new ResourceDefinition(
             id, key, name, description, enabled, version, tags,
-            ReadVisualKey(visualKeyTextBox, AssetKind.Resource),
+            ReadVisualPicker(),
             resource.PropertyIds,
             ReadOptionalContentKey(exhaustedVisualTextBox),
             new ResourceHarvestDefinition(

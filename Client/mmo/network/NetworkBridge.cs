@@ -106,12 +106,12 @@ public partial class NetworkBridge : Node
         finally { lobbyBusy = false; EmitSignal(SignalName.LobbyUpdated); }
     }
 
-    public async void CreateCharacter(string name, DefinitionId traditionId)
+    public async void CreateCharacter(string name, DefinitionId traditionId = default)
     {
         if (lobbyBusy || connection is null || !connection.IsAuthenticated || InWorld) return;
-        if (!CanonicalTraditions.IsSelectable(traditionId))
+        if (!CanonicalTraditions.IsValidAtCreate(traditionId))
         {
-            FailLobby("Elige una Tradición válida antes de crear el personaje.");
+            FailLobby("Tradición inválida. El personaje nace Novicio.");
             EmitSignal(SignalName.LobbyUpdated);
             return;
         }

@@ -12,11 +12,42 @@ public partial class DefinitionEditorForm : DockContent
     private DefinitionEditorDescriptor? descriptor;
     private GameDefinition? selectedDefinition;
     private bool refreshing;
+    private AssetKind? visualKind;
 
     protected DefinitionEditorForm()
     {
         InitializeComponent();
+        editorTabs.TabPages.Remove(visualTabPage);
         WireEvents();
+    }
+
+    protected void ConfigureVisual(AssetKind kind)
+    {
+        visualKind = kind;
+        visualPicker.Kind = kind;
+        if (!editorTabs.TabPages.Contains(visualTabPage))
+            editorTabs.TabPages.Insert(1, visualTabPage);
+    }
+
+    protected void BindVisualPicker(ContentKey selected)
+    {
+        if (visualKind is not { } kind) return;
+        visualPicker.Bind(Editor.Assets, kind, selected);
+    }
+
+    protected ContentKey ReadVisualPicker(bool required = true)
+    {
+        if (visualKind is not { } kind)
+            throw new InvalidOperationException("Este editor no tiene selector de imagen.");
+        var key = visualPicker.SelectedKey;
+        if (key.IsEmpty)
+        {
+            if (required)
+                throw new InvalidOperationException($"Elija una imagen de resources/{AssetCatalog.Folder(kind)}.");
+            return default;
+        }
+
+        return key;
     }
 
     protected DefinitionEditorForm(EditorApplication application, DefinitionEditorDescriptor descriptor)
@@ -124,6 +155,7 @@ public partial class DefinitionEditorForm : DockContent
             versionNumeric.Value = 1;
             tagsTextBox.Clear();
             jsonTextBox.Clear();
+            visualPicker.ClearSelection();
             ClearSpecific();
             editorStatusLabel.Text = "No hay definiciones. Use Nuevo para crear una.";
             return;
@@ -228,9 +260,7 @@ public partial class DefinitionEditorForm : DockContent
             selectedDefinition = replacement;
             RefreshDefinitions(replacement.Id);
             ContentChanged?.Invoke(replacement);
-            editorStatusLabel.Text = application.Content.CurrentPath is null
-                ? $"En memoria: {replacement.Name}. Use Archivo → Guardar para crear game.db."
-                : $"Guardado en game.db: {replacement.Name}.";
+            editorStatusLabel.Text = $"Guardado en game.db: {replacement.Name}.";
         }
         catch (Exception exception)
         {
@@ -249,6 +279,7 @@ public partial class DefinitionEditorForm : DockContent
     protected virtual void SetSpecificEnabled(bool enabled)
     {
         specificTable.Enabled = enabled;
+        visualPicker.Enabled = enabled;
     }
 
     protected virtual GameDefinition? TryBuildFromFields(

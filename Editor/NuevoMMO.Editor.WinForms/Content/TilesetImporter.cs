@@ -32,29 +32,21 @@ public sealed class TilesetImporter
             .Where(candidate => !registry.TryGet<TilesetDefinition>(candidate.key, out _))
             .ToArray();
 
-        var invalid = new List<string>();
+        var imported = new List<TilesetDefinition>();
         foreach (var candidate in candidates)
         {
             using var atlas = new Bitmap(candidate.path);
             if (!TilesetDefinition.IsAtlasSizeCompatible(atlas.Width, atlas.Height, tileSize))
-                invalid.Add($"{Path.GetFileName(candidate.path)} ({atlas.Width}x{atlas.Height})");
-        }
+                continue;
 
-        if (invalid.Count > 0)
-            throw new InvalidOperationException(
-                $"Hay atlas cuyo tamaño no es múltiplo de {tileSize.X}x{tileSize.Y}: {string.Join(", ", invalid)}.");
-
-        var imported = new List<TilesetDefinition>();
-        foreach (var candidate in candidates)
-        {
             var definition = new TilesetDefinition(
                 DefinitionId.New(),
                 candidate.key,
                 candidate.fileName,
-                $"Tileset importado desde {AssetCatalog.SharedRootFromRepo}/{AssetCatalog.RelativePath(AssetKind.Tileset, Path.GetFileName(candidate.path))}.",
+                $"Tileset desde {AssetCatalog.SharedRootFromRepo}/{AssetCatalog.RelativePath(AssetKind.Tileset, Path.GetFileName(candidate.path))}.",
                 enabled: true,
                 version: 1,
-                tags: ["tileset", "imported"],
+                tags: ["tileset"],
                 textureKey: candidate.key,
                 tileSize: tileSize);
 

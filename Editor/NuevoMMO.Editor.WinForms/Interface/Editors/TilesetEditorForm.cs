@@ -11,13 +11,14 @@ public partial class TilesetEditorForm : DefinitionEditorForm
         : base(application, DefinitionEditorDescriptors.Tilesets)
     {
         InitializeComponent();
+        ConfigureVisual(AssetKind.Tileset);
         FinishSetup();
     }
 
     protected override void BindSpecific(GameDefinition definition)
     {
         if (definition is not TilesetDefinition tileset) return;
-        BindVisualKey(textureKeyTextBox, AssetKind.Tileset, tileset.TextureKey);
+        BindVisualPicker(tileset.TextureKey);
         SetNumeric(tileWidthNumeric, tileset.TileSize.X);
         SetNumeric(tileHeightNumeric, tileset.TileSize.Y);
         SetNumeric(autotileFramesNumeric, tileset.AutotileAnimationFrames);
@@ -33,7 +34,7 @@ public partial class TilesetEditorForm : DefinitionEditorForm
         var tileset = current as TilesetDefinition ?? throw new InvalidOperationException("La selección no es un Tileset.");
         return new TilesetDefinition(
             id, key, name, description, enabled, version, tags,
-            ReadVisualKey(textureKeyTextBox, AssetKind.Tileset),
+            ReadVisualPicker(),
             new Vector2IntData((int)tileWidthNumeric.Value, (int)tileHeightNumeric.Value),
             (int)autotileFramesNumeric.Value,
             (int)autotileMsNumeric.Value,

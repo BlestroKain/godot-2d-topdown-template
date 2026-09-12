@@ -8,7 +8,7 @@ namespace NuevoMMO.Editor;
 partial class ProfessionEditorForm
 {
     private IContainer? components;
-    private TextBox visualKeyTextBox = null!;
+
     private TextBox dimensionsTextBox = null!;
 
     protected override void Dispose(bool disposing)
@@ -20,14 +20,13 @@ partial class ProfessionEditorForm
     private void InitializeComponent()
     {
         components = new Container();
-        visualKeyTextBox = new TextBox();
+
         dimensionsTextBox = new TextBox();
         SuspendLayout();
         Name = "ProfessionEditorForm";
         Text = "Profesiones";
         specificTabPage.Text = "Profesión";
-        AddSpecificRow(0, "VisualKey", visualKeyTextBox);
-        AddSpecificRow(1, "Dimensiones", dimensionsTextBox);
+        AddSpecificRow(0, "Dimensiones", dimensionsTextBox);
         ResumeLayout(false);
     }
 }

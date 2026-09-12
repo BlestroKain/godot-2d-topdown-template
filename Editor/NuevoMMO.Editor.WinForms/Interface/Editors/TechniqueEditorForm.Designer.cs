@@ -9,7 +9,6 @@ namespace NuevoMMO.Editor;
 partial class TechniqueEditorForm
 {
     private IContainer? components;
-    private TextBox visualKeyTextBox = null!;
     private ComboBox elementCombo = null!;
     private ComboBox targetModeCombo = null!;
     private NumericUpDown rangeNumeric = null!;
@@ -31,7 +30,6 @@ partial class TechniqueEditorForm
     private void InitializeComponent()
     {
         components = new Container();
-        visualKeyTextBox = new TextBox();
         elementCombo = new ComboBox();
         targetModeCombo = new ComboBox();
         rangeNumeric = new NumericUpDown { DecimalPlaces = 1, Maximum = 100000 };
@@ -49,18 +47,22 @@ partial class TechniqueEditorForm
         specificTabPage.Text = "Técnica";
         FillEnum<Element>(elementCombo);
         FillEnum<TechniqueTargetMode>(targetModeCombo);
-        AddSpecificRow(0, "VisualKey", visualKeyTextBox);
-        AddSpecificRow(1, "Elemento", elementCombo);
-        AddSpecificRow(2, "Objetivo", targetModeCombo);
-        AddSpecificRow(3, "Alcance", rangeNumeric);
-        AddSpecificRow(4, "Radio", radiusNumeric);
-        AddSpecificRow(5, "Máx. objetivos", maxTargetsNumeric);
-        AddSpecificRow(6, "Línea de visión", lineOfSightCheck);
-        AddSpecificRow(7, "Casteo ms", castNumeric);
-        AddSpecificRow(8, "Cooldown ms", cooldownNumeric);
-        AddSpecificRow(9, "Grupo cooldown", cooldownGroupTextBox);
-        AddSpecificRow(10, "Coste PM", manaCostNumeric);
-        AddSpecificRow(11, "Acciones (Kind, Amount, Element, Moment)", actionsTextBox, 90);
+        var targeting = AddGroup("Objetivo");
+        AddGroupRow(targeting, "Elemento", elementCombo);
+        AddGroupRow(targeting, "Objetivo", targetModeCombo);
+        AddGroupRow(targeting, "Alcance", rangeNumeric);
+        AddGroupRow(targeting, "Radio", radiusNumeric);
+        AddGroupRow(targeting, "Máx. objetivos", maxTargetsNumeric);
+        AddGroupRow(targeting, "Línea de visión", lineOfSightCheck);
+
+        var timing = AddGroup("Tiempos y coste");
+        AddGroupRow(timing, "Casteo ms", castNumeric);
+        AddGroupRow(timing, "Cooldown ms", cooldownNumeric);
+        AddGroupRow(timing, "Grupo cooldown", cooldownGroupTextBox);
+        AddGroupRow(timing, "Coste PM", manaCostNumeric);
+
+        var actions = AddGroup("Acciones");
+        AddGroupRow(actions, "Kind, Amount, Element, Moment", actionsTextBox, 90);
         ResumeLayout(false);
     }
 }

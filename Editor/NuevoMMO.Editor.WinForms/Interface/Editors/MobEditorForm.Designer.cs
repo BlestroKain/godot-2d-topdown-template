@@ -9,7 +9,6 @@ namespace NuevoMMO.Editor;
 partial class MobEditorForm
 {
     private IContainer? components;
-    private TextBox visualKeyTextBox = null!;
     private ComboBox lootTableCombo = null!;
     private ComboBox lootModeCombo = null!;
     private CheckBox aggressiveCheck = null!;
@@ -41,7 +40,6 @@ partial class MobEditorForm
     private void InitializeComponent()
     {
         components = new Container();
-        visualKeyTextBox = new TextBox();
         lootTableCombo = new ComboBox();
         lootModeCombo = new ComboBox();
         aggressiveCheck = new CheckBox { AutoSize = true, Text = "Agresivo" };
@@ -74,28 +72,32 @@ partial class MobEditorForm
         FillEnum<CreatureTargetPriority>(targetPriorityCombo);
         FillEnum<Element>(elementCombo);
 
-        AddSpecificRow(0, "VisualKey", visualKeyTextBox);
-        AddSpecificRow(1, "Loot table", lootTableCombo);
-        AddSpecificRow(2, "Loot mode", lootModeCombo);
-        AddSpecificRow(3, "Agresivo", aggressiveCheck);
-        AddSpecificRow(4, "Ataca aliados", attackAlliesCheck);
-        AddSpecificRow(5, "Enjambre", swarmCheck);
-        AddSpecificRow(6, "NPC vs NPC", npcVsNpcCheck);
-        AddSpecificRow(7, "Movimiento", movementCombo);
-        AddSpecificRow(8, "Prioridad", targetPriorityCombo);
-        AddSpecificRow(9, "Huida % vida", fleeNumeric);
-        AddSpecificRow(10, "Visión", sightNumeric);
-        AddSpecificRow(11, "Radio reset", resetNumeric);
-        AddSpecificRow(12, "Nivel", levelNumeric);
-        AddSpecificRow(13, "Experiencia", experienceNumeric);
-        AddSpecificRow(14, "Daño base", damageNumeric);
-        AddSpecificRow(15, "Elemento", elementCombo);
-        AddSpecificRow(16, "Crítico %", critChanceNumeric);
-        AddSpecificRow(17, "Mult. crítico", critMultiplierNumeric);
-        AddSpecificRow(18, "Tenacidad", tenacityNumeric);
-        AddSpecificRow(19, "Intervalo ataque ms", attackIntervalNumeric);
-        AddSpecificRow(20, "Vida", healthNumeric);
-        AddSpecificRow(21, "Maná", manaNumeric);
+        var combat = AddGroup("Combate");
+        AddGroupRow(combat, "Nivel", levelNumeric);
+        AddGroupRow(combat, "Vida", healthNumeric);
+        AddGroupRow(combat, "Maná", manaNumeric);
+        AddGroupRow(combat, "Daño base", damageNumeric);
+        AddGroupRow(combat, "Elemento", elementCombo);
+        AddGroupRow(combat, "Experiencia", experienceNumeric);
+        AddGroupRow(combat, "Crítico %", critChanceNumeric);
+        AddGroupRow(combat, "Mult. crítico", critMultiplierNumeric);
+        AddGroupRow(combat, "Tenacidad", tenacityNumeric);
+        AddGroupRow(combat, "Intervalo ataque ms", attackIntervalNumeric);
+
+        var ai = AddGroup("Comportamiento");
+        AddGroupRow(ai, "Agresivo", aggressiveCheck);
+        AddGroupRow(ai, "Ataca aliados", attackAlliesCheck);
+        AddGroupRow(ai, "Enjambre", swarmCheck);
+        AddGroupRow(ai, "NPC vs NPC", npcVsNpcCheck);
+        AddGroupRow(ai, "Movimiento", movementCombo);
+        AddGroupRow(ai, "Prioridad", targetPriorityCombo);
+        AddGroupRow(ai, "Huida % vida", fleeNumeric);
+        AddGroupRow(ai, "Visión", sightNumeric);
+        AddGroupRow(ai, "Radio reset", resetNumeric);
+
+        var loot = AddGroup("Botín");
+        AddGroupRow(loot, "Loot table", lootTableCombo);
+        AddGroupRow(loot, "Loot mode", lootModeCombo);
         ResumeLayout(false);
     }
 }

@@ -41,6 +41,49 @@ public static class GameDatabase
     public static bool IsDatabasePath(string path)
         => Path.GetExtension(path).Equals(".db", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Ruta canónica de GameData compartida con el servidor: <c>Data/game.db</c>
+    /// desde la raíz del repo. Crea la carpeta si no existe.
+    /// </summary>
+    public static string LocateSharedPath(string configured = "Data/" + DefaultFileName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(configured);
+        if (Path.IsPathRooted(configured))
+        {
+            var full = Path.GetFullPath(configured);
+            EnsureDirectory(full);
+            return full;
+        }
+
+        var relative = configured.Replace('/', Path.DirectorySeparatorChar);
+        foreach (var origin in new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory })
+        {
+            var current = new DirectoryInfo(origin);
+            while (current is not null)
+            {
+                if (File.Exists(Path.Combine(current.FullName, "NuevoMMO.sln")) ||
+                    Directory.Exists(Path.Combine(current.FullName, "Server")))
+                {
+                    var path = Path.GetFullPath(Path.Combine(current.FullName, relative));
+                    EnsureDirectory(path);
+                    return path;
+                }
+
+                current = current.Parent;
+            }
+        }
+
+        var fallback = Path.GetFullPath(relative);
+        EnsureDirectory(fallback);
+        return fallback;
+    }
+
+    private static void EnsureDirectory(string filePath)
+    {
+        var folder = Path.GetDirectoryName(filePath);
+        if (!string.IsNullOrWhiteSpace(folder)) Directory.CreateDirectory(folder);
+    }
+
     public static ContentPackage Load(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);

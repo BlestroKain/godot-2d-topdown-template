@@ -9,7 +9,6 @@ namespace NuevoMMO.Editor;
 partial class NpcEditorForm
 {
     private IContainer? components;
-    private TextBox visualKeyTextBox = null!;
     private CheckBox combatEnabledCheck = null!;
     private ComboBox lootTableCombo = null!;
     private ComboBox lootModeCombo = null!;
@@ -33,7 +32,6 @@ partial class NpcEditorForm
     private void InitializeComponent()
     {
         components = new Container();
-        visualKeyTextBox = new TextBox();
         combatEnabledCheck = new CheckBox { AutoSize = true, Text = "Puede combatir" };
         lootTableCombo = new ComboBox();
         lootModeCombo = new ComboBox();
@@ -56,20 +54,24 @@ partial class NpcEditorForm
         FillEnum<CreatureMovementMode>(movementCombo);
         FillEnum<Element>(elementCombo);
 
-        AddSpecificRow(0, "VisualKey", visualKeyTextBox);
-        AddSpecificRow(1, "Combate", combatEnabledCheck);
-        AddSpecificRow(2, "Loot table", lootTableCombo);
-        AddSpecificRow(3, "Loot mode", lootModeCombo);
-        AddSpecificRow(4, "Agresivo", aggressiveCheck);
-        AddSpecificRow(5, "Movimiento", movementCombo);
-        AddSpecificRow(6, "Visión", sightNumeric);
-        AddSpecificRow(7, "Radio reset", resetNumeric);
-        AddSpecificRow(8, "Nivel", levelNumeric);
-        AddSpecificRow(9, "Experiencia", experienceNumeric);
-        AddSpecificRow(10, "Daño base", damageNumeric);
-        AddSpecificRow(11, "Elemento", elementCombo);
-        AddSpecificRow(12, "Vida", healthNumeric);
-        AddSpecificRow(13, "Maná", manaNumeric);
+        var identity = AddGroup("NPC");
+        AddGroupRow(identity, "Combate", combatEnabledCheck);
+        AddGroupRow(identity, "Agresivo", aggressiveCheck);
+        AddGroupRow(identity, "Movimiento", movementCombo);
+        AddGroupRow(identity, "Visión", sightNumeric);
+        AddGroupRow(identity, "Radio reset", resetNumeric);
+
+        var combat = AddGroup("Combate");
+        AddGroupRow(combat, "Nivel", levelNumeric);
+        AddGroupRow(combat, "Vida", healthNumeric);
+        AddGroupRow(combat, "Maná", manaNumeric);
+        AddGroupRow(combat, "Daño base", damageNumeric);
+        AddGroupRow(combat, "Elemento", elementCombo);
+        AddGroupRow(combat, "Experiencia", experienceNumeric);
+
+        var loot = AddGroup("Botín");
+        AddGroupRow(loot, "Loot table", lootTableCombo);
+        AddGroupRow(loot, "Loot mode", lootModeCombo);
         ResumeLayout(false);
     }
 }

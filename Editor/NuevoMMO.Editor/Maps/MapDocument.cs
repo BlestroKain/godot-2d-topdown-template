@@ -21,6 +21,12 @@ public sealed class MapDocument
     public BoundsData Bounds { get; set; }
     public Vector2Data Spawn { get; set; }
     public Vector2IntData TileSize { get; set; }
+    public int GridX { get; set; }
+    public int GridY { get; set; }
+    public DefinitionId? NorthMapId { get; set; }
+    public DefinitionId? SouthMapId { get; set; }
+    public DefinitionId? WestMapId { get; set; }
+    public DefinitionId? EastMapId { get; set; }
 
     public List<MapLayerDefinition> Layers { get; } = [];
     public List<MapCollisionDefinition> Collisions { get; } = [];
@@ -47,6 +53,12 @@ public sealed class MapDocument
             Bounds = definition.Bounds,
             Spawn = definition.Spawn,
             TileSize = definition.TileSize,
+            GridX = definition.GridX,
+            GridY = definition.GridY,
+            NorthMapId = definition.NorthMapId,
+            SouthMapId = definition.SouthMapId,
+            WestMapId = definition.WestMapId,
+            EastMapId = definition.EastMapId,
             Environment = definition.Content.Environment
         };
 
@@ -87,6 +99,12 @@ public sealed class MapDocument
             Bounds,
             Spawn,
             TileSize,
-            content);
+            content,
+            GridX,
+            GridY,
+            NorthMapId,
+            SouthMapId,
+            WestMapId,
+            EastMapId);
     }
 }

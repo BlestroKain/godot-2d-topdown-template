@@ -65,7 +65,8 @@ public static class PacketCodec
             case RegisterRequest value: writer.Write(value.Username, 128); writer.Write(value.Password, 256); break;
             case CharacterListRequest value: WriteSession(writer, value.Session, value.SessionToken); break;
             case CreateCharacterRequest value:
-                if (value.TraditionId.IsEmpty) throw new InvalidDataException("Tradición requerida para crear personaje.");
+                if (!CanonicalTraditions.IsValidAtCreate(value.TraditionId))
+                    throw new InvalidDataException("Tradición inválida para crear personaje.");
                 WriteSession(writer, value.Session, value.SessionToken); writer.Write(value.Name, 128); writer.Write(value.TraditionId.Value);
                 WriteAppearance(writer, value.Appearance); break;
             case CharacterSelectRequest value: WriteSession(writer, value.Session, value.SessionToken); writer.Write(value.Character.Value); break;

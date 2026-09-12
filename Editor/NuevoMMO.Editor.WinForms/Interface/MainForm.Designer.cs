@@ -20,10 +20,8 @@ partial class MainForm
     private DockPanel dockPanel = null!;
 
     private ToolStripMenuItem fileMenuItem = null!;
-    private ToolStripMenuItem fileNewMenuItem = null!;
-    private ToolStripMenuItem fileOpenMenuItem = null!;
+    private ToolStripMenuItem fileReloadMenuItem = null!;
     private ToolStripMenuItem fileSaveMenuItem = null!;
-    private ToolStripMenuItem fileSaveAsMenuItem = null!;
     private ToolStripMenuItem fileExitMenuItem = null!;
 
     private ToolStripMenuItem editMenuItem = null!;
@@ -41,7 +39,7 @@ partial class MainForm
     private ToolStripMenuItem mapFillMenuItem = null!;
     private ToolStripMenuItem mapRectangleMenuItem = null!;
     private ToolStripMenuItem mapCollisionMenuItem = null!;
-    private ToolStripMenuItem mapImportTilesetsMenuItem = null!;
+
 
     private ToolStripMenuItem contentMenuItem = null!;
     private ToolStripMenuItem contentItemsMenuItem = null!;
@@ -62,6 +60,7 @@ partial class MainForm
     private ToolStripMenuItem contentTilesetsMenuItem = null!;
 
     private ToolStripMenuItem viewMenuItem = null!;
+    private ToolStripMenuItem viewWorldMenuItem = null!;
     private ToolStripMenuItem viewContentMenuItem = null!;
     private ToolStripMenuItem viewMapToolsMenuItem = null!;
     private ToolStripMenuItem viewTilesetsMenuItem = null!;
@@ -71,8 +70,7 @@ partial class MainForm
     private ToolStripMenuItem toolsMenuItem = null!;
     private ToolStripMenuItem toolsValidateMenuItem = null!;
 
-    private ToolStripButton toolNewButton = null!;
-    private ToolStripButton toolOpenButton = null!;
+    private ToolStripButton toolReloadButton = null!;
     private ToolStripButton toolSaveButton = null!;
     private ToolStripButton toolUndoButton = null!;
     private ToolStripButton toolRedoButton = null!;
@@ -105,10 +103,8 @@ partial class MainForm
         components = new Container();
         mainMenuStrip = new MenuStrip();
         fileMenuItem = new ToolStripMenuItem();
-        fileNewMenuItem = new ToolStripMenuItem();
-        fileOpenMenuItem = new ToolStripMenuItem();
+        fileReloadMenuItem = new ToolStripMenuItem();
         fileSaveMenuItem = new ToolStripMenuItem();
-        fileSaveAsMenuItem = new ToolStripMenuItem();
         fileExitMenuItem = new ToolStripMenuItem();
         editMenuItem = new ToolStripMenuItem();
         editUndoMenuItem = new ToolStripMenuItem();
@@ -124,7 +120,7 @@ partial class MainForm
         mapFillMenuItem = new ToolStripMenuItem();
         mapRectangleMenuItem = new ToolStripMenuItem();
         mapCollisionMenuItem = new ToolStripMenuItem();
-        mapImportTilesetsMenuItem = new ToolStripMenuItem();
+        viewWorldMenuItem = new ToolStripMenuItem();
         contentMenuItem = new ToolStripMenuItem();
         contentItemsMenuItem = new ToolStripMenuItem();
         contentMobsMenuItem = new ToolStripMenuItem();
@@ -151,8 +147,7 @@ partial class MainForm
         toolsMenuItem = new ToolStripMenuItem();
         toolsValidateMenuItem = new ToolStripMenuItem();
         mainToolStrip = new ToolStrip();
-        toolNewButton = new ToolStripButton();
-        toolOpenButton = new ToolStripButton();
+        toolReloadButton = new ToolStripButton();
         toolSaveButton = new ToolStripButton();
         toolUndoButton = new ToolStripButton();
         toolRedoButton = new ToolStripButton();
@@ -170,27 +165,18 @@ partial class MainForm
         mainStatusStrip.SuspendLayout();
         SuspendLayout();
 
-        fileNewMenuItem.Name = "fileNewMenuItem";
-        fileNewMenuItem.ShortcutKeys = Keys.Control | Keys.N;
-        fileNewMenuItem.Text = "&Nuevo proyecto";
-        fileOpenMenuItem.Name = "fileOpenMenuItem";
-        fileOpenMenuItem.ShortcutKeys = Keys.Control | Keys.O;
-        fileOpenMenuItem.Text = "&Abrir contenido…";
+        fileReloadMenuItem.Name = "fileReloadMenuItem";
+        fileReloadMenuItem.ShortcutKeys = Keys.Control | Keys.O;
+        fileReloadMenuItem.Text = "&Recargar game.db";
         fileSaveMenuItem.Name = "fileSaveMenuItem";
         fileSaveMenuItem.ShortcutKeys = Keys.Control | Keys.S;
         fileSaveMenuItem.Text = "&Guardar";
-        fileSaveAsMenuItem.Name = "fileSaveAsMenuItem";
-        fileSaveAsMenuItem.ShortcutKeys = Keys.Control | Keys.Shift | Keys.S;
-        fileSaveAsMenuItem.Text = "Guardar &como…";
         fileExitMenuItem.Name = "fileExitMenuItem";
         fileExitMenuItem.Text = "&Salir";
         fileMenuItem.DropDownItems.AddRange(
         [
-            fileNewMenuItem,
-            fileOpenMenuItem,
-            new ToolStripSeparator(),
+            fileReloadMenuItem,
             fileSaveMenuItem,
-            fileSaveAsMenuItem,
             new ToolStripSeparator(),
             fileExitMenuItem
         ]);
@@ -214,7 +200,7 @@ partial class MainForm
         editMenuItem.Text = "&Editar";
 
         mapNewMenuItem.Name = "mapNewMenuItem";
-        mapNewMenuItem.Text = "&Nuevo mapa";
+        mapNewMenuItem.Text = "&Cuadrícula de mapas";
         mapSaveMenuItem.Name = "mapSaveMenuItem";
         mapSaveMenuItem.Text = "&Guardar mapa";
         mapSelectMenuItem.Name = "mapSelectMenuItem";
@@ -229,8 +215,6 @@ partial class MainForm
         mapRectangleMenuItem.Text = "Pintar &rectángulo";
         mapCollisionMenuItem.Name = "mapCollisionMenuItem";
         mapCollisionMenuItem.Text = "&Colisiones";
-        mapImportTilesetsMenuItem.Name = "mapImportTilesetsMenuItem";
-        mapImportTilesetsMenuItem.Text = "&Importar tilesets del cliente";
         mapMenuItem.DropDownItems.AddRange(
         [
             mapNewMenuItem,
@@ -241,9 +225,7 @@ partial class MainForm
             mapEraseMenuItem,
             mapFillMenuItem,
             mapRectangleMenuItem,
-            mapCollisionMenuItem,
-            new ToolStripSeparator(),
-            mapImportTilesetsMenuItem
+            mapCollisionMenuItem
         ]);
         mapMenuItem.Name = "mapMenuItem";
         mapMenuItem.Text = "&Mapa";
@@ -302,6 +284,8 @@ partial class MainForm
         contentMenuItem.Name = "contentMenuItem";
         contentMenuItem.Text = "&Contenido";
 
+        viewWorldMenuItem.Name = "viewWorldMenuItem";
+        viewWorldMenuItem.Text = "Mundo";
         viewContentMenuItem.Name = "viewContentMenuItem";
         viewContentMenuItem.Text = "Contenido";
         viewMapToolsMenuItem.Name = "viewMapToolsMenuItem";
@@ -314,6 +298,7 @@ partial class MainForm
         viewProblemsMenuItem.Text = "Problemas";
         viewMenuItem.DropDownItems.AddRange(
         [
+            viewWorldMenuItem,
             viewContentMenuItem,
             viewMapToolsMenuItem,
             viewTilesetsMenuItem,
@@ -336,10 +321,8 @@ partial class MainForm
         mainMenuStrip.TabIndex = 0;
         mainMenuStrip.Text = "mainMenuStrip";
 
-        toolNewButton.Name = "toolNewButton";
-        toolNewButton.Text = "Nuevo";
-        toolOpenButton.Name = "toolOpenButton";
-        toolOpenButton.Text = "Abrir";
+        toolReloadButton.Name = "toolReloadButton";
+        toolReloadButton.Text = "Recargar";
         toolSaveButton.Name = "toolSaveButton";
         toolSaveButton.Text = "Guardar";
         toolUndoButton.Name = "toolUndoButton";
@@ -347,7 +330,7 @@ partial class MainForm
         toolRedoButton.Name = "toolRedoButton";
         toolRedoButton.Text = "Rehacer";
         toolNewMapButton.Name = "toolNewMapButton";
-        toolNewMapButton.Text = "Nuevo mapa";
+        toolNewMapButton.Text = "Mundo";
         toolPaintButton.Name = "toolPaintButton";
         toolPaintButton.Text = "Pintar";
         toolEraseButton.Name = "toolEraseButton";
@@ -359,8 +342,7 @@ partial class MainForm
         mainToolStrip.GripStyle = ToolStripGripStyle.Hidden;
         mainToolStrip.Items.AddRange(
         [
-            toolNewButton,
-            toolOpenButton,
+            toolReloadButton,
             toolSaveButton,
             new ToolStripSeparator(),
             toolUndoButton,

@@ -8,7 +8,7 @@ namespace NuevoMMO.Editor;
 partial class TraditionEditorForm
 {
     private IContainer? components;
-    private TextBox visualKeyTextBox = null!;
+
 
     protected override void Dispose(bool disposing)
     {
@@ -19,12 +19,11 @@ partial class TraditionEditorForm
     private void InitializeComponent()
     {
         components = new Container();
-        visualKeyTextBox = new TextBox();
+
         SuspendLayout();
         Name = "TraditionEditorForm";
         Text = "Tradiciones / Clases";
         specificTabPage.Text = "Tradición";
-        AddSpecificRow(0, "VisualKey", visualKeyTextBox);
         ResumeLayout(false);
     }
 }

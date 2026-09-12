@@ -14,7 +14,13 @@ public sealed record MapDefinition : GameDefinition
         BoundsData bounds,
         Vector2Data spawn,
         Vector2IntData tileSize,
-        MapContentDefinition? content = null)
+        MapContentDefinition? content = null,
+        int gridX = 0,
+        int gridY = 0,
+        DefinitionId? northMapId = null,
+        DefinitionId? southMapId = null,
+        DefinitionId? westMapId = null,
+        DefinitionId? eastMapId = null)
         : base(id, key, name, description, enabled, version, tags)
     {
         if (visualKey.IsEmpty) throw new ArgumentException("VisualKey vacío.", nameof(visualKey));
@@ -30,6 +36,12 @@ public sealed record MapDefinition : GameDefinition
         Spawn = spawn;
         TileSize = tileSize;
         Content = content ?? new MapContentDefinition();
+        GridX = gridX;
+        GridY = gridY;
+        NorthMapId = RequireNeighbor(northMapId, id, nameof(northMapId));
+        SouthMapId = RequireNeighbor(southMapId, id, nameof(southMapId));
+        WestMapId = RequireNeighbor(westMapId, id, nameof(westMapId));
+        EastMapId = RequireNeighbor(eastMapId, id, nameof(eastMapId));
 
         foreach (var placement in Content.Placements)
             EnsureInside(placement.Position, nameof(content), "placement");
@@ -66,9 +78,30 @@ public sealed record MapDefinition : GameDefinition
     /// </summary>
     public MapContentDefinition Content { get; }
 
+    /// <summary>Columna en la cuadrícula mundial (oeste → este), al patrón Intersect.</summary>
+    public int GridX { get; init; }
+
+    /// <summary>Fila en la cuadrícula mundial (norte → sur).</summary>
+    public int GridY { get; init; }
+
+    public DefinitionId? NorthMapId { get; init; }
+    public DefinitionId? SouthMapId { get; init; }
+    public DefinitionId? WestMapId { get; init; }
+    public DefinitionId? EastMapId { get; init; }
+
     private void EnsureInside(Vector2Data position, string parameterName, string kind)
     {
         if (Bounds.Clamp(position) != position)
             throw new ArgumentOutOfRangeException(parameterName, $"El {kind} está fuera de los límites del mapa.");
+    }
+
+    private static DefinitionId? RequireNeighbor(DefinitionId? neighbor, DefinitionId self, string parameterName)
+    {
+        if (neighbor is null) return null;
+        if (neighbor.Value.IsEmpty)
+            throw new ArgumentException("El mapa vecino no puede ser un ID vacío.", parameterName);
+        if (neighbor.Value == self)
+            throw new ArgumentException("Un mapa no puede ser vecino de sí mismo.", parameterName);
+        return neighbor;
     }
 }

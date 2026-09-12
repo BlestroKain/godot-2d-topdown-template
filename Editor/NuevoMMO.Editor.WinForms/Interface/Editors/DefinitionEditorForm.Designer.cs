@@ -19,10 +19,12 @@ partial class DefinitionEditorForm
     private ListBox definitionsListBox = null!;
     private TabControl editorTabs = null!;
     private TabPage generalTabPage = null!;
+    private TabPage visualTabPage = null!;
     protected TabPage specificTabPage = null!;
     private TabPage jsonTabPage = null!;
     private TableLayoutPanel generalTable = null!;
     protected TableLayoutPanel specificTable = null!;
+    protected AssetPickerControl visualPicker = null!;
     private TextBox idTextBox = null!;
     private TextBox keyTextBox = null!;
     private TextBox nameTextBox = null!;
@@ -53,10 +55,12 @@ partial class DefinitionEditorForm
         definitionsListBox = new ListBox();
         editorTabs = new TabControl();
         generalTabPage = new TabPage("General");
+        visualTabPage = new TabPage("Imagen");
         specificTabPage = new TabPage("Datos");
         jsonTabPage = new TabPage("Avanzado (JSON)");
         generalTable = new TableLayoutPanel();
         specificTable = new TableLayoutPanel();
+        visualPicker = new AssetPickerControl { Dock = DockStyle.Fill };
         idTextBox = new TextBox { ReadOnly = true };
         keyTextBox = new TextBox();
         nameTextBox = new TextBox();
@@ -118,8 +122,12 @@ partial class DefinitionEditorForm
 
         editorTabs.Dock = DockStyle.Fill;
         editorTabs.Controls.Add(generalTabPage);
+        editorTabs.Controls.Add(visualTabPage);
         editorTabs.Controls.Add(specificTabPage);
         editorTabs.Controls.Add(jsonTabPage);
+
+        visualTabPage.Padding = new Padding(8);
+        visualTabPage.Controls.Add(visualPicker);
 
         generalTabPage.Controls.Add(generalTable);
         generalTabPage.Padding = new Padding(8);
@@ -150,7 +158,7 @@ partial class DefinitionEditorForm
         specificTable.Dock = DockStyle.Fill;
         specificTable.AutoScroll = true;
         specificTable.ColumnCount = 2;
-        specificTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
+        specificTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
         specificTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         specificTable.RowCount = 0;
 
@@ -227,5 +235,53 @@ partial class DefinitionEditorForm
         control.Margin = new Padding(3, 4, 3, 4);
         specificTable.Controls.Add(caption, 0, row);
         specificTable.Controls.Add(control, 1, row);
+    }
+
+    protected TableLayoutPanel AddGroup(string title)
+    {
+        var box = new GroupBox
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Dock = DockStyle.Fill,
+            ForeColor = EditorTheme.Text,
+            Padding = new Padding(8, 12, 8, 8),
+            Text = title
+        };
+        var table = new TableLayoutPanel
+        {
+            AutoSize = true,
+            ColumnCount = 2,
+            Dock = DockStyle.Fill
+        };
+        table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
+        table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        box.Controls.Add(table);
+
+        var row = specificTable.RowCount;
+        specificTable.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        specificTable.RowCount++;
+        specificTable.Controls.Add(box, 0, row);
+        specificTable.SetColumnSpan(box, 2);
+        return table;
+    }
+
+    protected void AddGroupRow(TableLayoutPanel table, string label, Control control, int height = 34)
+    {
+        var row = table.RowCount;
+        table.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
+        table.RowCount++;
+        var caption = new Label
+        {
+            AutoSize = true,
+            Dock = DockStyle.Fill,
+            ForeColor = EditorTheme.Text,
+            Padding = new Padding(0, 7, 0, 0),
+            Text = label
+        };
+        control.Dock = DockStyle.Fill;
+        control.Margin = new Padding(3, 4, 3, 4);
+        table.Controls.Add(caption, 0, row);
+        table.Controls.Add(control, 1, row);
     }
 }

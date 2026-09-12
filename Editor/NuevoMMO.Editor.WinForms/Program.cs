@@ -10,24 +10,25 @@ internal static class Program
     {
         ApplicationConfiguration.Initialize();
 
+        var gameDataPath = GameDatabase.LocateSharedPath();
         var configuration = new EditorConfiguration
         {
             Mode = EditorMode.Offline,
-            ContentPath = Path.Combine("Data", GameDatabase.DefaultFileName),
+            ContentPath = gameDataPath,
             ResourcesRoot = AssetCatalog.SharedRootFromRepo
         };
 
         var application = new EditorApplication(configuration);
-        var defaultDatabase = Path.GetFullPath(configuration.ContentPath);
+        application.Content.BindPath(gameDataPath);
         try
         {
-            if (File.Exists(defaultDatabase))
-                application.Content.Load(defaultDatabase);
+            if (File.Exists(gameDataPath))
+                application.Content.Load(gameDataPath);
         }
         catch (Exception exception)
         {
             MessageBox.Show(
-                $"No se pudo abrir {defaultDatabase}:{Environment.NewLine}{exception.Message}",
+                $"No se pudo abrir {gameDataPath}:{Environment.NewLine}{exception.Message}",
                 "NuevoMMO Editor",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning);

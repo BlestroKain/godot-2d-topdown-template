@@ -8,7 +8,6 @@ namespace NuevoMMO.Editor;
 partial class TilesetEditorForm
 {
     private IContainer? components;
-    private TextBox textureKeyTextBox = null!;
     private NumericUpDown tileWidthNumeric = null!;
     private NumericUpDown tileHeightNumeric = null!;
     private NumericUpDown autotileFramesNumeric = null!;
@@ -25,7 +24,6 @@ partial class TilesetEditorForm
     private void InitializeComponent()
     {
         components = new Container();
-        textureKeyTextBox = new TextBox();
         tileWidthNumeric = new NumericUpDown { Minimum = 2, Maximum = 256, Value = 32 };
         tileHeightNumeric = new NumericUpDown { Minimum = 2, Maximum = 256, Value = 32 };
         autotileFramesNumeric = new NumericUpDown { Minimum = 1, Maximum = 32, Value = 3 };
@@ -36,13 +34,12 @@ partial class TilesetEditorForm
         Name = "TilesetEditorForm";
         Text = "Tilesets";
         specificTabPage.Text = "Tileset";
-        AddSpecificRow(0, "TextureKey", textureKeyTextBox);
-        AddSpecificRow(1, "Tile ancho", tileWidthNumeric);
-        AddSpecificRow(2, "Tile alto", tileHeightNumeric);
-        AddSpecificRow(3, "Frames autotile", autotileFramesNumeric);
-        AddSpecificRow(4, "Autotile ms", autotileMsNumeric);
-        AddSpecificRow(5, "Frames waterfall", waterfallFramesNumeric);
-        AddSpecificRow(6, "Waterfall ms", waterfallMsNumeric);
+        AddSpecificRow(0, "Tile ancho", tileWidthNumeric);
+        AddSpecificRow(1, "Tile alto", tileHeightNumeric);
+        AddSpecificRow(2, "Frames autotile", autotileFramesNumeric);
+        AddSpecificRow(3, "Autotile ms", autotileMsNumeric);
+        AddSpecificRow(4, "Frames waterfall", waterfallFramesNumeric);
+        AddSpecificRow(5, "Waterfall ms", waterfallMsNumeric);
         ResumeLayout(false);
     }
 }

@@ -36,14 +36,22 @@ public static class CanonicalTraditions
     private static readonly IReadOnlyDictionary<DefinitionId, TraditionDefinition> ById =
         All.ToDictionary(static tradition => tradition.Id);
 
+    public static bool IsNovice(DefinitionId id) => id.IsEmpty;
+
     public static bool IsSelectable(DefinitionId id)
         => ById.TryGetValue(id, out var tradition) && tradition.Enabled;
+
+    /// <summary>
+    /// Create acepta Novicio (id vacío) o una Tradición publicada. Cualquier otro id se rechaza.
+    /// </summary>
+    public static bool IsValidAtCreate(DefinitionId id)
+        => IsNovice(id) || IsSelectable(id);
 
     public static bool TryGet(DefinitionId id, out TraditionDefinition tradition)
         => ById.TryGetValue(id, out tradition!);
 
     public static string DisplayName(DefinitionId id)
-        => TryGet(id, out var tradition) ? tradition.Name : id.IsEmpty ? "Sin tradición (legacy)" : "Tradición desconocida";
+        => IsNovice(id) ? "Novicio" : TryGet(id, out var tradition) ? tradition.Name : "Tradición desconocida";
 
     private static TraditionDefinition Create(string id, string key, string name, string description)
         => new(

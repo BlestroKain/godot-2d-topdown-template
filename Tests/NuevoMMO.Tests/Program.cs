@@ -32,6 +32,11 @@ async Task Until(Func<bool> ready, string name, int milliseconds = 8000)
     Check(ready(), name);
 }
 
+Check(CanonicalTraditions.IsNovice(DefinitionId.Empty), "Novicio = TraditionId vacío");
+Check(CanonicalTraditions.IsValidAtCreate(DefinitionId.Empty), "Create acepta Novicio");
+Check(CanonicalTraditions.DisplayName(DefinitionId.Empty) == "Novicio", "DisplayName Novicio");
+Check(!CanonicalTraditions.IsValidAtCreate(DefinitionId.New()), "Create rechaza tradición desconocida");
+Check(new CreateCharacterRequest(new(Guid.NewGuid()), "token", "Uno").TraditionId.IsEmpty, "CreateCharacterRequest nace Novicio");
 Check(AssetCatalog.Key(AssetKind.Item, "potion_hp").Value == "items.potion_hp", "AssetCatalog key de item");
 Check(AssetCatalog.RelativePath(AssetKind.Tileset, "grounds") == "tilesets/grounds.png", "AssetCatalog ruta tileset");
 Check(AssetCatalog.RelativePath(new ContentKey("items.potion_hp")) == "items/potion_hp.png", "AssetCatalog RelativePath ContentKey");

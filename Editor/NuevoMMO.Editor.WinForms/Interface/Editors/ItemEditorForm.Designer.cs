@@ -9,7 +9,6 @@ namespace NuevoMMO.Editor;
 partial class ItemEditorForm
 {
     private IContainer? components;
-    private TextBox visualKeyTextBox = null!;
     private ComboBox kindCombo = null!;
     private NumericUpDown rarityNumeric = null!;
     private NumericUpDown priceNumeric = null!;
@@ -39,7 +38,6 @@ partial class ItemEditorForm
     private void InitializeComponent()
     {
         components = new Container();
-        visualKeyTextBox = new TextBox();
         kindCombo = new ComboBox();
         rarityNumeric = new NumericUpDown { Maximum = 100 };
         priceNumeric = new NumericUpDown { Maximum = 1_000_000_000 };
@@ -69,26 +67,32 @@ partial class ItemEditorForm
         FillEnum<WeaponFamily>(weaponFamilyCombo);
         kindCombo.SelectedIndexChanged += (_, _) => UpdateEquipmentEnabled();
 
-        AddSpecificRow(0, "VisualKey", visualKeyTextBox);
-        AddSpecificRow(1, "Tipo", kindCombo);
-        AddSpecificRow(2, "Rareza", rarityNumeric);
-        AddSpecificRow(3, "Precio base", priceNumeric);
-        AddSpecificRow(4, "Apilable", stackableCheck);
-        AddSpecificRow(5, "Stack inventario", inventoryStackNumeric);
-        AddSpecificRow(6, "Stack banco", bankStackNumeric);
-        AddSpecificRow(7, "Tirar", canDropCheck);
-        AddSpecificRow(8, "Comerciar", canTradeCheck);
-        AddSpecificRow(9, "Vender", canSellCheck);
-        AddSpecificRow(10, "Banco", canBankCheck);
-        AddSpecificRow(11, "Drop al morir %", dropChanceNumeric);
-        AddSpecificRow(12, "Despawn suelo ms", groundDespawnNumeric);
-        AddSpecificRow(13, "Slot equipo", slotCombo);
-        AddSpecificRow(14, "Familia arma", weaponFamilyCombo);
-        AddSpecificRow(15, "Dos manos", twoHandedCheck);
-        AddSpecificRow(16, "Durabilidad máx", durabilityNumeric);
-        AddSpecificRow(17, "Restaura HP", restoreHealthNumeric);
-        AddSpecificRow(18, "Restaura PM", restoreManaNumeric);
-        AddSpecificRow(19, "STR equipo", strengthNumeric);
+        var economy = AddGroup("Economía");
+        AddGroupRow(economy, "Tipo", kindCombo);
+        AddGroupRow(economy, "Rareza", rarityNumeric);
+        AddGroupRow(economy, "Precio base", priceNumeric);
+        AddGroupRow(economy, "Apilable", stackableCheck);
+        AddGroupRow(economy, "Stack inventario", inventoryStackNumeric);
+        AddGroupRow(economy, "Stack banco", bankStackNumeric);
+
+        var permissions = AddGroup("Permisos");
+        AddGroupRow(permissions, "Tirar", canDropCheck);
+        AddGroupRow(permissions, "Comerciar", canTradeCheck);
+        AddGroupRow(permissions, "Vender", canSellCheck);
+        AddGroupRow(permissions, "Banco", canBankCheck);
+        AddGroupRow(permissions, "Drop al morir %", dropChanceNumeric);
+        AddGroupRow(permissions, "Despawn suelo ms", groundDespawnNumeric);
+
+        var equipment = AddGroup("Equipo");
+        AddGroupRow(equipment, "Slot", slotCombo);
+        AddGroupRow(equipment, "Familia arma", weaponFamilyCombo);
+        AddGroupRow(equipment, "Dos manos", twoHandedCheck);
+        AddGroupRow(equipment, "Durabilidad máx", durabilityNumeric);
+        AddGroupRow(equipment, "STR equipo", strengthNumeric);
+
+        var consumable = AddGroup("Consumible");
+        AddGroupRow(consumable, "Restaura HP", restoreHealthNumeric);
+        AddGroupRow(consumable, "Restaura PM", restoreManaNumeric);
         ResumeLayout(false);
     }
 }

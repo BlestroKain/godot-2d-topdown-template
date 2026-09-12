@@ -41,7 +41,7 @@ public sealed class GameConnection : IDisposable
         await LoginAsync(username, password);
         var list = await ListCharactersAsync();
         var character = list.Characters.Length == 0
-            ? (await CreateCharacterAsync(username, CanonicalTraditions.Veyrkan.Id, CanonicalCharacterAppearance.Default)).Character
+            ? (await CreateCharacterAsync(username, DefinitionId.Empty, CanonicalCharacterAppearance.Default)).Character
             : list.Characters[0];
         await EnterWorldAsync(character.Id);
     }
@@ -96,7 +96,7 @@ public sealed class GameConnection : IDisposable
     }
 
     public Task<CharacterCreated> CreateCharacterAsync(string name)
-        => CreateCharacterAsync(name, CanonicalTraditions.Veyrkan.Id, CanonicalCharacterAppearance.Default);
+        => CreateCharacterAsync(name, DefinitionId.Empty, CanonicalCharacterAppearance.Default);
 
     public Task<CharacterCreated> CreateCharacterAsync(string name, DefinitionId traditionId)
         => CreateCharacterAsync(name, traditionId, CanonicalCharacterAppearance.Default);
@@ -104,8 +104,8 @@ public sealed class GameConnection : IDisposable
     public async Task<CharacterCreated> CreateCharacterAsync(string name, DefinitionId traditionId, CharacterAppearance appearance)
     {
         DemandAuthenticatedLobby();
-        if (!CanonicalTraditions.IsSelectable(traditionId))
-            throw new ArgumentException("Tradición inválida o no seleccionable.", nameof(traditionId));
+        if (!CanonicalTraditions.IsValidAtCreate(traditionId))
+            throw new ArgumentException("Tradición inválida. Use Novicio (vacío) o una Tradición publicada.", nameof(traditionId));
         if (!CanonicalCharacterAppearance.IsSupported(appearance))
             throw new ArgumentException("Apariencia no publicada.", nameof(appearance));
         using var timeout = LobbyTimeout();

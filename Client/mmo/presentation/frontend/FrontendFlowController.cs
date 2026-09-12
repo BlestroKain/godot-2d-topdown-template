@@ -169,7 +169,7 @@ public partial class FrontendFlowController : CanvasLayer
         }
 
         GetNode<Label>("Root/ScreenStack/CharacterCreateScreen/Panel/Margin/Content/Rule").Text =
-            "Elige nombre y Tradición al crear el personaje. No hay selector de raza y el arma no define la clase.";
+            "El personaje nace Novicio. La Tradición es opcional y no otorga kit al crear. No hay selector de raza; el arma no define la clase.";
         GetNode<Label>("Root/ScreenStack/CharacterCreateScreen/Panel/Margin/Content/AppearanceNotice").Text =
             "El preview usa el renderer real. Cuerpo, rostro, cabello, ojos, orejas, cuernos, pigmentos y marcas ya tienen contrato persistente; se habilitan al publicar sus sprites.";
 
@@ -280,14 +280,12 @@ public partial class FrontendFlowController : CanvasLayer
             globalStatus.Text = "El nombre debe tener entre 2 y 24 caracteres.";
             return;
         }
-        if (selectedTradition is null)
-        {
-            globalStatus.Text = "Debes elegir una Tradición.";
-            return;
-        }
         waitingForCreatedCharacter = true;
-        network.CreateCharacter(name, selectedTradition.Id);
-        globalStatus.Text = $"Creando {name} · {selectedTradition.Name}…";
+        var traditionId = selectedTradition?.Id ?? default;
+        network.CreateCharacter(name, traditionId);
+        globalStatus.Text = selectedTradition is null
+            ? $"Creando {name} · Novicio…"
+            : $"Creando {name} · {selectedTradition.Name}…";
     }
 
     private void SelectTradition(TraditionDefinition tradition)
@@ -308,9 +306,9 @@ public partial class FrontendFlowController : CanvasLayer
         if (selectedTraditionName is not null)
             selectedTraditionName.Text = "Ninguna Tradición seleccionada";
         if (selectedTraditionDescription is not null)
-            selectedTraditionDescription.Text = "Selecciona una de las diez Tradiciones para continuar.";
+            selectedTraditionDescription.Text = "Opcional. Si no eliges, el personaje entra al mundo como Novicio.";
         if (createCharacterButton is not null)
-            createCharacterButton.Disabled = true;
+            createCharacterButton.Disabled = false;
     }
 
     private void EnterWorld()
@@ -420,9 +418,7 @@ public partial class FrontendFlowController : CanvasLayer
                 Text = $"{character.Name}\n{traditionName}",
                 CustomMinimumSize = new Vector2(0, 64),
                 FocusMode = Control.FocusModeEnum.All,
-                TooltipText = character.TraditionId.IsEmpty
-                    ? "Personaje creado antes de la selección de Tradición en creación."
-                    : traditionName
+                TooltipText = character.TraditionId.IsEmpty ? "Novicio" : traditionName
             };
             button.Pressed += () => SelectCharacter(character);
             characterList.AddChild(button);

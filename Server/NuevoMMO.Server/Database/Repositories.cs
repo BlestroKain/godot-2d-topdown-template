@@ -118,7 +118,7 @@ public sealed class InMemoryCharacterRepository : ICharacterRepository
         DefinitionId map,
         Vector2Data position,
         CancellationToken cancellationToken = default)
-        => CreateAsync(account, name, map, position, CanonicalTraditions.Veyrkan.Id, CanonicalCharacterAppearance.Default, cancellationToken);
+        => CreateAsync(account, name, map, position, DefinitionId.Empty, CanonicalCharacterAppearance.Default, cancellationToken);
 
     public Task<CharacterRecord> CreateAsync(
         AccountId account,

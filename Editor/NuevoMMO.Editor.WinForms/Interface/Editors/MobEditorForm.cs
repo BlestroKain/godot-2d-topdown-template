@@ -14,13 +14,14 @@ public partial class MobEditorForm : DefinitionEditorForm
         : base(application, DefinitionEditorDescriptors.Mobs)
     {
         InitializeComponent();
+        ConfigureVisual(AssetKind.Entity);
         FinishSetup();
     }
 
     protected override void BindSpecific(GameDefinition definition)
     {
         if (definition is not MobDefinition mob) return;
-        BindVisualKey(visualKeyTextBox, AssetKind.Entity, mob.VisualKey);
+        BindVisualPicker(mob.VisualKey);
         BindDefinitionCombo<LootTableDefinition>(lootTableCombo, mob.LootTableId);
         SelectEnum(lootModeCombo, mob.LootMode);
         aggressiveCheck.Checked = mob.Behavior.Aggressive;
@@ -54,7 +55,7 @@ public partial class MobEditorForm : DefinitionEditorForm
         vitals[VitalId.Mana] = (float)manaNumeric.Value;
         return new MobDefinition(
             id, key, name, description, enabled, version, tags,
-            ReadVisualKey(visualKeyTextBox, AssetKind.Entity),
+            ReadVisualPicker(),
             ReadDefinitionId(lootTableCombo),
             ReadEnum(lootModeCombo, mob.LootMode),
             new CreatureBehaviorDefinition(

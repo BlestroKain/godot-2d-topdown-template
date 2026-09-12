@@ -11,13 +11,14 @@ public partial class EffectEditorForm : DefinitionEditorForm
         : base(application, DefinitionEditorDescriptors.Effects)
     {
         InitializeComponent();
+        ConfigureVisual(AssetKind.Animation);
         FinishSetup();
     }
 
     protected override void BindSpecific(GameDefinition definition)
     {
         if (definition is not EffectDefinition effect) return;
-        BindVisualKey(visualKeyTextBox, AssetKind.Animation, effect.VisualKey);
+        BindVisualPicker(effect.VisualKey);
         SelectEnum(dispositionCombo, effect.Disposition);
         SetNumeric(durationNumeric, effect.Lifecycle.DurationMilliseconds);
         SetNumeric(tickNumeric, effect.Lifecycle.TickIntervalMilliseconds);
@@ -33,7 +34,7 @@ public partial class EffectEditorForm : DefinitionEditorForm
         var effect = current as EffectDefinition ?? throw new InvalidOperationException("La selección no es un Efecto.");
         return new EffectDefinition(
             id, key, name, description, enabled, version, tags,
-            ReadVisualKey(visualKeyTextBox, AssetKind.Animation),
+            ReadVisualPicker(),
             ReadEnum(dispositionCombo, effect.Disposition),
             new EffectLifecycleDefinition(
                 (int)durationNumeric.Value,

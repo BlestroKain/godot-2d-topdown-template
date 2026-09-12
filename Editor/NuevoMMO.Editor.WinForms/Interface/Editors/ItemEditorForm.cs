@@ -14,13 +14,14 @@ public partial class ItemEditorForm : DefinitionEditorForm
         : base(application, DefinitionEditorDescriptors.Items)
     {
         InitializeComponent();
+        ConfigureVisual(AssetKind.Item);
         FinishSetup();
     }
 
     protected override void BindSpecific(GameDefinition definition)
     {
         if (definition is not ItemDefinition item) return;
-        BindVisualKey(visualKeyTextBox, AssetKind.Item, item.VisualKey);
+        BindVisualPicker(item.VisualKey);
         SelectEnum(kindCombo, item.Kind);
         SetNumeric(rarityNumeric, item.Rarity);
         SetNumeric(priceNumeric, item.BasePrice);
@@ -95,7 +96,7 @@ public partial class ItemEditorForm : DefinitionEditorForm
 
         return new ItemDefinition(
             id, key, name, description, enabled, version, tags,
-            ReadVisualKey(visualKeyTextBox, AssetKind.Item),
+            ReadVisualPicker(),
             item.PropertyIds,
             kind,
             (int)rarityNumeric.Value,

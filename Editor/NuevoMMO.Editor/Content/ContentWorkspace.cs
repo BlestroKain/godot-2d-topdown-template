@@ -45,9 +45,17 @@ public sealed class ContentWorkspace
             throw new ArgumentException("PackageVersion requerido.", nameof(packageVersion));
         registry.Clear();
         PackageVersion = packageVersion.Trim();
-        CurrentPath = null;
         dirty.Clear();
         return Snapshot();
+    }
+
+    public void BindPath(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var fullPath = Path.GetFullPath(path);
+        if (!GameDatabase.IsDatabasePath(fullPath))
+            throw new InvalidDataException("El Editor guarda GameData en SQLite (game.db), no JSON.");
+        CurrentPath = fullPath;
     }
 
     public ContentPackage Save(string? path = null)

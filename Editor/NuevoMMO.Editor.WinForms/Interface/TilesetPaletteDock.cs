@@ -12,8 +12,6 @@ public sealed partial class TilesetPaletteDock : DockContent
 {
     private EditorApplication? application;
     private TilesetImageProvider? images;
-    private TilesetImporter? importer;
-
     public TilesetPaletteDock()
     {
         InitializeComponent();
@@ -27,7 +25,6 @@ public sealed partial class TilesetPaletteDock : DockContent
         };
         zoom.ValueChanged += (_, _) => surface.Zoom = (int)zoom.Value;
         surface.TileSelected += OnTileSelected;
-        importButton.Click += (_, _) => ImportTilesets();
     }
 
     public TilesetPaletteDock(EditorApplication application, TilesetImageProvider images)
@@ -35,7 +32,6 @@ public sealed partial class TilesetPaletteDock : DockContent
     {
         this.application = application ?? throw new ArgumentNullException(nameof(application));
         this.images = images ?? throw new ArgumentNullException(nameof(images));
-        importer = new TilesetImporter(application.Definitions, images);
         RefreshTilesets();
     }
 
@@ -58,15 +54,6 @@ public sealed partial class TilesetPaletteDock : DockContent
             if (index >= 0) tilesets.SelectedIndex = index;
         }
         tilesets.EndUpdate();
-    }
-
-    private void ImportTilesets()
-    {
-        if (application is null || importer is null) return;
-        var tileSize = application.Maps.Document?.TileSize ?? new Vector2IntData(32, 32);
-        var imported = importer.ImportClientTilesets(tileSize);
-        if (imported.Count > 0) application.Dirty.Mark();
-        RefreshTilesets();
     }
 
     private void SelectTileset()

@@ -9,7 +9,6 @@ namespace NuevoMMO.Editor;
 partial class EffectEditorForm
 {
     private IContainer? components;
-    private TextBox visualKeyTextBox = null!;
     private ComboBox dispositionCombo = null!;
     private NumericUpDown durationNumeric = null!;
     private NumericUpDown tickNumeric = null!;
@@ -26,7 +25,6 @@ partial class EffectEditorForm
     private void InitializeComponent()
     {
         components = new Container();
-        visualKeyTextBox = new TextBox();
         dispositionCombo = new ComboBox();
         durationNumeric = new NumericUpDown { Maximum = 3_600_000, Increment = 100 };
         tickNumeric = new NumericUpDown { Maximum = 3_600_000, Increment = 100 };
@@ -39,13 +37,12 @@ partial class EffectEditorForm
         specificTabPage.Text = "Efecto";
         FillEnum<EffectDisposition>(dispositionCombo);
         FillEnum<EffectStackPolicy>(stackPolicyCombo);
-        AddSpecificRow(0, "VisualKey", visualKeyTextBox);
-        AddSpecificRow(1, "Disposición", dispositionCombo);
-        AddSpecificRow(2, "Duración ms", durationNumeric);
-        AddSpecificRow(3, "Tick ms", tickNumeric);
-        AddSpecificRow(4, "Stacks", stackPolicyCombo);
-        AddSpecificRow(5, "Máx. stacks", maxStacksNumeric);
-        AddSpecificRow(6, "Disipable", dispellableCheck);
+        AddSpecificRow(0, "Disposición", dispositionCombo);
+        AddSpecificRow(1, "Duración ms", durationNumeric);
+        AddSpecificRow(2, "Tick ms", tickNumeric);
+        AddSpecificRow(3, "Stacks", stackPolicyCombo);
+        AddSpecificRow(4, "Máx. stacks", maxStacksNumeric);
+        AddSpecificRow(5, "Disipable", dispellableCheck);
         ResumeLayout(false);
     }
 }

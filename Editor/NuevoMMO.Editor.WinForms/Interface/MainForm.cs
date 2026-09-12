@@ -19,6 +19,7 @@ public sealed partial class MainForm : Form
     private readonly ProblemsDock problems;
     private readonly MapToolsDock mapTools;
     private readonly TilesetPaletteDock tilesetPalette;
+    private readonly MapGridDock mapGrid;
     private readonly MapEditorDocument mapDocument;
 
     public MainForm(EditorApplication application)
@@ -36,6 +37,7 @@ public sealed partial class MainForm : Form
         problems = new ProblemsDock();
         mapTools = new MapToolsDock();
         tilesetPalette = new TilesetPaletteDock(application, images);
+        mapGrid = new MapGridDock(application);
         mapDocument = new MapEditorDocument(application, images);
 
         contentExplorer.DefinitionActivated += OpenDefinition;
@@ -53,6 +55,7 @@ public sealed partial class MainForm : Form
             RefreshMapToolDefinitions(mapDocument.ActiveTool);
             properties.SelectedObject = definition;
             problems.SetProblems(ValidateProject(showMessage: false));
+            mapGrid.RefreshGrid();
             Text = "NuevoMMO Editor *";
         };
         mapTools.ToolSelected += tool =>
@@ -81,6 +84,13 @@ public sealed partial class MainForm : Form
         };
         mapDocument.SelectedObjectChanged += value => properties.SelectedObject = value;
         mapDocument.EditorNotice += SetStatus;
+        mapGrid.MapActivated += map =>
+        {
+            mapDocument.Open(map);
+            RefreshMapLayers();
+            mapGrid.RefreshGrid();
+        };
+        mapGrid.CreateRequested += CreateMapAt;
 
         WireDesignerEvents();
         EditorTheme.ApplyWindow(this);
@@ -94,10 +104,8 @@ public sealed partial class MainForm : Form
 
     private void WireDesignerEvents()
     {
-        fileNewMenuItem.Click += (_, _) => NewProject();
-        fileOpenMenuItem.Click += (_, _) => OpenContent();
-        fileSaveMenuItem.Click += (_, _) => SaveContent(saveAs: false);
-        fileSaveAsMenuItem.Click += (_, _) => SaveContent(saveAs: true);
+        fileReloadMenuItem.Click += (_, _) => ReloadContent();
+        fileSaveMenuItem.Click += (_, _) => SaveContent();
         fileExitMenuItem.Click += (_, _) => Close();
 
         editUndoMenuItem.Click += (_, _) => Undo();
@@ -105,7 +113,7 @@ public sealed partial class MainForm : Form
         editCopyMenuItem.Click += (_, _) => CopyMapSelection();
         editPasteMenuItem.Click += (_, _) => PasteMapSelection();
 
-        mapNewMenuItem.Click += (_, _) => CreateMap();
+        mapNewMenuItem.Click += (_, _) => mapGrid.Show(dockPanel, DockState.DockLeft);
         mapSaveMenuItem.Click += (_, _) => SaveCurrentMap();
         mapSelectMenuItem.Click += (_, _) => SetMapTool(MapEditorTool.Select);
         mapPaintMenuItem.Click += (_, _) => SetMapTool(MapEditorTool.PaintTile);
@@ -113,7 +121,6 @@ public sealed partial class MainForm : Form
         mapFillMenuItem.Click += (_, _) => SetMapTool(MapEditorTool.Fill);
         mapRectangleMenuItem.Click += (_, _) => SetMapTool(MapEditorTool.Rectangle);
         mapCollisionMenuItem.Click += (_, _) => SetMapTool(MapEditorTool.Collision);
-        mapImportTilesetsMenuItem.Click += (_, _) => ImportTilesets();
 
         contentItemsMenuItem.Click += (_, _) => definitionEditors.Open(typeof(ItemDefinition), dockPanel);
         contentMobsMenuItem.Click += (_, _) => definitionEditors.Open(typeof(MobDefinition), dockPanel);
@@ -132,20 +139,20 @@ public sealed partial class MainForm : Form
         contentItemPropertiesMenuItem.Click += (_, _) => definitionEditors.Open(typeof(ItemPropertyDefinition), dockPanel);
         contentTilesetsMenuItem.Click += (_, _) => definitionEditors.Open(typeof(TilesetDefinition), dockPanel);
 
+        viewWorldMenuItem.Click += (_, _) => mapGrid.Show(dockPanel, DockState.DockLeft);
         viewContentMenuItem.Click += (_, _) => contentExplorer.Show(dockPanel, DockState.DockRight);
         viewMapToolsMenuItem.Click += (_, _) => mapTools.Show(dockPanel, DockState.DockLeft);
-        viewTilesetsMenuItem.Click += (_, _) => tilesetPalette.Show(dockPanel, DockState.DockLeft);
+        viewTilesetsMenuItem.Click += (_, _) => tilesetPalette.Show(dockPanel, DockState.DockRight);
         viewPropertiesMenuItem.Click += (_, _) => properties.Show(dockPanel, DockState.DockRight);
-        viewProblemsMenuItem.Click += (_, _) => problems.Show(dockPanel, DockState.DockBottom);
+        viewProblemsMenuItem.Click += (_, _) => problems.Show(dockPanel, DockState.DockBottomAutoHide);
 
         toolsValidateMenuItem.Click += (_, _) => ValidateProject(showMessage: true);
 
-        toolNewButton.Click += (_, _) => NewProject();
-        toolOpenButton.Click += (_, _) => OpenContent();
-        toolSaveButton.Click += (_, _) => SaveContent(saveAs: false);
+        toolReloadButton.Click += (_, _) => ReloadContent();
+        toolSaveButton.Click += (_, _) => SaveContent();
         toolUndoButton.Click += (_, _) => Undo();
         toolRedoButton.Click += (_, _) => Redo();
-        toolNewMapButton.Click += (_, _) => CreateMap();
+        toolNewMapButton.Click += (_, _) => mapGrid.Show(dockPanel, DockState.DockLeft);
         toolPaintButton.Click += (_, _) => SetMapTool(MapEditorTool.PaintTile);
         toolEraseButton.Click += (_, _) => SetMapTool(MapEditorTool.EraseTile);
         toolCollisionButton.Click += (_, _) => SetMapTool(MapEditorTool.Collision);
@@ -154,63 +161,67 @@ public sealed partial class MainForm : Form
 
     private void InitializeDockLayout()
     {
-        mapTools.Show(dockPanel, DockState.DockLeft);
-        tilesetPalette.Show(dockPanel, DockState.DockLeft);
-        contentExplorer.Show(dockPanel, DockState.DockRight);
-        properties.Show(dockPanel, DockState.DockRight);
-        problems.Show(dockPanel, DockState.DockBottom);
+        dockPanel.DockLeftPortion = 0.22;
+        dockPanel.DockRightPortion = 0.28;
+        mapGrid.Show(dockPanel, DockState.DockLeft);
+        if (mapGrid.Pane is not null)
+            mapTools.Show(mapGrid.Pane, DockAlignment.Bottom, 0.42);
+        else
+            mapTools.Show(dockPanel, DockState.DockLeft);
+        tilesetPalette.Show(dockPanel, DockState.DockRight);
+        if (tilesetPalette.Pane is not null)
+            contentExplorer.Show(tilesetPalette.Pane, DockAlignment.Bottom, 0.48);
+        else
+            contentExplorer.Show(dockPanel, DockState.DockRight);
+        if (contentExplorer.Pane is not null)
+            properties.Show(contentExplorer.Pane, DockAlignment.Bottom, 0.42);
+        else
+            properties.Show(dockPanel, DockState.DockRight);
+        problems.Show(dockPanel, DockState.DockBottomAutoHide);
         mapDocument.Show(dockPanel, DockState.Document);
         RefreshMapToolDefinitions(mapDocument.ActiveTool);
+        SyncGraphics();
+        MapWorldGrid.AssignUniqueCells(application.Definitions);
+        mapGrid.RefreshGrid();
         ValidateProject(showMessage: false);
+        SetStatus($"GameData: {application.Content.CurrentPath ?? application.Configuration.ContentPath}");
     }
 
-    private void NewProject()
+    private void ReloadContent()
     {
         if (!ConfirmDiscardChanges()) return;
-        application.Content.New();
-        application.Maps.Close();
-        definitionEditors.RefreshOpenEditors();
-        contentExplorer.RefreshTree();
-        tilesetPalette.RefreshTilesets();
-        mapTools.ClearDefinitions();
-        properties.SelectedObject = null;
-        problems.SetProblems([]);
-        SetCleanTitle();
-        SetStatus("Proyecto nuevo.");
-    }
-
-    private void OpenContent()
-    {
-        if (!ConfirmDiscardChanges()) return;
-        using var dialog = new OpenFileDialog
-        {
-            Filter = GameDatabase.FileFilter,
-            FileName = GameDatabase.DefaultFileName,
-            CheckFileExists = true
-        };
-        if (dialog.ShowDialog(this) != DialogResult.OK) return;
-
+        var path = application.Configuration.ContentPath;
         try
         {
-            application.Content.Load(dialog.FileName);
             application.Maps.Close();
             images.Clear();
+            if (File.Exists(path))
+                application.Content.Load(path);
+            else
+            {
+                application.Content.New();
+                application.Content.BindPath(path);
+            }
+
+            MapWorldGrid.AssignUniqueCells(application.Definitions);
+            SyncGraphics();
             definitionEditors.RefreshOpenEditors();
             contentExplorer.RefreshTree();
             tilesetPalette.RefreshTilesets();
+            mapGrid.RefreshGrid();
             RefreshMapToolDefinitions(mapDocument.ActiveTool);
             properties.SelectedObject = null;
             ValidateProject(showMessage: false);
             SetCleanTitle();
-            SetStatus($"Contenido cargado: {dialog.FileName}");
+            SetStatus($"Recargado: {path}");
         }
         catch (Exception exception)
         {
-            MessageBox.Show(this, exception.Message, "No se pudo abrir", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, exception.Message, "No se pudo recargar", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
-    private void SaveContent(bool saveAs)
+    private void SaveContent()
     {
         try
         {
@@ -227,18 +238,7 @@ public sealed partial class MainForm : Form
                 if (proceed != DialogResult.Yes) return;
             }
 
-            string? path = saveAs ? null : application.Content.CurrentPath;
-            if (string.IsNullOrWhiteSpace(path))
-            {
-                using var dialog = new SaveFileDialog
-                {
-                    Filter = GameDatabase.FileFilter,
-                    FileName = GameDatabase.DefaultFileName
-                };
-                if (dialog.ShowDialog(this) != DialogResult.OK) return;
-                path = dialog.FileName;
-            }
-
+            var path = application.Content.CurrentPath ?? application.Configuration.ContentPath;
             application.Content.Save(path);
             SetCleanTitle();
             SetStatus($"Guardado: {path}");
@@ -249,33 +249,28 @@ public sealed partial class MainForm : Form
         }
     }
 
-    private void CreateMap()
+    private void CreateMapAt(int gridX, int gridY)
     {
-        var existing = application.Definitions.GetAll<MapDefinition>().Count;
-        var suffix = existing + 1;
-        ContentKey key;
-        do key = new ContentKey($"maps.map_{suffix++:000}");
-        while (application.Definitions.Contains(key));
+        try
+        {
+            var document = application.Maps.CreateAt(gridX, gridY);
+            mapDocument.Open(document.ToDefinition());
+            application.Content.Persist(document.ToDefinition());
+            foreach (var neighbor in new[] { document.NorthMapId, document.SouthMapId, document.WestMapId, document.EastMapId })
+            {
+                if (neighbor is { } id && application.Definitions.TryGet<MapDefinition>(id, out var map) && map is not null)
+                    application.Content.Persist(map);
+            }
 
-        var definition = new MapDefinition(
-            DefinitionId.New(),
-            key,
-            $"Map {existing + 1}",
-            string.Empty,
-            enabled: true,
-            version: 1,
-            tags: ["map"],
-            visualKey: new ContentKey("maps.default"),
-            bounds: new BoundsData(new(0, 0), new(960, 640)),
-            spawn: new Vector2Data(64, 64),
-            tileSize: new Vector2IntData(32, 32));
-
-        application.Maps.Create(definition);
-        mapDocument.Open(application.Maps.PreviewDefinition());
-        application.Dirty.Mark();
-        contentExplorer.RefreshTree();
-        RefreshMapLayers();
-        SetStatus($"Mapa creado: {definition.Name}");
+            contentExplorer.RefreshTree();
+            RefreshMapLayers();
+            mapGrid.RefreshGrid();
+            SetStatus($"Mapa creado en ({gridX},{gridY}): {document.Name}");
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(this, exception.Message, "No se pudo crear el mapa", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
     }
 
     private void OpenDefinition(GameDefinition definition)
@@ -284,6 +279,7 @@ public sealed partial class MainForm : Form
         {
             mapDocument.Open(map);
             RefreshMapLayers();
+            mapGrid.RefreshGrid();
             return;
         }
 
@@ -300,6 +296,7 @@ public sealed partial class MainForm : Form
         application.Content.Persist(map);
         contentExplorer.RefreshTree();
         RefreshMapLayers();
+        mapGrid.RefreshGrid();
     }
 
     private void RefreshMapLayers()
@@ -336,23 +333,22 @@ public sealed partial class MainForm : Form
         mapDocument.SelectedPlacementDefinitionId = mapTools.SelectedDefinitionId;
     }
 
-    private void ImportTilesets()
+    private void SyncGraphics()
     {
         var importer = new TilesetImporter(application.Definitions, images);
         var size = application.Maps.Document?.TileSize ?? new Vector2IntData(32, 32);
-        try
+        var imported = importer.ImportClientTilesets(size);
+        if (imported.Count == 0)
         {
-            var imported = importer.ImportClientTilesets(size);
-            if (imported.Count > 0) application.Dirty.Mark();
-            definitionEditors.RefreshOpenEditors();
             tilesetPalette.RefreshTilesets();
-            contentExplorer.RefreshTree();
-            SetStatus($"Tilesets importados: {imported.Count}");
+            return;
         }
-        catch (Exception exception)
-        {
-            MessageBox.Show(this, exception.Message, "Importar tilesets", MessageBoxButtons.OK, MessageBoxIcon.Error);
-        }
+
+        foreach (var tileset in imported)
+            application.Content.Persist(tileset);
+        tilesetPalette.RefreshTilesets();
+        contentExplorer.RefreshTree();
+        SetStatus($"Tilesets cargados: {imported.Count}");
     }
 
     private IReadOnlyList<string> ValidateProject(bool showMessage)

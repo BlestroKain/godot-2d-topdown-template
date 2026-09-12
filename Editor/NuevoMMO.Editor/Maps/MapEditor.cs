@@ -58,6 +58,72 @@ public sealed class MapEditor
         return document;
     }
 
+    public MapDocument CreateAt(int gridX, int gridY)
+    {
+        if (!MapWorldGrid.CanCreate(registry, gridX, gridY))
+            throw new InvalidOperationException($"No se puede crear un mapa en ({gridX},{gridY}).");
+
+        var existing = registry.GetAll<MapDefinition>().Count;
+        var suffix = existing + 1;
+        ContentKey key;
+        do key = new ContentKey($"maps.map_{suffix++:000}");
+        while (registry.Contains(key));
+
+        var north = MapWorldGrid.At(registry, gridX, gridY - 1);
+        var south = MapWorldGrid.At(registry, gridX, gridY + 1);
+        var west = MapWorldGrid.At(registry, gridX - 1, gridY);
+        var east = MapWorldGrid.At(registry, gridX + 1, gridY);
+
+        var definition = new MapDefinition(
+            DefinitionId.New(),
+            key,
+            $"Mapa {gridX},{gridY}",
+            string.Empty,
+            enabled: true,
+            version: 1,
+            tags: ["map"],
+            visualKey: new ContentKey("maps.default"),
+            bounds: new BoundsData(new(0, 0), new(960, 640)),
+            spawn: new Vector2Data(64, 64),
+            tileSize: new Vector2IntData(32, 32),
+            gridX: gridX,
+            gridY: gridY,
+            northMapId: north?.Id,
+            southMapId: south?.Id,
+            westMapId: west?.Id,
+            eastMapId: east?.Id);
+
+        var document = Create(definition);
+        LinkNeighbor(north, Direction.Down, definition.Id);
+        LinkNeighbor(south, Direction.Up, definition.Id);
+        LinkNeighbor(west, Direction.Right, definition.Id);
+        LinkNeighbor(east, Direction.Left, definition.Id);
+        if (Document is not null)
+        {
+            Document.NorthMapId = definition.NorthMapId;
+            Document.SouthMapId = definition.SouthMapId;
+            Document.WestMapId = definition.WestMapId;
+            Document.EastMapId = definition.EastMapId;
+        }
+
+        return document;
+    }
+
+    private void LinkNeighbor(MapDefinition? neighbor, Direction towardsNew, DefinitionId createdId)
+    {
+        if (neighbor is null) return;
+        var updated = MapWorldGrid.WithLink(neighbor, towardsNew, createdId);
+        definitions.Upsert(updated);
+        dirty.Mark();
+        if (Document is not null && Document.Id == updated.Id)
+        {
+            Document.NorthMapId = updated.NorthMapId;
+            Document.SouthMapId = updated.SouthMapId;
+            Document.WestMapId = updated.WestMapId;
+            Document.EastMapId = updated.EastMapId;
+        }
+    }
+
     public MapDefinition Save()
     {
         var map = RequireDocument().ToDefinition();

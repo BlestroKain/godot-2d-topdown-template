@@ -11,13 +11,14 @@ public partial class TechniqueEditorForm : DefinitionEditorForm
         : base(application, DefinitionEditorDescriptors.Techniques)
     {
         InitializeComponent();
+        ConfigureVisual(AssetKind.Spell);
         FinishSetup();
     }
 
     protected override void BindSpecific(GameDefinition definition)
     {
         if (definition is not TechniqueDefinition technique) return;
-        BindVisualKey(visualKeyTextBox, AssetKind.Spell, technique.VisualKey);
+        BindVisualPicker(technique.VisualKey);
         SelectEnum(elementCombo, technique.Element);
         SelectEnum(targetModeCombo, technique.Targeting.Mode);
         SetNumeric(rangeNumeric, (decimal)technique.Targeting.Range);
@@ -54,7 +55,7 @@ public partial class TechniqueEditorForm : DefinitionEditorForm
 
         return new TechniqueDefinition(
             id, key, name, description, enabled, version, tags,
-            ReadVisualKey(visualKeyTextBox, AssetKind.Spell),
+            ReadVisualPicker(),
             ReadEnum(elementCombo, technique.Element),
             new TechniqueTargetingDefinition(
                 ReadEnum(targetModeCombo, technique.Targeting.Mode),

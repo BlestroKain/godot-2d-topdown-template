@@ -11,13 +11,14 @@ public partial class TraditionEditorForm : DefinitionEditorForm
         : base(application, DefinitionEditorDescriptors.Traditions)
     {
         InitializeComponent();
+        ConfigureVisual(AssetKind.Entity);
         FinishSetup();
     }
 
     protected override void BindSpecific(GameDefinition definition)
     {
         if (definition is not TraditionDefinition tradition) return;
-        visualKeyTextBox.Text = tradition.VisualKey?.Value ?? string.Empty;
+        BindVisualPicker(tradition.VisualKey ?? default);
     }
 
     protected override GameDefinition? TryBuildFromFields(
@@ -27,7 +28,7 @@ public partial class TraditionEditorForm : DefinitionEditorForm
         var tradition = current as TraditionDefinition ?? throw new InvalidOperationException("La selección no es una Tradición.");
         return new TraditionDefinition(
             id, key, name, description, enabled, version, tags,
-            ReadOptionalContentKey(visualKeyTextBox),
+            ReadVisualPicker(required: false) is { IsEmpty: false } visual ? visual : null,
             tradition.Resource,
             tradition.Expressions,
             tradition.TechniqueUnlocks,

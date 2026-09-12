@@ -8,7 +8,6 @@ namespace NuevoMMO.Editor;
 partial class ResourceEditorForm
 {
     private IContainer? components;
-    private TextBox visualKeyTextBox = null!;
     private TextBox exhaustedVisualTextBox = null!;
     private ComboBox lootTableCombo = null!;
     private ComboBox professionCombo = null!;
@@ -27,7 +26,6 @@ partial class ResourceEditorForm
     private void InitializeComponent()
     {
         components = new Container();
-        visualKeyTextBox = new TextBox();
         exhaustedVisualTextBox = new TextBox();
         lootTableCombo = new ComboBox();
         professionCombo = new ComboBox();
@@ -40,15 +38,15 @@ partial class ResourceEditorForm
         Name = "ResourceEditorForm";
         Text = "Recursos";
         specificTabPage.Text = "Recurso";
-        AddSpecificRow(0, "VisualKey", visualKeyTextBox);
-        AddSpecificRow(1, "Visual agotado", exhaustedVisualTextBox);
-        AddSpecificRow(2, "Loot table", lootTableCombo);
-        AddSpecificRow(3, "Profesión", professionCombo);
-        AddSpecificRow(4, "Nivel profesión", professionLevelNumeric);
-        AddSpecificRow(5, "Herramienta", toolKeyTextBox);
-        AddSpecificRow(6, "Respawn ms", respawnNumeric);
-        AddSpecificRow(7, "Bloqueo disponible", blockAvailableCheck);
-        AddSpecificRow(8, "Bloqueo agotado", blockExhaustedCheck);
+        var harvest = AddGroup("Recolección");
+        AddGroupRow(harvest, "Visual agotado", exhaustedVisualTextBox);
+        AddGroupRow(harvest, "Loot table", lootTableCombo);
+        AddGroupRow(harvest, "Profesión", professionCombo);
+        AddGroupRow(harvest, "Nivel profesión", professionLevelNumeric);
+        AddGroupRow(harvest, "Herramienta", toolKeyTextBox);
+        AddGroupRow(harvest, "Respawn ms", respawnNumeric);
+        AddGroupRow(harvest, "Bloqueo disponible", blockAvailableCheck);
+        AddGroupRow(harvest, "Bloqueo agotado", blockExhaustedCheck);
         ResumeLayout(false);
     }
 }

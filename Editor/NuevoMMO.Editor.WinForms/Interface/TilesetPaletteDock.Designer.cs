@@ -15,7 +15,6 @@ partial class TilesetPaletteDock
     private ComboBox autotile = null!;
     private Label zoomLabel = null!;
     private NumericUpDown zoom = null!;
-    private Button importButton = null!;
     private Label selection = null!;
     private Panel scroller = null!;
     private TilesetPaletteSurface surface = null!;
@@ -35,7 +34,6 @@ partial class TilesetPaletteDock
         autotile = new ComboBox();
         zoomLabel = new Label();
         zoom = new NumericUpDown();
-        importButton = new Button();
         selection = new Label();
         scroller = new Panel();
         surface = new TilesetPaletteSurface();
@@ -69,10 +67,6 @@ partial class TilesetPaletteDock
         zoom.Value = 1;
         zoom.Width = 48;
 
-        importButton.AutoSize = true;
-        importButton.Name = "importButton";
-        importButton.Text = "Importar PNG";
-
         selection.AutoSize = true;
         selection.Name = "selection";
         selection.Padding = new Padding(6, 7, 0, 0);
@@ -82,7 +76,6 @@ partial class TilesetPaletteDock
         toolbar.Controls.Add(autotile);
         toolbar.Controls.Add(zoomLabel);
         toolbar.Controls.Add(zoom);
-        toolbar.Controls.Add(importButton);
         toolbar.Controls.Add(selection);
         toolbar.Dock = DockStyle.Top;
         toolbar.Height = 34;
