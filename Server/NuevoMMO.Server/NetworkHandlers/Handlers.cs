@@ -173,6 +173,7 @@ public sealed class CharacterSelectHandler(
         var player = world.Join(context.Session, loaded.Spawn);
         progression.Initialize(player, loaded.Progression, preserveVitals: false);
         persistence.RestoreInventory(player, record);
+        persistence.RestoreQuests(player, record);
         world.Systems?.Equipment.RepairInvalidEquipment(player);
         progression.Recalculate(player, preserveVitals: loaded.CurrentHealth is not null);
         if (loaded.CurrentHealth is not null || loaded.CurrentMana is not null)
