@@ -68,6 +68,10 @@ internal static class CombatLifecycleVerification
         map.Add(player);
         map.Add(mob);
 
+        var initialLevel = player.Level;
+        var initialExperience = player.Experience;
+        player.MarkSaved();
+
         DefeatResolution? defeat = null;
         systems.DefeatResolved += value => defeat = value;
         var action = new TechniqueActionDefinition(
@@ -81,8 +85,10 @@ internal static class CombatLifecycleVerification
         Check(!mob.IsAlive, "Combat lifecycle: técnica derrota al mob");
         Check(defeat is not null && defeat.RewardPlayer == player && defeat.ExperienceGranted == 100,
             "Combat lifecycle: resolución única entrega XP al atacante");
-        Check(player.Experience == 100 && player.DirtyState,
-            "Combat lifecycle: XP deja progreso marcado para autosave");
+        Check(player.Level != initialLevel || player.Experience != initialExperience,
+            "Combat lifecycle: recompensa modifica la progresión");
+        Check(player.DirtyState,
+            "Combat lifecycle: progreso XP queda marcado para autosave");
 
         systems.Advance(map, 101, 1);
         var groundDrops = map.Entities.All.OfType<WorldItem>().ToArray();
