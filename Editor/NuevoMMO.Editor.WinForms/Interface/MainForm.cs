@@ -75,6 +75,7 @@ public sealed partial class MainForm : Form
             properties.SelectedObject = document;
             RefreshMapLayers();
             RefreshMapToolDefinitions(mapDocument.ActiveTool);
+            mapGrid.RefreshGrid();
             SetStatus($"Mapa abierto: {document.Name}");
         };
         mapDocument.MapChanged += () =>
@@ -84,6 +85,7 @@ public sealed partial class MainForm : Form
         };
         mapDocument.SelectedObjectChanged += value => properties.SelectedObject = value;
         mapDocument.EditorNotice += SetStatus;
+        mapGrid.MapSelected += map => properties.SelectedObject = map;
         mapGrid.MapActivated += map =>
         {
             mapDocument.Open(map);
@@ -93,6 +95,7 @@ public sealed partial class MainForm : Form
         mapGrid.CreateRequested += CreateMapAt;
 
         WireDesignerEvents();
+        ConfigureClassicEditorShell();
         EditorTheme.ApplyWindow(this);
         Load += (_, _) =>
         {
@@ -113,7 +116,7 @@ public sealed partial class MainForm : Form
         editCopyMenuItem.Click += (_, _) => CopyMapSelection();
         editPasteMenuItem.Click += (_, _) => PasteMapSelection();
 
-        mapNewMenuItem.Click += (_, _) => mapGrid.Show(dockPanel, DockState.DockLeft);
+        mapNewMenuItem.Click += (_, _) => mapGrid.Show(dockPanel, DockState.DockRight);
         mapSaveMenuItem.Click += (_, _) => SaveCurrentMap();
         mapSelectMenuItem.Click += (_, _) => SetMapTool(MapEditorTool.Select);
         mapPaintMenuItem.Click += (_, _) => SetMapTool(MapEditorTool.PaintTile);
@@ -139,10 +142,10 @@ public sealed partial class MainForm : Form
         contentItemPropertiesMenuItem.Click += (_, _) => definitionEditors.Open(typeof(ItemPropertyDefinition), dockPanel);
         contentTilesetsMenuItem.Click += (_, _) => definitionEditors.Open(typeof(TilesetDefinition), dockPanel);
 
-        viewWorldMenuItem.Click += (_, _) => mapGrid.Show(dockPanel, DockState.DockLeft);
-        viewContentMenuItem.Click += (_, _) => contentExplorer.Show(dockPanel, DockState.DockRight);
+        viewWorldMenuItem.Click += (_, _) => mapGrid.Show(dockPanel, DockState.DockRight);
+        viewContentMenuItem.Click += (_, _) => contentExplorer.Show(dockPanel, DockState.DockRightAutoHide);
         viewMapToolsMenuItem.Click += (_, _) => mapTools.Show(dockPanel, DockState.DockLeft);
-        viewTilesetsMenuItem.Click += (_, _) => tilesetPalette.Show(dockPanel, DockState.DockRight);
+        viewTilesetsMenuItem.Click += (_, _) => tilesetPalette.Show(dockPanel, DockState.DockLeft);
         viewPropertiesMenuItem.Click += (_, _) => properties.Show(dockPanel, DockState.DockRight);
         viewProblemsMenuItem.Click += (_, _) => problems.Show(dockPanel, DockState.DockBottomAutoHide);
 
@@ -152,33 +155,81 @@ public sealed partial class MainForm : Form
         toolSaveButton.Click += (_, _) => SaveContent();
         toolUndoButton.Click += (_, _) => Undo();
         toolRedoButton.Click += (_, _) => Redo();
-        toolNewMapButton.Click += (_, _) => mapGrid.Show(dockPanel, DockState.DockLeft);
+        toolNewMapButton.Click += (_, _) => mapGrid.Show(dockPanel, DockState.DockRight);
         toolPaintButton.Click += (_, _) => SetMapTool(MapEditorTool.PaintTile);
         toolEraseButton.Click += (_, _) => SetMapTool(MapEditorTool.EraseTile);
         toolCollisionButton.Click += (_, _) => SetMapTool(MapEditorTool.Collision);
         toolValidateButton.Click += (_, _) => ValidateProject(showMessage: true);
     }
 
+    private void ConfigureClassicEditorShell()
+    {
+        mapMenuItem.Text = "&Mundo";
+        mapNewMenuItem.Text = "&Explorador de mundo";
+        contentMenuItem.Text = "&Editores";
+        viewContentMenuItem.Text = "Explorador de contenido";
+        viewMapToolsMenuItem.Text = "Herramientas del mapa";
+        viewTilesetsMenuItem.Text = "Paleta de tiles";
+
+        mainMenuStrip.Items.Clear();
+        mainMenuStrip.Items.AddRange([fileMenuItem, editMenuItem, viewMenuItem, mapMenuItem, contentMenuItem, toolsMenuItem]);
+
+        toolNewMapButton.Text = "Mundo";
+        toolPaintButton.Text = "Pintar";
+        toolEraseButton.Text = "Borrar";
+        toolCollisionButton.Text = "Colisión";
+
+        var selectButton = new ToolStripButton("Seleccionar") { DisplayStyle = ToolStripItemDisplayStyle.Text };
+        var fillButton = new ToolStripButton("Rellenar") { DisplayStyle = ToolStripItemDisplayStyle.Text };
+        var rectangleButton = new ToolStripButton("Rectángulo") { DisplayStyle = ToolStripItemDisplayStyle.Text };
+        selectButton.Click += (_, _) => SetMapTool(MapEditorTool.Select);
+        fillButton.Click += (_, _) => SetMapTool(MapEditorTool.Fill);
+        rectangleButton.Click += (_, _) => SetMapTool(MapEditorTool.Rectangle);
+
+        mainToolStrip.Items.Clear();
+        mainToolStrip.Items.AddRange([
+            toolReloadButton,
+            toolSaveButton,
+            new ToolStripSeparator(),
+            toolUndoButton,
+            toolRedoButton,
+            new ToolStripSeparator(),
+            toolNewMapButton,
+            new ToolStripSeparator(),
+            selectButton,
+            toolPaintButton,
+            toolEraseButton,
+            fillButton,
+            rectangleButton,
+            toolCollisionButton,
+            new ToolStripSeparator(),
+            toolValidateButton
+        ]);
+        mainToolStrip.Padding = new Padding(3, 1, 3, 1);
+        mainToolStrip.ShowItemToolTips = true;
+    }
+
     private void InitializeDockLayout()
     {
-        dockPanel.DockLeftPortion = 0.22;
-        dockPanel.DockRightPortion = 0.28;
-        mapGrid.Show(dockPanel, DockState.DockLeft);
+        dockPanel.DockLeftPortion = 0.25;
+        dockPanel.DockRightPortion = 0.22;
+
+        mapTools.Show(dockPanel, DockState.DockLeft);
+        if (mapTools.Pane is not null)
+            tilesetPalette.Show(mapTools.Pane, DockAlignment.Bottom, 0.66);
+        else
+            tilesetPalette.Show(dockPanel, DockState.DockLeft);
+
+        mapGrid.Show(dockPanel, DockState.DockRight);
         if (mapGrid.Pane is not null)
-            mapTools.Show(mapGrid.Pane, DockAlignment.Bottom, 0.42);
-        else
-            mapTools.Show(dockPanel, DockState.DockLeft);
-        tilesetPalette.Show(dockPanel, DockState.DockRight);
-        if (tilesetPalette.Pane is not null)
-            contentExplorer.Show(tilesetPalette.Pane, DockAlignment.Bottom, 0.48);
-        else
-            contentExplorer.Show(dockPanel, DockState.DockRight);
-        if (contentExplorer.Pane is not null)
-            properties.Show(contentExplorer.Pane, DockAlignment.Bottom, 0.42);
+            properties.Show(mapGrid.Pane, DockAlignment.Bottom, 0.48);
         else
             properties.Show(dockPanel, DockState.DockRight);
+
+        contentExplorer.Show(dockPanel, DockState.DockRightAutoHide);
         problems.Show(dockPanel, DockState.DockBottomAutoHide);
         mapDocument.Show(dockPanel, DockState.Document);
+
         RefreshMapToolDefinitions(mapDocument.ActiveTool);
         SyncGraphics();
         MapWorldGrid.AssignUniqueCells(application.Definitions);
